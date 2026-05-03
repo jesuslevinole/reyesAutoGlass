@@ -21,5 +21,6 @@ export interface SettingMenuOption {
   id: string;
   title: string;
   description: string;
-  icon: React.ReactNode;
+  icon: React.ElementType; 
+  route: string; 
 }

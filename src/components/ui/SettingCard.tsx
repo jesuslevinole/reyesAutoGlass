@@ -1,28 +1,47 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
-import styles from './SettingCard.module.css';
-// Agregamos la palabra clave 'type' después de import
-import { type SettingMenuOption } from '../../types/settings';
+import { useNavigate } from 'react-router-dom';
+import type { SettingMenuOption } from '../../types/settings';
 
-// Omitimos el id ya que no lo necesitamos para renderizar la UI visual de la tarjeta
-type SettingCardProps = Omit<SettingMenuOption, 'id'>;
+interface SettingCardProps {
+  option: SettingMenuOption;
+}
 
-export const SettingCard: React.FC<SettingCardProps> = ({ 
-  title, 
-  description, 
-  route, 
-  icon: Icon 
-}) => {
+export const SettingCard: React.FC<SettingCardProps> = ({ option }) => {
+  const navigate = useNavigate();
+  const { title, description, icon: Icon, route } = option;
+
   return (
-    <Link to={route} className={styles.cardLink}>
-      <div className={styles.iconContainer}>
-        {/* CORRECCIÓN: strokeWidth con W mayúscula */}
-        <Icon size={24} strokeWidth={1.75} />
+    <div 
+      onClick={() => navigate(route)}
+      className="card"
+      style={{ 
+        cursor: 'pointer', 
+        display: 'flex', 
+        alignItems: 'center', 
+        gap: '1.5rem',
+        transition: 'transform 0.2s, box-shadow 0.2s'
+      }}
+      onMouseOver={(e) => {
+        e.currentTarget.style.transform = 'translateY(-2px)';
+        e.currentTarget.style.boxShadow = 'var(--shadow-md)';
+      }}
+      onMouseOut={(e) => {
+        e.currentTarget.style.transform = 'translateY(0)';
+        e.currentTarget.style.boxShadow = 'var(--shadow-sm)';
+      }}
+    >
+      <div style={{ 
+        backgroundColor: '#F1F5F9', 
+        padding: '1rem', 
+        borderRadius: '12px',
+        color: 'var(--color-primary)'
+      }}>
+        <Icon size={28} />
       </div>
-      <div className={styles.textContainer}>
-        <h3 className={styles.title}>{title}</h3>
-        <p className={styles.description}>{description}</p>
+      <div>
+        <h4 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 600 }}>{title}</h4>
+        <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.9rem', color: 'var(--color-text-muted)' }}>{description}</p>
       </div>
-    </Link>
+    </div>
   );
 };
