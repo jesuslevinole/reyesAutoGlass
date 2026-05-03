@@ -16,3 +16,10 @@ export interface CatalogSchema {
   icon: React.ReactNode;
   fields: CatalogField[];
 }
+
+export interface SettingMenuOption {
+  id: string;
+  title: string;
+  description: string;
+  icon: React.ReactNode;
+}
