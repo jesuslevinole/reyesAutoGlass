@@ -1,0 +1,59 @@
+.container {
+  width: 100%;
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: 2rem;
+  animation: fadeIn 0.3s ease-in-out;
+}
+
+.header {
+  margin-bottom: 2.5rem;
+}
+
+.mainTitle {
+  font-size: 1.875rem;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0 0 0.5rem 0;
+}
+
+.subtitle {
+  font-size: 1rem;
+  color: #64748b;
+  margin: 0;
+}
+
+/* 
+  Estructura Grid:
+  Mobile-First -> 1 columna
+*/
+.settingsGrid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1.5rem;
+}
+
+/* Tablet -> 2 columnas */
+@media (min-width: 768px) {
+  .settingsGrid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* Desktop -> 3 columnas matemáticas */
+@media (min-width: 1024px) {
+  .settingsGrid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

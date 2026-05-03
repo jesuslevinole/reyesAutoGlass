@@ -1,0 +1,26 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
+:root {
+  /* Paleta de Colores Base */
+  --bg-body: #f8fafc;             /* Fondo gris claro general */
+  --bg-surface: #ffffff;          /* Fondo blanco para tarjetas y menús */
+  --color-primary: #0f172a;       /* Azul marino casi negro para textos fuertes */
+  --color-accent: #3b82f6;        /* Azul brillante para elementos activos/botones */
+  --color-border: #e2e8f0;        /* Gris suave para líneas divisorias */
+  --color-text-main: #334155;     /* Gris oscuro para textos principales */
+  --color-text-muted: #64748b;    /* Gris medio para descripciones y subtítulos */
+}
+
+/* Reseteo y configuración base */
+body {
+  margin: 0;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  background-color: var(--bg-body);
+  color: var(--color-text-main);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+}
