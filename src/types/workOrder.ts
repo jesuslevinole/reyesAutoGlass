@@ -1,3 +1,20 @@
+export interface WorkOrderPart {
+  type: 'Parts' | 'Services';
+  jobtype: string;
+  partNumber?: string;
+  nagsDescription?: string;
+  glassCost?: number;
+  hasPriceTier?: boolean;
+  priceTierName?: string;
+  priceTierAmount?: number;
+  hasCalibration?: boolean;
+  calibrationName?: string;
+  calibrationAmount?: number;
+  description?: string;
+  amount?: number;
+  note?: string;
+}
+
 export interface WorkOrderData {
   id: string;
   documentType: 'Quote' | 'Work Order';
@@ -39,4 +56,8 @@ export interface WorkOrderData {
   upsell: number;
   taxPercent: number;
   callDirection: 'IN' | 'OUT';
+  cashComeback?: number;
+  upsold?: number;
+  paid?: number;
+  parts?: WorkOrderPart[];
 }
