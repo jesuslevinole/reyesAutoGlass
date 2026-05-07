@@ -19,43 +19,52 @@ export const WorkOrderForm: React.FC<Props> = ({ data, requiredFields = {}, onCh
     jobtype: '',
     partNumber: '',
     nagsDescription: '',
-    glassCost: 0,
+    glassCost: '',
     hasPriceTier: false,
     priceTierName: '',
-    priceTierAmount: 0,
+    priceTierAmount: '',
     hasCalibration: false,
     calibrationName: '',
-    calibrationAmount: 0,
+    calibrationAmount: '',
     description: '',
-    amount: 0,
-    note: ''
+    amount: '',
+    note: '',
+    listPrice: '',
+    nagsDiscountRate: '',
+    nagsLaborHour: '',
+    pricePerHour: ''
   };
 
-  const [draftPart, setDraftPart] = useState(initialDraftPart);
+  const [draftPart, setDraftPart] = useState<any>(initialDraftPart);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    const { name, value, type } = e.target;
-    const finalValue = type === 'number' ? parseFloat(value) || 0 : value;
-    onChange(name as keyof WorkOrderData, finalValue);
+    const { name, value } = e.target;
+    onChange(name as keyof WorkOrderData, value);
   };
 
   const handleDraftChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    const { name, value, type } = e.target;
-    const finalValue = type === 'number' ? parseFloat(value) || 0 : value;
-    setDraftPart(prev => ({ ...prev, [name]: finalValue }));
+    const { name, value } = e.target;
+    setDraftPart((prev: any) => ({ ...prev, [name]: value }));
   };
 
   const toggleDraftBoolean = (field: 'hasPriceTier' | 'hasCalibration', value: boolean) => {
-    setDraftPart(prev => ({ ...prev, [field]: value }));
+    setDraftPart((prev: any) => ({ ...prev, [field]: value }));
   };
 
   const updatePartsAndTotals = (newParts: any[]) => {
-    const newSubtotalParts = newParts.reduce((sum, p) => p.type === 'Parts' ? sum + (p.glassCost || 0) : sum, 0);
-    const newSubtotalServices = newParts.reduce((sum, p) => p.type === 'Services' ? sum + (p.amount || 0) : sum, 0);
+    const newSubtotalParts = newParts.reduce((sum: number, p: any) => p.type === 'Parts' ? sum + (Number(p.glassCost) || 0) : sum, 0);
+    const newSubtotalServices = newParts.reduce((sum: number, p: any) => p.type === 'Services' ? sum + (Number(p.amount) || 0) : sum, 0);
+    const newTotalLabor = newParts.reduce((sum: number, p: any) => {
+      if (p.type === 'Parts') {
+        return sum + (p.hasPriceTier ? (Number(p.priceTierAmount) || 0) : 0) + (p.hasCalibration ? (Number(p.calibrationAmount) || 0) : 0);
+      }
+      return sum;
+    }, 0);
     
     onChange('parts', newParts);
     onChange('subtotalPart', newSubtotalParts);
     onChange('subtotalServices', newSubtotalServices);
+    onChange('totalLabor', newTotalLabor);
   };
 
   const savePart = () => {
@@ -99,11 +108,32 @@ export const WorkOrderForm: React.FC<Props> = ({ data, requiredFields = {}, onCh
     </label>
   );
 
-  const calculatedTax = ((data.subtotalPart || 0) + (data.subtotalMolding || 0)) * ((data.taxPercent || 0) / 100);
-  const calculatedTotal = (data.subtotalPart || 0) + (data.subtotalMolding || 0) + (data.subtotalServices || 0) + (data.totalLabor || 0) + (data.upsell || 0) + (data.kitFlatRate || 0) + calculatedTax;
-  const calculatedBalance = calculatedTotal - (data.paid || 0);
+  // Aseguramos que los valores base sean numéricos para evitar cálculos NaN
+  const subPart = Number(data.subtotalPart) || 0;
+  const subMolding = Number(data.subtotalMolding) || 0;
+  const subServices = Number(data.subtotalServices) || 0;
+  const totLabor = Number(data.totalLabor) || 0;
+  const taxPct = Number(data.taxPercent) || 0;
+  const upsell = Number(data.upsell) || 0;
+  const kitFlat = Number(data.kitFlatRate) || 0;
+  const paidAmt = Number(data.paid) || 0;
 
-  const draftTotalLabor = (draftPart.hasPriceTier ? (draftPart.priceTierAmount || 0) : 0) + (draftPart.hasCalibration ? (draftPart.calibrationAmount || 0) : 0);
+  // Cálculos principales
+  const calculatedTax = (subPart + subMolding) * (taxPct / 100);
+  const calculatedTotal = subPart + subMolding + subServices + totLabor + upsell + kitFlat + calculatedTax;
+  const calculatedBalance = calculatedTotal - paidAmt;
+
+  // Cálculos del borrador para Personal Parts
+  const draftTotalLabor = (draftPart.hasPriceTier ? (Number(draftPart.priceTierAmount) || 0) : 0) + (draftPart.hasCalibration ? (Number(draftPart.calibrationAmount) || 0) : 0);
+
+  // Cálculos del borrador para Insurance Parts
+  const draftListPrice = Number(draftPart.listPrice) || 0;
+  const draftNagsDiscountRate = Number(draftPart.nagsDiscountRate) || 0;
+  const draftPricePartInsurance = draftListPrice - (draftListPrice * (draftNagsDiscountRate / 100));
+
+  const draftNagsLaborHour = Number(draftPart.nagsLaborHour) || 0;
+  const draftPricePerHour = Number(draftPart.pricePerHour) || 0;
+  const draftTotalLaborHour = draftNagsLaborHour * draftPricePerHour;
 
   return (
     <>
@@ -134,6 +164,7 @@ export const WorkOrderForm: React.FC<Props> = ({ data, requiredFields = {}, onCh
             </button>
           </div>
 
+          {/* DOCUMENTO Y DETALLES */}
           <div className="card" style={{ padding: 0, overflow: 'hidden', border: '1px solid #E2E8F0', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)', marginBottom: '2rem' }}>
             <div style={{ backgroundColor: '#F8FAFC', padding: '1.2rem 1.5rem', borderBottom: '1px solid #E2E8F0', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
               <ClipboardList size={20} color="var(--color-primary)" />
@@ -196,7 +227,7 @@ export const WorkOrderForm: React.FC<Props> = ({ data, requiredFields = {}, onCh
                 </div>
                 <div className="form-group">
                   <label className="form-label">Long Trip</label>
-                  <input type="number" step="0.01" className="form-input" name="longTrip" value={data.longTrip || ''} onChange={handleChange} placeholder="Automático" style={{ backgroundColor: '#F1F5F9', cursor: 'not-allowed' }} disabled />
+                  <input type="number" step="any" className="form-input" name="longTrip" value={data.longTrip || ''} onChange={handleChange} placeholder="Automático" style={{ backgroundColor: '#F1F5F9', cursor: 'not-allowed' }} disabled />
                 </div>
 
                 <div className="form-group form-grid-full" style={{ marginTop: '0.5rem', paddingTop: '1.2rem', borderTop: '1px solid #F1F5F9' }}>
@@ -212,6 +243,7 @@ export const WorkOrderForm: React.FC<Props> = ({ data, requiredFields = {}, onCh
             </div>
           </div>
 
+          {/* INFORMACION DEL SEGURO */}
           {data.type === 'Insurance' && (
             <div className="card" style={{ padding: 0, overflow: 'hidden', border: '1px solid #E2E8F0', borderLeft: '4px solid var(--color-accent)', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)', marginBottom: '2rem' }}>
               <div style={{ backgroundColor: '#F8FAFC', padding: '1.2rem 1.5rem', borderBottom: '1px solid #E2E8F0', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
@@ -230,6 +262,7 @@ export const WorkOrderForm: React.FC<Props> = ({ data, requiredFields = {}, onCh
             </div>
           )}
 
+          {/* INFORMACION DEL VEHICULO & VIDRIOS */}
           <div className="card" style={{ padding: 0, overflow: 'hidden', border: '1px solid #E2E8F0', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)', marginBottom: '2rem' }}>
             <div style={{ backgroundColor: '#F8FAFC', padding: '1.2rem 1.5rem', borderBottom: '1px solid #E2E8F0', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
               <Car size={20} color="var(--color-primary)" />
@@ -273,8 +306,8 @@ export const WorkOrderForm: React.FC<Props> = ({ data, requiredFields = {}, onCh
                       <tbody>
                         {data.parts.map((p: any, idx: number) => {
                           const isPart = p.type === 'Parts';
-                          const costAmount = isPart ? p.glassCost : p.amount;
-                          const laborTotal = isPart ? ((p.hasPriceTier ? p.priceTierAmount : 0) + (p.hasCalibration ? p.calibrationAmount : 0)) : null;
+                          const costAmount = isPart ? Number(p.glassCost) : Number(p.amount);
+                          const laborTotal = isPart ? ((p.hasPriceTier ? Number(p.priceTierAmount) || 0 : 0) + (p.hasCalibration ? Number(p.calibrationAmount) || 0 : 0)) : null;
                           
                           const detailText = isPart 
                             ? `${p.partNumber || '-'} / ${p.nagsDescription || '-'}` 
@@ -314,6 +347,7 @@ export const WorkOrderForm: React.FC<Props> = ({ data, requiredFields = {}, onCh
             </div>
           </div>
 
+          {/* CLIENTE Y CITA */}
           <div className="card" style={{ padding: 0, overflow: 'hidden', border: '1px solid #E2E8F0', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)', marginBottom: '2rem' }}>
             <div style={{ backgroundColor: '#F8FAFC', padding: '1.2rem 1.5rem', borderBottom: '1px solid #E2E8F0', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
               <UserCog size={20} color="var(--color-primary)" />
@@ -358,6 +392,7 @@ export const WorkOrderForm: React.FC<Props> = ({ data, requiredFields = {}, onCh
             </div>
           </div>
 
+          {/* DESGLOSE FINANCIERO */}
           <div className="card" style={{ padding: 0, overflow: 'hidden', border: '1px solid #E2E8F0', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)', marginBottom: '2rem' }}>
             <div style={{ backgroundColor: '#F8FAFC', padding: '1.2rem 1.5rem', borderBottom: '1px solid #E2E8F0', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
               <Receipt size={20} color="var(--color-primary)" />
@@ -369,7 +404,7 @@ export const WorkOrderForm: React.FC<Props> = ({ data, requiredFields = {}, onCh
                   <FieldLabel text="Subtotal Parts" fieldKey="subtotalPart" />
                   <div className="input-group">
                     <span className="input-addon-btn" style={{ backgroundColor: '#F1F5F9', color: '#64748B' }}>$</span>
-                    <input type="text" className="form-input" value={(data.subtotalPart || 0).toFixed(2)} disabled style={{ backgroundColor: '#F1F5F9', color: '#64748B', cursor: 'not-allowed' }} />
+                    <input type="text" className="form-input" value={subPart.toFixed(2)} disabled style={{ backgroundColor: '#F1F5F9', color: '#64748B', cursor: 'not-allowed' }} />
                   </div>
                 </div>
                 
@@ -377,15 +412,15 @@ export const WorkOrderForm: React.FC<Props> = ({ data, requiredFields = {}, onCh
                   <FieldLabel text="Subtotal Services" fieldKey="subtotalServices" />
                   <div className="input-group">
                     <span className="input-addon-btn" style={{ backgroundColor: '#F1F5F9', color: '#64748B' }}>$</span>
-                    <input type="text" className="form-input" value={(data.subtotalServices || 0).toFixed(2)} disabled style={{ backgroundColor: '#F1F5F9', color: '#64748B', cursor: 'not-allowed' }} />
+                    <input type="text" className="form-input" value={subServices.toFixed(2)} disabled style={{ backgroundColor: '#F1F5F9', color: '#64748B', cursor: 'not-allowed' }} />
                   </div>
                 </div>
                 
                 <div className="form-group">
                   <FieldLabel text="Total Labor" fieldKey="totalLabor" />
                   <div className="input-group">
-                    <span className="input-addon-btn" style={{ backgroundColor: '#F8FAFC' }}>$</span>
-                    <input type="number" step="0.01" className="form-input" name="totalLabor" value={data.totalLabor || ''} onChange={handleChange} />
+                    <span className="input-addon-btn" style={{ backgroundColor: '#F1F5F9', color: '#64748B' }}>$</span>
+                    <input type="text" className="form-input" value={totLabor.toFixed(2)} disabled style={{ backgroundColor: '#F1F5F9', color: '#64748B', cursor: 'not-allowed' }} />
                   </div>
                 </div>
                 
@@ -395,14 +430,14 @@ export const WorkOrderForm: React.FC<Props> = ({ data, requiredFields = {}, onCh
                       <FieldLabel text="Deductible (Aseguranza)" fieldKey="deductible" />
                       <div className="input-group">
                         <span className="input-addon-btn" style={{ backgroundColor: '#F8FAFC' }}>$</span>
-                        <input type="number" step="0.01" className="form-input" name="deductible" value={data.deductible || ''} onChange={handleChange} />
+                        <input type="number" step="any" className="form-input" name="deductible" value={data.deductible || ''} onChange={handleChange} />
                       </div>
                     </div>
                     <div className="form-group">
                       <FieldLabel text="Kit Flat Rate (Aseguranza)" fieldKey="kitFlatRate" />
                       <div className="input-group">
                         <span className="input-addon-btn" style={{ backgroundColor: '#F8FAFC' }}>$</span>
-                        <input type="number" step="0.01" className="form-input" name="kitFlatRate" value={data.kitFlatRate || ''} onChange={handleChange} />
+                        <input type="number" step="any" className="form-input" name="kitFlatRate" value={data.kitFlatRate || ''} onChange={handleChange} />
                       </div>
                     </div>
                   </>
@@ -411,7 +446,7 @@ export const WorkOrderForm: React.FC<Props> = ({ data, requiredFields = {}, onCh
                 <div className="form-group">
                   <FieldLabel text="Tax %" fieldKey="taxPercent" />
                   <div className="input-group">
-                    <input type="number" step="0.01" className="form-input" name="taxPercent" value={data.taxPercent || ''} onChange={handleChange} />
+                    <input type="number" step="any" className="form-input" name="taxPercent" value={data.taxPercent || ''} onChange={handleChange} />
                     <span className="input-addon-btn" style={{ backgroundColor: '#F8FAFC' }}>%</span>
                   </div>
                 </div>
@@ -428,7 +463,7 @@ export const WorkOrderForm: React.FC<Props> = ({ data, requiredFields = {}, onCh
                   <FieldLabel text="Cash Comeback" fieldKey="cashComeback" />
                   <div className="input-group">
                     <span className="input-addon-btn" style={{ backgroundColor: '#F8FAFC' }}>$</span>
-                    <input type="number" step="0.01" className="form-input" name="cashComeback" value={data.cashComeback || ''} onChange={handleChange} />
+                    <input type="number" step="any" className="form-input" name="cashComeback" value={data.cashComeback || ''} onChange={handleChange} />
                   </div>
                 </div>
                 
@@ -436,7 +471,7 @@ export const WorkOrderForm: React.FC<Props> = ({ data, requiredFields = {}, onCh
                   <FieldLabel text="Upsold" fieldKey="upsold" />
                   <div className="input-group">
                     <span className="input-addon-btn" style={{ backgroundColor: '#F8FAFC' }}>$</span>
-                    <input type="number" step="0.01" className="form-input" name="upsold" value={data.upsold || ''} onChange={handleChange} />
+                    <input type="number" step="any" className="form-input" name="upsold" value={data.upsold || ''} onChange={handleChange} />
                   </div>
                 </div>
                 
@@ -444,7 +479,7 @@ export const WorkOrderForm: React.FC<Props> = ({ data, requiredFields = {}, onCh
                   <FieldLabel text="Upsell" fieldKey="upsell" />
                   <div className="input-group">
                     <span className="input-addon-btn" style={{ backgroundColor: '#F8FAFC' }}>$</span>
-                    <input type="number" step="0.01" className="form-input" name="upsell" value={data.upsell || ''} onChange={handleChange} />
+                    <input type="number" step="any" className="form-input" name="upsell" value={data.upsell || ''} onChange={handleChange} />
                   </div>
                 </div>
                 
@@ -452,7 +487,7 @@ export const WorkOrderForm: React.FC<Props> = ({ data, requiredFields = {}, onCh
                   <FieldLabel text="Paid" fieldKey="paid" />
                   <div className="input-group">
                     <span className="input-addon-btn" style={{ backgroundColor: '#F8FAFC' }}>$</span>
-                    <input type="number" step="0.01" className="form-input" name="paid" value={data.paid || ''} onChange={handleChange} />
+                    <input type="number" step="any" className="form-input" name="paid" value={data.paid || ''} onChange={handleChange} />
                   </div>
                 </div>
                 
@@ -479,88 +514,161 @@ export const WorkOrderForm: React.FC<Props> = ({ data, requiredFields = {}, onCh
         </div>
       </div>
 
+      {/* MODAL DE SUBFORMULARIO A 3 COLUMNAS */}
       {isAddingPart && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(15, 23, 42, 0.6)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div className="card" style={{ width: '90%', maxWidth: '700px', maxHeight: '90vh', display: 'flex', flexDirection: 'column', padding: 0, overflow: 'hidden' }}>
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(15, 23, 42, 0.65)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(4px)' }}>
+          <div className="card" style={{ width: '90%', maxWidth: '850px', maxHeight: '90vh', display: 'flex', flexDirection: 'column', padding: 0, overflow: 'hidden', boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)' }}>
             
             <div style={{ padding: '1.5rem', borderBottom: '1px solid var(--color-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#F8FAFC' }}>
-              <h3 style={{ margin: 0, fontSize: '1.2rem' }}>
-                {editingPartIndex !== null ? 'Editar Registro' : 'Nueva Parte / Servicio'}
-              </h3>
-              <button onClick={cancelPart} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--color-text-muted)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <Layers size={22} color="var(--color-primary)" />
+                <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 700, color: '#1E293B' }}>
+                  {editingPartIndex !== null ? 'Editar Registro' : 'Nueva Parte / Servicio'}
+                </h3>
+              </div>
+              <button onClick={cancelPart} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#94A3B8', padding: '0.4rem', borderRadius: '50%', transition: 'background-color 0.2s' }} onMouseOver={e => e.currentTarget.style.backgroundColor = '#E2E8F0'} onMouseOut={e => e.currentTarget.style.backgroundColor = 'transparent'}>
                 <X size={24} />
               </button>
             </div>
 
-            <div style={{ padding: '1.5rem', overflowY: 'auto' }}>
-              <div className="form-grid">
-                <div className="form-group form-grid-full">
-                  <label className="form-label">Type</label>
-                  <div className="segmented-control" style={{ maxWidth: '300px' }}>
+            <div style={{ padding: '2rem 1.5rem', overflowY: 'auto' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1.2rem', alignItems: 'start' }}>
+                
+                <div className="form-group" style={{ gridColumn: '1 / -1', marginBottom: '0.5rem' }}>
+                  <label className="form-label" style={{ fontSize: '0.9rem', color: '#64748B', fontWeight: 600 }}>Tipo de Registro</label>
+                  <div className="segmented-control" style={{ maxWidth: '400px' }}>
                     <label className={`segmented-item ${draftPart.type === 'Parts' ? 'active' : ''}`}><input type="radio" name="type" value="Parts" checked={draftPart.type === 'Parts'} onChange={handleDraftChange} style={{ display: 'none' }} />Parts</label>
                     <label className={`segmented-item ${draftPart.type === 'Services' ? 'active' : ''}`}><input type="radio" name="type" value="Services" checked={draftPart.type === 'Services'} onChange={handleDraftChange} style={{ display: 'none' }} />Services</label>
                   </div>
                 </div>
 
-                {draftPart.type === 'Parts' && data.type === 'Personal' ? (
+                {draftPart.type === 'Parts' && data.type === 'Insurance' ? (
                   <>
-                    <div className="form-group"><label className="form-label">Jobtype</label><input type="text" className="form-input" name="jobtype" value={draftPart.jobtype} onChange={handleDraftChange} /></div>
-                    <div className="form-group"><label className="form-label">Part Number</label><input type="text" className="form-input" name="partNumber" value={draftPart.partNumber || ''} onChange={handleDraftChange} /></div>
-                    <div className="form-group form-grid-full"><label className="form-label">Nags Description</label><input type="text" className="form-input" name="nagsDescription" value={draftPart.nagsDescription || ''} onChange={handleDraftChange} /></div>
+                    <div className="form-group">
+                      <label className="form-label">Jobtype</label>
+                      <input type="text" className="form-input" name="jobtype" value={draftPart.jobtype || ''} onChange={handleDraftChange} />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">Part Number</label>
+                      <input type="text" className="form-input" name="partNumber" value={draftPart.partNumber || ''} onChange={handleDraftChange} />
+                    </div>
                     <div className="form-group">
                       <label className="form-label">Glass Cost</label>
                       <div className="input-group">
                         <span className="input-addon-btn" style={{ backgroundColor: '#F8FAFC' }}>$</span>
-                        <input type="number" step="0.01" className="form-input" name="glassCost" value={draftPart.glassCost || ''} onChange={handleDraftChange} />
+                        <input type="number" step="any" className="form-input" name="glassCost" value={draftPart.glassCost || ''} onChange={handleDraftChange} />
                       </div>
                     </div>
 
-                    <div className="form-group form-grid-full" style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid #F1F5F9' }}>
-                      <label className="form-label" style={{ marginBottom: '0.8rem' }}>Price Tier</label>
-                      <div className="segmented-control" style={{ maxWidth: '200px', marginBottom: '1rem' }}>
-                        <label className={`segmented-item ${draftPart.hasPriceTier ? 'active' : ''}`}><input type="radio" checked={draftPart.hasPriceTier} onChange={() => toggleDraftBoolean('hasPriceTier', true)} style={{ display: 'none' }} />Sí</label>
-                        <label className={`segmented-item ${!draftPart.hasPriceTier ? 'active' : ''}`}><input type="radio" checked={!draftPart.hasPriceTier} onChange={() => toggleDraftBoolean('hasPriceTier', false)} style={{ display: 'none' }} />No</label>
+                    <div className="form-group">
+                      <label className="form-label">List Price</label>
+                      <div className="input-group">
+                        <span className="input-addon-btn" style={{ backgroundColor: '#F8FAFC' }}>$</span>
+                        <input type="number" step="any" className="form-input" name="listPrice" value={draftPart.listPrice || ''} onChange={handleDraftChange} />
                       </div>
-                      {draftPart.hasPriceTier && (
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
-                          <div><label className="form-label">Nombre Price Tier</label><input type="text" className="form-input" name="priceTierName" value={draftPart.priceTierName || ''} onChange={handleDraftChange} /></div>
-                          <div>
-                            <label className="form-label">Monto Price Tier</label>
-                            <div className="input-group">
-                              <span className="input-addon-btn" style={{ backgroundColor: '#F8FAFC' }}>$</span>
-                              <input type="number" step="0.01" className="form-input" name="priceTierAmount" value={draftPart.priceTierAmount || ''} onChange={handleDraftChange} />
-                            </div>
-                          </div>
-                        </div>
-                      )}
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">Nags Discount Rate</label>
+                      <div className="input-group">
+                        <span className="input-addon-btn" style={{ backgroundColor: '#F8FAFC' }}>%</span>
+                        <input type="number" step="any" className="form-input" name="nagsDiscountRate" value={draftPart.nagsDiscountRate || ''} onChange={handleDraftChange} />
+                      </div>
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">Price Part Insurance</label>
+                      <div className="input-group">
+                        <span className="input-addon-btn" style={{ backgroundColor: '#F1F5F9' }}>$</span>
+                        <input type="text" className="form-input" value={draftPricePartInsurance.toFixed(2)} disabled style={{ backgroundColor: '#F1F5F9', color: '#64748B', cursor: 'not-allowed' }} />
+                      </div>
                     </div>
 
-                    <div className="form-group form-grid-full" style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid #F1F5F9' }}>
-                      <label className="form-label" style={{ marginBottom: '0.8rem' }}>Calibration Type</label>
-                      <div className="segmented-control" style={{ maxWidth: '200px', marginBottom: '1rem' }}>
-                        <label className={`segmented-item ${draftPart.hasCalibration ? 'active' : ''}`}><input type="radio" checked={draftPart.hasCalibration} onChange={() => toggleDraftBoolean('hasCalibration', true)} style={{ display: 'none' }} />Sí</label>
-                        <label className={`segmented-item ${!draftPart.hasCalibration ? 'active' : ''}`}><input type="radio" checked={!draftPart.hasCalibration} onChange={() => toggleDraftBoolean('hasCalibration', false)} style={{ display: 'none' }} />No</label>
+                    <div className="form-group">
+                      <label className="form-label">Nags Labor Hour</label>
+                      <input type="number" step="any" className="form-input" name="nagsLaborHour" value={draftPart.nagsLaborHour || ''} onChange={handleDraftChange} />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">Price For Hour</label>
+                      <div className="input-group">
+                        <span className="input-addon-btn" style={{ backgroundColor: '#F8FAFC' }}>$</span>
+                        <input type="number" step="any" className="form-input" name="pricePerHour" value={draftPart.pricePerHour || ''} onChange={handleDraftChange} />
                       </div>
-                      {draftPart.hasCalibration && (
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
-                          <div><label className="form-label">Nombre Calibración</label><input type="text" className="form-input" name="calibrationName" value={draftPart.calibrationName || ''} onChange={handleDraftChange} /></div>
-                          <div>
-                            <label className="form-label">Monto Calibración</label>
-                            <div className="input-group">
-                              <span className="input-addon-btn" style={{ backgroundColor: '#F8FAFC' }}>$</span>
-                              <input type="number" step="0.01" className="form-input" name="calibrationAmount" value={draftPart.calibrationAmount || ''} onChange={handleDraftChange} />
-                            </div>
-                          </div>
-                        </div>
-                      )}
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">Total Labor Hour</label>
+                      <div className="input-group">
+                        <span className="input-addon-btn" style={{ backgroundColor: '#F1F5F9' }}>$</span>
+                        <input type="text" className="form-input" value={draftTotalLaborHour.toFixed(2)} disabled style={{ backgroundColor: '#F1F5F9', color: '#64748B', cursor: 'not-allowed' }} />
+                      </div>
+                    </div>
+                  </>
+                ) : draftPart.type === 'Parts' && data.type === 'Personal' ? (
+                  <>
+                    <div className="form-group"><label className="form-label">Jobtype</label><input type="text" className="form-input" name="jobtype" value={draftPart.jobtype} onChange={handleDraftChange} /></div>
+                    <div className="form-group"><label className="form-label">Part Number</label><input type="text" className="form-input" name="partNumber" value={draftPart.partNumber || ''} onChange={handleDraftChange} /></div>
+                    <div className="form-group"><label className="form-label">Nags Description</label><input type="text" className="form-input" name="nagsDescription" value={draftPart.nagsDescription || ''} onChange={handleDraftChange} /></div>
+                    
+                    <div className="form-group">
+                      <label className="form-label">Glass Cost</label>
+                      <div className="input-group">
+                        <span className="input-addon-btn" style={{ backgroundColor: '#F8FAFC' }}>$</span>
+                        <input type="number" step="any" className="form-input" name="glassCost" value={draftPart.glassCost || ''} onChange={handleDraftChange} />
+                      </div>
                     </div>
 
-                    <div className="form-group form-grid-full" style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid #E2E8F0' }}>
-                      <label className="form-label" style={{ color: 'var(--color-primary)', fontWeight: 700 }}>Total Labor (Parte)</label>
+                    <div className="form-group">
+                      <label className="form-label" style={{ color: 'var(--color-primary)', fontWeight: 700 }}>Total Labor (Calculado)</label>
                       <div className="input-group">
                         <span className="input-addon-btn" style={{ backgroundColor: '#DBEAFE', color: '#1E40AF', fontWeight: 'bold', border: 'none' }}>$</span>
                         <input type="text" className="form-input" value={draftTotalLabor.toFixed(2)} disabled style={{ backgroundColor: '#EFF6FF', color: '#1E40AF', fontWeight: 'bold', border: 'none', cursor: 'not-allowed' }} />
                       </div>
+                    </div>
+
+                    <div>{/* Espaciador visual para cerrar la segunda fila */}</div>
+
+                    <div className="form-group" style={{ gridColumn: '1 / -1', padding: '1.2rem', backgroundColor: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: '8px', margin: '0.5rem 0' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: draftPart.hasPriceTier ? '1rem' : '0' }}>
+                        <label className="form-label" style={{ margin: 0, fontWeight: 700, color: '#334155' }}>Añadir Price Tier</label>
+                        <div className="segmented-control" style={{ margin: 0, width: '160px' }}>
+                          <label className={`segmented-item ${draftPart.hasPriceTier ? 'active' : ''}`} style={{ padding: '0.3rem 0.5rem', fontSize: '0.85rem' }}><input type="radio" checked={draftPart.hasPriceTier} onChange={() => toggleDraftBoolean('hasPriceTier', true)} style={{ display: 'none' }} />Sí</label>
+                          <label className={`segmented-item ${!draftPart.hasPriceTier ? 'active' : ''}`} style={{ padding: '0.3rem 0.5rem', fontSize: '0.85rem' }}><input type="radio" checked={!draftPart.hasPriceTier} onChange={() => toggleDraftBoolean('hasPriceTier', false)} style={{ display: 'none' }} />No</label>
+                        </div>
+                      </div>
+                      
+                      {draftPart.hasPriceTier && (
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1.5rem', borderTop: '1px solid #E2E8F0', paddingTop: '1.2rem' }}>
+                          <div style={{ gridColumn: '1 / span 2' }}><label className="form-label">Nombre del Price Tier</label><input type="text" className="form-input" name="priceTierName" value={draftPart.priceTierName || ''} onChange={handleDraftChange} placeholder="Ej. Premium Urethane" /></div>
+                          <div>
+                            <label className="form-label">Monto Price Tier</label>
+                            <div className="input-group">
+                              <span className="input-addon-btn" style={{ backgroundColor: 'white' }}>$</span>
+                              <input type="number" step="any" className="form-input" name="priceTierAmount" value={draftPart.priceTierAmount || ''} onChange={handleDraftChange} />
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="form-group" style={{ gridColumn: '1 / -1', padding: '1.2rem', backgroundColor: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: '8px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: draftPart.hasCalibration ? '1rem' : '0' }}>
+                        <label className="form-label" style={{ margin: 0, fontWeight: 700, color: '#334155' }}>Añadir Calibración</label>
+                        <div className="segmented-control" style={{ margin: 0, width: '160px' }}>
+                          <label className={`segmented-item ${draftPart.hasCalibration ? 'active' : ''}`} style={{ padding: '0.3rem 0.5rem', fontSize: '0.85rem' }}><input type="radio" checked={draftPart.hasCalibration} onChange={() => toggleDraftBoolean('hasCalibration', true)} style={{ display: 'none' }} />Sí</label>
+                          <label className={`segmented-item ${!draftPart.hasCalibration ? 'active' : ''}`} style={{ padding: '0.3rem 0.5rem', fontSize: '0.85rem' }}><input type="radio" checked={!draftPart.hasCalibration} onChange={() => toggleDraftBoolean('hasCalibration', false)} style={{ display: 'none' }} />No</label>
+                        </div>
+                      </div>
+                      
+                      {draftPart.hasCalibration && (
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1.5rem', borderTop: '1px solid #E2E8F0', paddingTop: '1.2rem' }}>
+                          <div style={{ gridColumn: '1 / span 2' }}><label className="form-label">Nombre de Calibración</label><input type="text" className="form-input" name="calibrationName" value={draftPart.calibrationName || ''} onChange={handleDraftChange} placeholder="Ej. ADAS Static" /></div>
+                          <div>
+                            <label className="form-label">Monto Calibración</label>
+                            <div className="input-group">
+                              <span className="input-addon-btn" style={{ backgroundColor: 'white' }}>$</span>
+                              <input type="number" step="any" className="form-input" name="calibrationAmount" value={draftPart.calibrationAmount || ''} onChange={handleDraftChange} />
+                            </div>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </>
                 ) : draftPart.type === 'Services' && data.type === 'Personal' ? (
@@ -569,35 +677,40 @@ export const WorkOrderForm: React.FC<Props> = ({ data, requiredFields = {}, onCh
                       <label className="form-label">Jobtype</label>
                       <input type="text" className="form-input" name="jobtype" value={draftPart.jobtype} onChange={handleDraftChange} />
                     </div>
-                    <div className="form-group form-grid-full">
-                      <label className="form-label">Description</label>
-                      <input type="text" className="form-input" name="description" value={draftPart.description || ''} onChange={handleDraftChange} />
-                    </div>
                     <div className="form-group">
                       <label className="form-label">Amount</label>
                       <div className="input-group">
                         <span className="input-addon-btn" style={{ backgroundColor: '#F8FAFC' }}>$</span>
-                        <input type="number" step="0.01" className="form-input" name="amount" value={draftPart.amount || ''} onChange={handleDraftChange} />
+                        <input type="number" step="any" className="form-input" name="amount" value={draftPart.amount || ''} onChange={handleDraftChange} />
                       </div>
                     </div>
-                    <div className="form-group form-grid-full">
+                    <div>{/* Espaciador */}</div>
+
+                    <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+                      <label className="form-label">Description</label>
+                      <input type="text" className="form-input" name="description" value={draftPart.description || ''} onChange={handleDraftChange} />
+                    </div>
+                    
+                    <div className="form-group" style={{ gridColumn: '1 / -1' }}>
                       <label className="form-label">Note</label>
-                      <input type="text" className="form-input" name="note" value={draftPart.note || ''} onChange={handleDraftChange} />
+                      <input type="text" className="form-input" name="note" value={draftPart.note || ''} onChange={handleDraftChange} placeholder="Notas adicionales..." />
                     </div>
                   </>
                 ) : (
-                  <div className="form-group form-grid-full">
-                    <p style={{ fontSize: '0.85rem', color: '#64748B', fontStyle: 'italic', padding: '1rem', backgroundColor: '#F8FAFC', borderRadius: '6px' }}>
-                      Los detalles específicos se habilitarán según el tipo de orden y aseguradora.
+                  <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+                    <p style={{ fontSize: '0.9rem', color: '#64748B', fontStyle: 'italic', padding: '1.5rem', backgroundColor: '#F8FAFC', borderRadius: '8px', border: '1px solid #E2E8F0', textAlign: 'center' }}>
+                      Asegúrese de haber seleccionado el tipo de documento adecuado.
                     </p>
                   </div>
                 )}
               </div>
             </div>
 
-            <div style={{ padding: '1.5rem', borderTop: '1px solid var(--color-border)', display: 'flex', justifyContent: 'flex-end', gap: '1rem', backgroundColor: '#F8FAFC' }}>
-              <button type="button" className="btn btn-secondary" onClick={cancelPart}>Cancelar</button>
-              <button type="button" className="btn btn-primary" onClick={savePart}>Guardar {draftPart.type === 'Parts' ? 'Parte' : 'Servicio'}</button>
+            <div style={{ padding: '1.5rem 2rem', borderTop: '1px solid var(--color-border)', display: 'flex', justifyContent: 'flex-end', gap: '1rem', backgroundColor: '#F8FAFC' }}>
+              <button type="button" className="btn btn-secondary" onClick={cancelPart} style={{ padding: '0.6rem 1.5rem' }}>Cancelar</button>
+              <button type="button" className="btn btn-primary" onClick={savePart} style={{ padding: '0.6rem 1.5rem', boxShadow: '0 4px 6px -1px rgba(14, 165, 233, 0.3)' }}>
+                Guardar {draftPart.type === 'Parts' ? 'Parte' : 'Servicio'}
+              </button>
             </div>
 
           </div>

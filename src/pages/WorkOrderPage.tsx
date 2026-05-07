@@ -1,6 +1,4 @@
 import React, { useState } from 'react';
-import { collection, addDoc } from 'firebase/firestore';
-import { db } from '../firebase';
 import { WorkOrderForm } from '../components/work-order/WorkOrderForm';
 import { WorkOrderSummary } from '../components/work-order/WorkOrderSummary';
 import { WorkOrderTable } from '../components/work-order/WorkOrderTable';
@@ -33,11 +31,13 @@ const fieldLabelsMap: Record<string, string> = {
   referral: 'Referencia (Seguro)',
   policyHolder: 'Titular de la Póliza',
   policyAddress: 'Dirección de la Póliza',
-  deductible: 'Deducible'
+  deductible: 'Deducible (Aseguranza)',
+  kitFlatRate: 'Kit Flat Rate (Aseguranza)'
 };
 
 export const WorkOrderPage: React.FC = () => {
-  const [activeView, setActiveView] = useState<'list' | 'create'>('create');
+  // Cambio clave aquí: Iniciamos en 'list' en lugar de 'create'
+  const [activeView, setActiveView] = useState<'list' | 'create'>('list');
   const [workOrdersList, setWorkOrdersList] = useState<WorkOrderData[]>([]);
 
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
@@ -61,7 +61,7 @@ export const WorkOrderPage: React.FC = () => {
     timeStart: '', timeEnd: '', insuranceCarrier: '', policyId: '', referral: '', 
     policyHolder: '', policyAddress: '', agent: '', subtotalPart: 0, subtotalMolding: 0, 
     subtotalServices: 0, totalLabor: 0, deductible: 0, kitFlatRate: 0, upsell: 0, 
-    taxPercent: 7, callDirection: 'IN'
+    taxPercent: 7, callDirection: 'IN', parts: []
   };
 
   const [currentWorkOrder, setCurrentWorkOrder] = useState<WorkOrderData>(initialWorkOrderState);
@@ -70,29 +70,27 @@ export const WorkOrderPage: React.FC = () => {
     setCurrentWorkOrder((prev: WorkOrderData) => ({ ...prev, [field]: value }));
   };
 
-  const handleSave = async () => {
+  const handleSave = () => {
+    // 1. VALIDACIÓN: Buscamos si faltan campos obligatorios
+    const missingFields: string[] = [];
+    for (const key of Object.keys(requiredFields)) {
+      if (requiredFields[key]) {
+        const val = currentWorkOrder[key as keyof WorkOrderData];
+        if (val === undefined || val === null || val === '') {
+          missingFields.push(fieldLabelsMap[key] || key);
+        }
+      }
+    }
+
+    // 2. Si faltan campos, detenemos la ejecución y mostramos la alerta
+    if (missingFields.length > 0) {
+      alert(`⚠️ No se puede guardar el documento.\nFaltan los siguientes campos obligatorios:\n\n- ${missingFields.join('\n- ')}`);
+      return;
+    }
+
     const customerDisplayName = currentWorkOrder.customerType === 'New' 
       ? `${currentWorkOrder.firstName} ${currentWorkOrder.lastName}`.trim() 
       : currentWorkOrder.customer;
-
-    if (currentWorkOrder.customerType === 'New') {
-      try {
-        const dateOptions: Intl.DateTimeFormatOptions = { year: 'numeric', month: 'long', day: 'numeric' };
-        const formattedDate = new Date().toLocaleDateString('es-ES', dateOptions);
-        
-        await addDoc(collection(db, 'customers'), {
-          firstName: currentWorkOrder.firstName,
-          lastName: currentWorkOrder.lastName,
-          phone: currentWorkOrder.phone,
-          altPhone: currentWorkOrder.altPhone,
-          email: currentWorkOrder.email,
-          address: currentWorkOrder.address,
-          createdAt: formattedDate
-        });
-      } catch (error) {
-        console.error(error);
-      }
-    }
 
     const newWoWithId: WorkOrderData = {
       ...currentWorkOrder,

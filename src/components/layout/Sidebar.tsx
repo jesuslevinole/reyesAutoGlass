@@ -1,6 +1,6 @@
 import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { FileText, Users, LogOut, Settings, ChevronLeft, ChevronRight } from 'lucide-react';
+import { FileText, Users, LogOut, Settings, ChevronLeft, ChevronRight, Briefcase } from 'lucide-react';
 
 interface SidebarProps { 
   isCollapsed: boolean; 
@@ -50,6 +50,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, onToggle }) => {
             isCollapsed={isCollapsed} 
             active={location.pathname.includes('/customers')} 
             onClick={() => handleNavigation('/customers')} 
+          />
+          <MenuItem 
+            icon={<Briefcase size={20} />} 
+            label="Equipo" 
+            isCollapsed={isCollapsed} 
+            active={location.pathname.includes('/equipo')} 
+            onClick={() => handleNavigation('/equipo')} 
           />
         </nav>
       </div>
