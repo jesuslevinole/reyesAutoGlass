@@ -244,7 +244,7 @@ export const EquipoTrabajo = () => {
 
                   <div className="form-group" style={{ margin: 0 }}>
                     <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                      <Phone size={14} /> Phone (Teléfono Principal)
+                      <Phone size={14} /> Phone 
                     </label>
                     <input type="tel" className="form-control" name="phone" value={formData.phone} onChange={handleChange} placeholder="(000) 000-0000" style={{ borderRadius: '8px', padding: '0.7rem', width: '100%', border: '1px solid #CBD5E1' }} />
                   </div>
