@@ -36,11 +36,12 @@ const fieldLabelsMap: Record<string, string> = {
 };
 
 export const WorkOrderPage: React.FC = () => {
-  // Cambio clave aquí: Iniciamos en 'list' en lugar de 'create'
   const [activeView, setActiveView] = useState<'list' | 'create'>('list');
   const [workOrdersList, setWorkOrdersList] = useState<WorkOrderData[]>([]);
 
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
+  
+  // Configuración de campos obligatorios
   const [requiredFields, setRequiredFields] = useState<Record<string, boolean>>({
     date: true, company: false, agent: false, zipcode: true,
     year: true, mark: true, model: true, body: false, vinNumber: false, plate: false,
@@ -123,43 +124,48 @@ export const WorkOrderPage: React.FC = () => {
             onChange={handleFieldChange} 
             onOpenSettings={() => setIsSettingsModalOpen(true)}
           />
-          <WorkOrderSummary data={currentWorkOrder} onSave={handleSave} onCancel={handleCancel} />
+          <WorkOrderSummary 
+            data={currentWorkOrder} 
+            onSave={handleSave} 
+            onCancel={handleCancel} 
+          />
         </div>
       )}
 
+      {/* Modal de Configuración de Campos Obligatorios */}
       {isSettingsModalOpen && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(15, 23, 42, 0.6)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div className="card" style={{ width: '90%', maxWidth: '600px', maxHeight: '90vh', display: 'flex', flexDirection: 'column', padding: 0, overflow: 'hidden' }}>
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(15, 23, 42, 0.6)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(4px)' }}>
+          <div className="card animate-in zoom-in-95" style={{ width: '90%', maxWidth: '700px', maxHeight: '90vh', display: 'flex', flexDirection: 'column', padding: 0, overflow: 'hidden', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)' }}>
             
             <div style={{ padding: '1.5rem', borderBottom: '1px solid var(--color-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#F8FAFC' }}>
               <div>
-                <h3 style={{ margin: 0, fontSize: '1.2rem' }}>Configuración de Formulario</h3>
-                <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>Seleccione los campos que serán obligatorios.</p>
+                <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 700, color: '#1E293B' }}>Configuración de Formulario</h3>
+                <p style={{ margin: '0.2rem 0 0 0', fontSize: '0.85rem', color: '#64748B' }}>Seleccione qué campos serán de llenado obligatorio al guardar la orden.</p>
               </div>
-              <button onClick={() => setIsSettingsModalOpen(false)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--color-text-muted)' }}>
+              <button onClick={() => setIsSettingsModalOpen(false)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#94A3B8', padding: '0.4rem', borderRadius: '50%', transition: 'background-color 0.2s' }} onMouseOver={e => e.currentTarget.style.backgroundColor = '#E2E8F0'} onMouseOut={e => e.currentTarget.style.backgroundColor = 'transparent'}>
                 <X size={24} />
               </button>
             </div>
 
-            <div style={{ padding: '1.5rem', overflowY: 'auto', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.2rem' }}>
+            <div style={{ padding: '2rem 1.5rem', overflowY: 'auto', display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '1.2rem' }}>
               {Object.keys(requiredFields).map(key => (
-                <label key={key} style={{ display: 'flex', alignItems: 'center', gap: '0.8rem', cursor: 'pointer', padding: '0.5rem', borderRadius: '6px', backgroundColor: requiredFields[key] ? '#EFF6FF' : 'transparent', border: '1px solid', borderColor: requiredFields[key] ? '#BFDBFE' : 'var(--color-border)', transition: 'all 0.2s' }}>
+                <label key={key} style={{ display: 'flex', alignItems: 'center', gap: '0.8rem', cursor: 'pointer', padding: '0.8rem 1rem', borderRadius: '8px', backgroundColor: requiredFields[key] ? '#EFF6FF' : 'white', border: '1px solid', borderColor: requiredFields[key] ? '#BFDBFE' : '#E2E8F0', transition: 'all 0.2s' }}>
                   <input 
                     type="checkbox" 
                     checked={requiredFields[key]} 
                     onChange={() => handleToggleRequired(key)} 
-                    style={{ width: '16px', height: '16px', accentColor: 'var(--color-primary)' }}
+                    style={{ width: '18px', height: '18px', accentColor: '#2563EB', cursor: 'pointer' }}
                   />
-                  <span style={{ fontSize: '0.9rem', fontWeight: 500, color: requiredFields[key] ? 'var(--color-primary)' : 'var(--color-text-main)' }}>
+                  <span style={{ fontSize: '0.9rem', fontWeight: 600, color: requiredFields[key] ? '#1E40AF' : '#475569' }}>
                     {fieldLabelsMap[key] || key}
                   </span>
                 </label>
               ))}
             </div>
 
-            <div style={{ padding: '1.5rem', borderTop: '1px solid var(--color-border)', display: 'flex', justifyContent: 'flex-end', backgroundColor: '#F8FAFC' }}>
-              <button className="btn btn-primary" onClick={() => setIsSettingsModalOpen(false)}>
-                <Save size={18} /> Guardar Configuración
+            <div style={{ padding: '1.5rem 2rem', borderTop: '1px solid var(--color-border)', display: 'flex', justifyContent: 'flex-end', backgroundColor: '#F8FAFC' }}>
+              <button className="btn btn-primary" onClick={() => setIsSettingsModalOpen(false)} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.7rem 1.5rem', boxShadow: '0 4px 6px -1px rgba(29, 140, 248, 0.3)' }}>
+                <Save size={18} /> Guardar Cambios
               </button>
             </div>
           </div>
