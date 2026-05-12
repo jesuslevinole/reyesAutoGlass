@@ -1,6 +1,6 @@
 import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { FileText, Users, LogOut, Settings, ChevronLeft, ChevronRight, Briefcase } from 'lucide-react';
+import { FileText, Users, LogOut, Settings, ChevronLeft, ChevronRight, Briefcase, CalendarDays } from 'lucide-react';
 
 interface SidebarProps { 
   isCollapsed: boolean; 
@@ -24,19 +24,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, onToggle }) => {
       transition: 'width 0.3s ease', zIndex: 5
     }}>
       <div>
-        <div style={{ padding: '1.5rem 1.2rem', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-          <div style={{ display: 'flex', gap: '0.8rem', alignItems: 'center', justifyContent: isCollapsed ? 'center' : 'flex-start' }}>
-            <div style={{ background: 'var(--color-primary)', color: 'white', padding: '0.4rem', borderRadius: '4px', fontWeight: 'bold', fontSize: '0.8rem' }}>SP</div>
-            {!isCollapsed && (
-              <div style={{ lineHeight: '1.2' }}>
-                <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>Service Portal</div>
-                <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>Industrial Ops</div>
-              </div>
-            )}
-          </div>
-        </div>
-
-        <nav style={{ padding: '0 0.8rem', display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+        <nav style={{ padding: '2rem 0.8rem 0 0.8rem', display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+          {/* ORDENES DE TRABAJO */}
           <MenuItem 
             icon={<FileText size={20} />} 
             label="Work Orders" 
@@ -44,6 +33,17 @@ export const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, onToggle }) => {
             active={location.pathname.includes('/work-orders')} 
             onClick={() => handleNavigation('/work-orders')} 
           />
+
+          {/* CALENDARIO */}
+          <MenuItem 
+            icon={<CalendarDays size={20} />} 
+            label="Calendario" 
+            isCollapsed={isCollapsed} 
+            active={location.pathname.includes('/calendar')} 
+            onClick={() => handleNavigation('/calendar')} 
+          />
+
+          {/* CLIENTES */}
           <MenuItem 
             icon={<Users size={20} />} 
             label="Customers" 
@@ -51,6 +51,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, onToggle }) => {
             active={location.pathname.includes('/customers')} 
             onClick={() => handleNavigation('/customers')} 
           />
+
+          {/* EQUIPO */}
           <MenuItem 
             icon={<Briefcase size={20} />} 
             label="Equipo" 

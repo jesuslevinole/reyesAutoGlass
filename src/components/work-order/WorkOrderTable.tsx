@@ -5,11 +5,11 @@ import type { WorkOrderData } from '../../types/workOrder';
 interface Props {
   data: WorkOrderData[];
   onNew: () => void;
+  onEdit?: (order: WorkOrderData) => void;
 }
 
-// Identificadores para TODOS los campos del formulario
 type ColumnId = 
-  | 'documentType' | 'type' | 'date' | 'status' | 'company' | 'agent' | 'zipcode' 
+  | 'id' | 'documentType' | 'type' | 'date' | 'status' | 'company' | 'agent' | 'zipcode' 
   | 'longTrip' | 'callDirection' | 'insuranceCarrier' | 'policyId' | 'referral' 
   | 'policyHolder' | 'policyAddress' | 'year' | 'mark' | 'model' | 'body' 
   | 'vinNumber' | 'plate' | 'customer' | 'phone' | 'altPhone' | 'email' 
@@ -22,16 +22,15 @@ interface ColumnConfig {
   isVisible: boolean;
 }
 
-export const WorkOrderTable: React.FC<Props> = ({ data, onNew }) => {
+export const WorkOrderTable: React.FC<Props> = ({ data, onNew, onEdit }) => {
   const [docFilter, setDocFilter] = useState<'All' | 'Quote' | 'Work Order'>('All');
   const [payFilter, setPayFilter] = useState<'All' | 'Personal' | 'Insurance'>('All');
   const [showColumnSettings, setShowColumnSettings] = useState(false);
-  
-  // Estado para controlar el elemento que se está arrastrando
   const [draggedItemIndex, setDraggedItemIndex] = useState<number | null>(null);
 
-  // Configuración de TODOS los campos
+  // ID añadido al principio
   const [columns, setColumns] = useState<ColumnConfig[]>([
+    { id: 'id', label: 'ID', isVisible: true },
     { id: 'customer', label: 'CLIENTE', isVisible: true },
     { id: 'company', label: 'COMPAÑÍA', isVisible: true },
     { id: 'vehicle', label: 'VEHÍCULO (A/M/M)', isVisible: true },
@@ -76,7 +75,6 @@ export const WorkOrderTable: React.FC<Props> = ({ data, onNew }) => {
     } catch (e) { return dateStr; }
   };
 
-  // --- LÓGICAS DE DRAG AND DROP ---
   const handleDragStart = (e: React.DragEvent<HTMLDivElement>, index: number) => {
     setDraggedItemIndex(index);
     e.dataTransfer.effectAllowed = 'move';
@@ -89,19 +87,13 @@ export const WorkOrderTable: React.FC<Props> = ({ data, onNew }) => {
 
     const newColumns = [...columns];
     const draggedItem = newColumns[draggedItemIndex];
-    
-    // Eliminar el item arrastrado de su posición original
     newColumns.splice(draggedItemIndex, 1);
-    // Insertarlo en la nueva posición
     newColumns.splice(targetIndex, 0, draggedItem);
-
     setDraggedItemIndex(targetIndex);
     setColumns(newColumns);
   };
 
-  const handleDragEnd = () => {
-    setDraggedItemIndex(null);
-  };
+  const handleDragEnd = () => setDraggedItemIndex(null);
 
   const moveColumn = (index: number, direction: 'up' | 'down') => {
     const newColumns = [...columns];
@@ -113,7 +105,6 @@ export const WorkOrderTable: React.FC<Props> = ({ data, onNew }) => {
     setColumns(newColumns);
   };
 
-  // RENDERIZADO DINÁMICO DE CELDAS SEGÚN SELECCIÓN
   const renderCell = (colId: ColumnId, order: WorkOrderData) => {
     const totalBase = (Number(order.subtotalPart) || 0) + (Number(order.subtotalMolding) || 0) + (Number(order.subtotalServices) || 0) + (Number(order.totalLabor) || 0);
     const tax = totalBase * (Number(order.taxPercent) || 0) / 100;
@@ -121,6 +112,7 @@ export const WorkOrderTable: React.FC<Props> = ({ data, onNew }) => {
     const balance = finalTotal - (Number(order.paid) || 0);
 
     switch (colId) {
+      case 'id': return <td key={colId} style={{ fontWeight: 700, color: order.documentType === 'Quote' ? '#EF4444' : '#3B82F6', whiteSpace: 'nowrap' }}>{order.id}</td>;
       case 'customer': return <td key={colId} style={{ fontWeight: 600 }}>{order.customer || `${order.firstName} ${order.lastName}`}</td>;
       case 'company': return <td key={colId} style={{ color: 'var(--color-text-muted)' }}>{order.company || '-'}</td>;
       case 'vehicle': return <td key={colId}>{order.year} {order.mark} {order.model}</td>;
@@ -149,7 +141,7 @@ export const WorkOrderTable: React.FC<Props> = ({ data, onNew }) => {
         <td key={colId} style={{ textAlign: 'right' }}>
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.4rem' }}>
             <button className="btn-secondary" style={{ padding: '0.3rem' }}><Eye size={14} /></button>
-            <button className="btn-secondary" style={{ padding: '0.3rem' }}><Edit2 size={14} /></button>
+            <button className="btn-secondary" onClick={() => onEdit && onEdit(order)} style={{ padding: '0.3rem' }}><Edit2 size={14} /></button>
           </div>
         </td>
       );
@@ -160,8 +152,8 @@ export const WorkOrderTable: React.FC<Props> = ({ data, onNew }) => {
   const visibleColumns = columns.filter(c => c.isVisible);
 
   return (
-    <div style={{ flex: 1, padding: '2.5rem', overflowY: 'auto' }}>
-      <div style={{ maxWidth: '1300px', margin: '0 auto' }}>
+    <div style={{ flex: 1, padding: '2.5rem', overflowY: 'auto', width: '100%', boxSizing: 'border-box' }}>
+      <div style={{ width: '100%' }}>
         
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
           <h2 style={{ fontSize: '1.8rem', fontWeight: 800 }}>Work Orders Historial</h2>
@@ -173,17 +165,13 @@ export const WorkOrderTable: React.FC<Props> = ({ data, onNew }) => {
           </div>
         </div>
 
-        {/* BARRA DE FILTROS */}
         <div className="card" style={{ padding: '1rem 1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div style={{ display: 'flex', gap: '2rem', alignItems: 'center' }}>
-            
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--color-text-muted)' }}>
               <Filter size={18} />
               <span style={{ fontWeight: 600, fontSize: '0.9rem', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Filtros</span>
             </div>
-            
             <div style={{ width: '1px', height: '24px', backgroundColor: 'var(--color-border)' }}></div>
-
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.8rem' }}>
               <span className="form-label" style={{ margin: 0 }}>Documento:</span>
               <div className="segmented-control">
@@ -192,7 +180,6 @@ export const WorkOrderTable: React.FC<Props> = ({ data, onNew }) => {
                 ))}
               </div>
             </div>
-            
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.8rem' }}>
               <span className="form-label" style={{ margin: 0 }}>Pago:</span>
               <div className="segmented-control">
@@ -201,11 +188,9 @@ export const WorkOrderTable: React.FC<Props> = ({ data, onNew }) => {
                 ))}
               </div>
             </div>
-
           </div>
         </div>
 
-        {/* TABLA PRINCIPAL */}
         <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
           <div style={{ overflowX: 'auto' }}>
             <table className="pro-table">
@@ -234,11 +219,9 @@ export const WorkOrderTable: React.FC<Props> = ({ data, onNew }) => {
         </div>
       </div>
 
-      {/* MODAL DE CONFIGURACIÓN DE COLUMNAS CON DRAG & DROP */}
       {showColumnSettings && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(15, 23, 42, 0.7)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(4px)' }}>
           <div className="card" style={{ width: '95%', maxWidth: '1000px', maxHeight: '90vh', display: 'flex', flexDirection: 'column', padding: 0 }}>
-            
             <div style={{ padding: '1.5rem 2rem', borderBottom: '1px solid var(--color-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#F8FAFC' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.8rem' }}>
                 <Settings2 size={22} color="var(--color-primary)" />
@@ -249,49 +232,15 @@ export const WorkOrderTable: React.FC<Props> = ({ data, onNew }) => {
 
             <div style={{ padding: '2rem', overflowY: 'auto' }}>
               <p style={{ color: 'var(--color-text-muted)', marginBottom: '2rem' }}>Seleccione los campos que desea ver y arrástrelos usando el icono <GripVertical size={14} style={{ display: 'inline', verticalAlign: 'middle' }}/> para cambiar su orden.</p>
-              
-              {/* GRID DE 3 COLUMNAS */}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem' }}>
                 {columns.map((col, idx) => (
-                  <div 
-                    key={col.id} 
-                    draggable
-                    onDragStart={(e) => handleDragStart(e, idx)}
-                    onDragEnter={(e) => handleDragEnter(e, idx)}
-                    onDragEnd={handleDragEnd}
-                    onDragOver={(e) => e.preventDefault()}
-                    style={{ 
-                      display: 'flex', 
-                      alignItems: 'center', 
-                      justifyContent: 'space-between', 
-                      padding: '0.7rem 1rem', 
-                      border: draggedItemIndex === idx ? '2px dashed var(--color-accent)' : '1px solid var(--color-border)', 
-                      borderRadius: '8px', 
-                      backgroundColor: col.isVisible ? 'white' : '#F1F5F9', 
-                      opacity: draggedItemIndex === idx ? 0.4 : col.isVisible ? 1 : 0.6,
-                      cursor: 'grab',
-                      transition: 'all 0.2s',
-                      transform: draggedItemIndex === idx ? 'scale(0.98)' : 'scale(1)'
-                    }}
-                  >
+                  <div key={col.id} draggable onDragStart={(e) => handleDragStart(e, idx)} onDragEnter={(e) => handleDragEnter(e, idx)} onDragEnd={handleDragEnd} onDragOver={(e) => e.preventDefault()}
+                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.7rem 1rem', border: draggedItemIndex === idx ? '2px dashed var(--color-accent)' : '1px solid var(--color-border)', borderRadius: '8px', backgroundColor: col.isVisible ? 'white' : '#F1F5F9', opacity: draggedItemIndex === idx ? 0.4 : col.isVisible ? 1 : 0.6, cursor: 'grab', transition: 'all 0.2s', transform: draggedItemIndex === idx ? 'scale(0.98)' : 'scale(1)' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.8rem', overflow: 'hidden' }}>
                       <GripVertical size={18} color="#CBD5E1" style={{ cursor: 'grab' }} />
-                      
-                      {col.isVisible ? 
-                        <Eye size={18} color="var(--color-accent)" onClick={() => {
-                          const newCols = [...columns];
-                          newCols[idx].isVisible = false;
-                          setColumns(newCols);
-                        }} style={{ cursor: 'pointer' }} /> : 
-                        <EyeOff size={18} color="#94A3B8" onClick={() => {
-                          const newCols = [...columns];
-                          newCols[idx].isVisible = true;
-                          setColumns(newCols);
-                        }} style={{ cursor: 'pointer' }} />
-                      }
+                      {col.isVisible ? <Eye size={18} color="var(--color-accent)" onClick={() => { const newCols = [...columns]; newCols[idx].isVisible = false; setColumns(newCols); }} style={{ cursor: 'pointer' }} /> : <EyeOff size={18} color="#94A3B8" onClick={() => { const newCols = [...columns]; newCols[idx].isVisible = true; setColumns(newCols); }} style={{ cursor: 'pointer' }} />}
                       <span style={{ fontWeight: 600, fontSize: '0.85rem', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>{col.label}</span>
                     </div>
-                    
                     <div style={{ display: 'flex', gap: '2px' }}>
                       <ArrowUp size={14} onClick={() => moveColumn(idx, 'up')} style={{ cursor: 'pointer', color: idx === 0 ? '#CBD5E1' : '#475569' }} />
                       <ArrowDown size={14} onClick={() => moveColumn(idx, 'down')} style={{ cursor: 'pointer', color: idx === columns.length - 1 ? '#CBD5E1' : '#475569' }} />
@@ -300,7 +249,6 @@ export const WorkOrderTable: React.FC<Props> = ({ data, onNew }) => {
                 ))}
               </div>
             </div>
-
             <div style={{ padding: '1.5rem 2rem', borderTop: '1px solid var(--color-border)', textAlign: 'right', backgroundColor: '#F8FAFC' }}>
               <button className="btn btn-primary" onClick={() => setShowColumnSettings(false)}>Aplicar Configuración</button>
             </div>
