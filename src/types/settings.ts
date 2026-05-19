@@ -1,6 +1,7 @@
 import React from 'react';
 
-export type FieldType = 'text' | 'number' | 'select';
+// 👇 Agregamos 'color' al final de esta lista
+export type FieldType = 'text' | 'number' | 'select' | 'color';
 
 export interface CatalogField {
   name: string;

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc } from 'firebase/firestore';
 import { ChevronRight, Plus, Edit2, Trash2, X } from 'lucide-react';
-import { db } from '../firebase'; // Importación basada en tu imagen
+import { db } from '../firebase'; 
 import type { CatalogSchema } from '../types/settings';
 import { isCurrency, isPercentage } from '../constants/settingsSchemas';
 
@@ -87,9 +87,21 @@ export const CatalogView: React.FC<Props> = ({ catalog, onBack }) => {
                     <td style={{ color: 'var(--color-text-muted)' }}>{index + 1}</td>
                     {catalog.fields.map(field => (
                       <td key={field.name}>
-                        {field.type === 'number' && isCurrency(field.name) ? `$${Number(record[field.name] || 0).toFixed(2)}` 
-                        : field.type === 'number' && isPercentage(field.name) ? `${Number(record[field.name] || 0)}%` 
-                        : record[field.name] || '-'}
+                        {/* Lógica de renderizado especial para Color */}
+                        {field.type === 'color' ? (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                            <div style={{ width: '24px', height: '24px', borderRadius: '6px', backgroundColor: record[field.name] || '#cccccc', border: '1px solid #E2E8F0', boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.05)' }} />
+                            <span style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)', fontFamily: 'monospace' }}>
+                              {record[field.name] || '-'}
+                            </span>
+                          </div>
+                        ) : field.type === 'number' && isCurrency(field.name) ? (
+                          `$${Number(record[field.name] || 0).toFixed(2)}`
+                        ) : field.type === 'number' && isPercentage(field.name) ? (
+                          `${Number(record[field.name] || 0)}%`
+                        ) : (
+                          record[field.name] || '-'
+                        )}
                       </td>
                     ))}
                     <td style={{ textAlign: 'right' }}>
@@ -107,20 +119,42 @@ export const CatalogView: React.FC<Props> = ({ catalog, onBack }) => {
 
         {/* Modal Simulado HTML */}
         {modalState !== 'closed' && (
-          <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(15, 23, 42, 0.5)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <div className="card" style={{ width: '450px', padding: '2rem', position: 'relative' }}>
+          <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(15, 23, 42, 0.5)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(4px)' }}>
+            <div className="card animate-in zoom-in-95" style={{ width: '450px', padding: '2rem', position: 'relative' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
-                <h3>{modalState === 'detail' ? 'View Record' : currentRecord ? 'Edit Record' : 'New Record'}</h3>
-                <button onClick={() => setModalState('closed')} style={{ background: 'transparent', border: 'none', cursor: 'pointer' }}><X size={20} /></button>
+                <h3 style={{ margin: 0, color: '#0F172A' }}>{modalState === 'detail' ? 'View Record' : currentRecord ? 'Edit Record' : 'New Record'}</h3>
+                <button onClick={() => setModalState('closed')} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#64748B' }}><X size={20} /></button>
               </div>
 
               {modalState === 'form' ? (
                 <form onSubmit={handleSave}>
-                  <div className="form-grid" style={{ gridTemplateColumns: '1fr' }}>
+                  <div className="form-grid" style={{ gridTemplateColumns: '1fr', gap: '1.2rem' }}>
                     {catalog.fields.map(field => (
                       <div key={field.name} className="form-group">
-                        <label className="form-label">{field.label} {field.required && '*'}</label>
-                        {field.type === 'select' ? (
+                        <label className="form-label" style={{ fontSize: '0.85rem', fontWeight: 600, color: '#475569' }}>
+                          {field.label} {field.required && <span style={{ color: '#EF4444' }}>*</span>}
+                        </label>
+                        
+                        {/* Control de inputs según el tipo */}
+                        {field.type === 'color' ? (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                            <input
+                              type="color"
+                              value={formData[field.name] || '#000000'}
+                              onChange={e => setFormData({...formData, [field.name]: e.target.value})}
+                              style={{ width: '45px', height: '42px', padding: '0', border: '1px solid #E2E8F0', borderRadius: '6px', cursor: 'pointer', backgroundColor: 'transparent' }}
+                            />
+                            <input 
+                              type="text" 
+                              className="form-input" 
+                              value={formData[field.name] || '#000000'} 
+                              onChange={e => setFormData({...formData, [field.name]: e.target.value})} 
+                              placeholder="#000000"
+                              style={{ flex: 1, fontFamily: 'monospace', textTransform: 'uppercase' }}
+                              required={field.required}
+                            />
+                          </div>
+                        ) : field.type === 'select' ? (
                           <select className="form-select" value={formData[field.name] || ''} onChange={e => setFormData({...formData, [field.name]: e.target.value})} required={field.required}>
                             <option value="">-- Select --</option>
                             {field.options?.map(opt => <option key={opt} value={opt}>{opt}</option>)}
@@ -131,15 +165,25 @@ export const CatalogView: React.FC<Props> = ({ catalog, onBack }) => {
                       </div>
                     ))}
                   </div>
-                  <button type="submit" className="btn btn-primary" style={{ width: '100%', marginTop: '2rem' }}>Save Record</button>
+                  <div style={{ display: 'flex', gap: '1rem', marginTop: '2rem' }}>
+                    <button type="button" onClick={() => setModalState('closed')} className="btn btn-secondary" style={{ flex: 1 }}>Cancel</button>
+                    <button type="submit" className="btn btn-primary" style={{ flex: 1 }}>Save Record</button>
+                  </div>
                 </form>
               ) : (
-                <div className="form-grid" style={{ gridTemplateColumns: '1fr' }}>
+                <div className="form-grid" style={{ gridTemplateColumns: '1fr', gap: '1.2rem' }}>
                   {catalog.fields.map(field => (
                     <div key={field.name} className="form-group">
-                      <label className="form-label">{field.label}</label>
-                      <div style={{ padding: '0.8rem', backgroundColor: '#F8FAFC', borderRadius: '6px', border: '1px solid var(--color-border)' }}>
-                        {currentRecord?.[field.name] || '-'}
+                      <label className="form-label" style={{ fontSize: '0.85rem', fontWeight: 600, color: '#475569' }}>{field.label}</label>
+                      <div style={{ padding: '0.8rem', backgroundColor: '#F8FAFC', borderRadius: '6px', border: '1px solid #E2E8F0' }}>
+                        {field.type === 'color' ? (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                            <div style={{ width: '20px', height: '20px', borderRadius: '4px', backgroundColor: currentRecord?.[field.name] || '#cccccc', border: '1px solid #cbd5e1' }} />
+                            <span style={{ fontFamily: 'monospace' }}>{currentRecord?.[field.name] || '-'}</span>
+                          </div>
+                        ) : (
+                          currentRecord?.[field.name] || '-'
+                        )}
                       </div>
                     </div>
                   ))}

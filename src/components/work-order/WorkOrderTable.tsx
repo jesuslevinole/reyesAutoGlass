@@ -1,20 +1,21 @@
 import React, { useState } from 'react';
-import { Plus, Edit2, Eye, Filter, Settings2, ArrowUp, ArrowDown, EyeOff, X, Settings, GripVertical } from 'lucide-react';
+import { Plus, Edit2, Eye, Filter, Settings2, ArrowUp, ArrowDown, EyeOff, X, Settings, GripVertical, Trash2 } from 'lucide-react';
 import type { WorkOrderData } from '../../types/workOrder';
 
 interface Props {
   data: WorkOrderData[];
   onNew: () => void;
   onEdit?: (order: WorkOrderData) => void;
+  onDelete?: (id: string) => void; // Agregado para que puedas conectar la función de eliminar desde el padre
 }
 
 type ColumnId = 
-  | 'id' | 'documentType' | 'type' | 'date' | 'status' | 'company' | 'agent' | 'zipcode' 
+  | 'actions' | 'id' | 'documentType' | 'type' | 'date' | 'status' | 'company' | 'agent' | 'zipcode' 
   | 'longTrip' | 'callDirection' | 'insuranceCarrier' | 'policyId' | 'referral' 
   | 'policyHolder' | 'policyAddress' | 'year' | 'mark' | 'model' | 'body' 
   | 'vinNumber' | 'plate' | 'customer' | 'phone' | 'altPhone' | 'email' 
   | 'address' | 'appointmentDate' | 'timeStart' | 'timeEnd' 
-  | 'subtotalPart' | 'subtotalServices' | 'totalLabor' | 'tax' | 'total' | 'paid' | 'balance' | 'actions' | 'vehicle';
+  | 'subtotalPart' | 'subtotalServices' | 'totalLabor' | 'tax' | 'total' | 'paid' | 'balance' | 'vehicle';
 
 interface ColumnConfig {
   id: ColumnId;
@@ -22,14 +23,18 @@ interface ColumnConfig {
   isVisible: boolean;
 }
 
-export const WorkOrderTable: React.FC<Props> = ({ data, onNew, onEdit }) => {
+export const WorkOrderTable: React.FC<Props> = ({ data, onNew, onEdit, onDelete }) => {
   const [docFilter, setDocFilter] = useState<'All' | 'Quote' | 'Work Order'>('All');
   const [payFilter, setPayFilter] = useState<'All' | 'Personal' | 'Insurance'>('All');
   const [showColumnSettings, setShowColumnSettings] = useState(false);
   const [draggedItemIndex, setDraggedItemIndex] = useState<number | null>(null);
+  
+  // Estado para controlar qué orden de trabajo se está viendo en el modal de detalle
+  const [viewingOrder, setViewingOrder] = useState<WorkOrderData | null>(null);
 
-  // ID añadido al principio
+  // Columnas iniciales (Se movió 'actions' a la primera posición)
   const [columns, setColumns] = useState<ColumnConfig[]>([
+    { id: 'actions', label: 'ACCIONES', isVisible: true },
     { id: 'id', label: 'ID', isVisible: true },
     { id: 'customer', label: 'CLIENTE', isVisible: true },
     { id: 'company', label: 'COMPAÑÍA', isVisible: true },
@@ -58,7 +63,6 @@ export const WorkOrderTable: React.FC<Props> = ({ data, onNew, onEdit }) => {
     { id: 'tax', label: 'TAX $', isVisible: false },
     { id: 'paid', label: 'PAID', isVisible: false },
     { id: 'balance', label: 'BALANCE', isVisible: false },
-    { id: 'actions', label: 'ACCIONES', isVisible: true },
   ]);
 
   const filteredData = data.filter(item => {
@@ -112,8 +116,26 @@ export const WorkOrderTable: React.FC<Props> = ({ data, onNew, onEdit }) => {
     const balance = finalTotal - (Number(order.paid) || 0);
 
     switch (colId) {
+      case 'actions': return (
+        <td key={colId} style={{ width: '80px', padding: '0.5rem' }}>
+          <div style={{ display: 'flex', gap: '0.4rem' }}>
+            {/* Se agregó e.stopPropagation() para que no se abra el modal al presionar los botones */}
+            <button className="btn-secondary" onClick={(e) => { e.stopPropagation(); onEdit && onEdit(order); }} style={{ padding: '0.4rem' }} title="Editar">
+              <Edit2 size={16} />
+            </button>
+            <button className="btn-danger-light" onClick={(e) => { 
+              e.stopPropagation(); 
+              if(window.confirm('¿Está seguro de que desea eliminar este registro?')) {
+                onDelete ? onDelete(order.id || '') : alert('Función de eliminar en construcción...');
+              }
+            }} style={{ padding: '0.4rem', color: '#EF4444', backgroundColor: '#FEF2F2', border: '1px solid #FEE2E2', borderRadius: '6px', cursor: 'pointer' }} title="Eliminar">
+              <Trash2 size={16} />
+            </button>
+          </div>
+        </td>
+      );
       case 'id': return <td key={colId} style={{ fontWeight: 700, color: order.documentType === 'Quote' ? '#EF4444' : '#3B82F6', whiteSpace: 'nowrap' }}>{order.id}</td>;
-      case 'customer': return <td key={colId} style={{ fontWeight: 600 }}>{order.customer || `${order.firstName} ${order.lastName}`}</td>;
+      case 'customer': return <td key={colId} style={{ fontWeight: 600 }}>{order.customer || `${order.firstName || ''} ${order.lastName || ''}`}</td>;
       case 'company': return <td key={colId} style={{ color: 'var(--color-text-muted)' }}>{order.company || '-'}</td>;
       case 'vehicle': return <td key={colId}>{order.year} {order.mark} {order.model}</td>;
       case 'date': return <td key={colId}>{formatDate(order.date)}</td>;
@@ -137,14 +159,6 @@ export const WorkOrderTable: React.FC<Props> = ({ data, onNew, onEdit }) => {
       case 'appointmentDate': return <td key={colId}>{formatDate(order.appointmentDate)}</td>;
       case 'paid': return <td key={colId}>${(Number(order.paid) || 0).toFixed(2)}</td>;
       case 'balance': return <td key={colId} style={{ color: balance > 0 ? 'var(--color-danger-text)' : 'var(--color-success)' }}>${balance.toFixed(2)}</td>;
-      case 'actions': return (
-        <td key={colId} style={{ textAlign: 'right' }}>
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.4rem' }}>
-            <button className="btn-secondary" style={{ padding: '0.3rem' }}><Eye size={14} /></button>
-            <button className="btn-secondary" onClick={() => onEdit && onEdit(order)} style={{ padding: '0.3rem' }}><Edit2 size={14} /></button>
-          </div>
-        </td>
-      );
       default: return <td key={colId}>{(order as any)[colId] || '-'}</td>;
     }
   };
@@ -197,7 +211,7 @@ export const WorkOrderTable: React.FC<Props> = ({ data, onNew, onEdit }) => {
               <thead>
                 <tr>
                   {visibleColumns.map(col => (
-                    <th key={col.id} style={{ textAlign: col.id === 'actions' ? 'right' : 'left' }}>{col.label}</th>
+                    <th key={col.id} style={{ textAlign: 'left' }}>{col.label}</th>
                   ))}
                 </tr>
               </thead>
@@ -210,7 +224,15 @@ export const WorkOrderTable: React.FC<Props> = ({ data, onNew, onEdit }) => {
                   </tr>
                 ) : (
                   filteredData.map(order => (
-                    <tr key={order.id}>{visibleColumns.map(col => renderCell(col.id, order))}</tr>
+                    <tr 
+                      key={order.id} 
+                      onClick={() => setViewingOrder(order)} 
+                      style={{ cursor: 'pointer', transition: 'background-color 0.2s' }}
+                      onMouseOver={e => e.currentTarget.style.backgroundColor = '#F8FAFC'}
+                      onMouseOut={e => e.currentTarget.style.backgroundColor = 'transparent'}
+                    >
+                      {visibleColumns.map(col => renderCell(col.id, order))}
+                    </tr>
                   ))
                 )}
               </tbody>
@@ -219,6 +241,79 @@ export const WorkOrderTable: React.FC<Props> = ({ data, onNew, onEdit }) => {
         </div>
       </div>
 
+      {/* --- MODAL PARA VISUALIZAR DETALLE DEL REGISTRO --- */}
+      {viewingOrder && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(15, 23, 42, 0.7)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(4px)' }}>
+          <div className="card animate-in zoom-in-95" style={{ width: '90%', maxWidth: '850px', maxHeight: '90vh', display: 'flex', flexDirection: 'column', padding: 0, overflow: 'hidden' }}>
+            <div style={{ padding: '1.5rem 2rem', borderBottom: '1px solid var(--color-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#F8FAFC' }}>
+              <div>
+                <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '0.8rem', color: '#0F172A', fontSize: '1.3rem' }}>
+                  <Eye size={22} color="#3B82F6" /> Detalles del Registro
+                </h3>
+                <p style={{ margin: '0.3rem 0 0 0', color: '#64748B', fontSize: '0.9rem' }}>
+                  {viewingOrder.documentType} #{viewingOrder.id}
+                </p>
+              </div>
+              <button onClick={() => setViewingOrder(null)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#94A3B8' }}><X size={24} /></button>
+            </div>
+
+            <div style={{ padding: '2rem', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+              {/* Sección de Información Mapeada Dinámicamente */}
+              <div>
+                <h4 style={{ color: '#0F172A', borderBottom: '2px solid #F1F5F9', paddingBottom: '0.5rem', marginBottom: '1rem', fontSize: '1rem' }}>Información Completa</h4>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '1.5rem' }}>
+                  {Object.entries(viewingOrder)
+                    .filter(([key]) => key !== 'parts') // Filtramos parts para mostrarlo en otra sección si es necesario
+                    .map(([key, value]) => (
+                      <div key={key}>
+                        <span style={{ display: 'block', fontSize: '0.75rem', color: '#64748B', textTransform: 'uppercase', fontWeight: 600, marginBottom: '0.3rem' }}>{key}</span>
+                        <div style={{ fontWeight: 500, color: '#1E293B', wordBreak: 'break-word', backgroundColor: '#F8FAFC', padding: '0.6rem 0.8rem', borderRadius: '6px', border: '1px solid #E2E8F0' }}>
+                          {String(value || '-')}
+                        </div>
+                      </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Sección de Partes si existen */}
+              {viewingOrder.parts && viewingOrder.parts.length > 0 && (
+                <div>
+                  <h4 style={{ color: '#0F172A', borderBottom: '2px solid #F1F5F9', paddingBottom: '0.5rem', marginBottom: '1rem', fontSize: '1rem' }}>Partes y Servicios</h4>
+                  <div style={{ overflowX: 'auto', border: '1px solid #E2E8F0', borderRadius: '8px' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+                      <thead style={{ backgroundColor: '#F8FAFC', borderBottom: '1px solid #E2E8F0' }}>
+                        <tr>
+                          <th style={{ padding: '0.8rem 1rem', fontSize: '0.8rem', color: '#475569' }}>Tipo</th>
+                          <th style={{ padding: '0.8rem 1rem', fontSize: '0.8rem', color: '#475569' }}>Detalle</th>
+                          <th style={{ padding: '0.8rem 1rem', fontSize: '0.8rem', color: '#475569' }}>Monto Costo</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {viewingOrder.parts.map((p: any, idx: number) => (
+                          <tr key={idx} style={{ borderBottom: '1px solid #F1F5F9' }}>
+                            <td style={{ padding: '0.8rem 1rem', fontSize: '0.85rem', fontWeight: 500 }}>{p.type}</td>
+                            <td style={{ padding: '0.8rem 1rem', fontSize: '0.85rem' }}>{p.type === 'Parts' ? `${p.partNumber} - ${p.nagsDescription}` : p.description}</td>
+                            <td style={{ padding: '0.8rem 1rem', fontSize: '0.85rem', fontWeight: 600 }}>${Number(p.glassCost || p.amount || 0).toFixed(2)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div style={{ padding: '1.5rem 2rem', borderTop: '1px solid var(--color-border)', backgroundColor: '#F8FAFC', display: 'flex', justifyContent: 'flex-end', gap: '1rem' }}>
+               <button className="btn btn-secondary" onClick={() => setViewingOrder(null)}>Cerrar Detalle</button>
+               <button className="btn btn-primary" onClick={() => { setViewingOrder(null); onEdit && onEdit(viewingOrder); }}>
+                 <Edit2 size={16} style={{ marginRight: '0.4rem' }}/> Editar Registro
+               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL CONFIGURACIÓN DE TABLA */}
       {showColumnSettings && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(15, 23, 42, 0.7)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(4px)' }}>
           <div className="card" style={{ width: '95%', maxWidth: '1000px', maxHeight: '90vh', display: 'flex', flexDirection: 'column', padding: 0 }}>

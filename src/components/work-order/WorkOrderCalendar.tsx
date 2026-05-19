@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ChevronLeft, ChevronRight, X, Edit2, Trash2, CalendarDays, Clock, User, Car, Shield, Receipt, MapPin, Phone, Plus, Menu } from 'lucide-react';
+import { ChevronLeft, ChevronRight, X, Edit2, Trash2, Plus, Menu, Eye } from 'lucide-react';
 import type { WorkOrderData } from '../../types/workOrder';
 
 interface Props {
@@ -107,8 +107,8 @@ export const WorkOrderCalendar: React.FC<Props> = ({ data, onNew, onEdit }) => {
     if (viewMode === 'month') {
       return dailyOrders.map(order => {
         const statusColor = getStatusColor(order.status);
-        const displayName = order.customerType === 'Existing' ? order.customer : `${order.firstName} ${order.lastName}`.trim();
-        const displayVehicle = `${order.year} ${order.mark} ${order.model}`;
+        const displayName = order.customerType === 'Existing' ? order.customer : `${order.firstName || ''} ${order.lastName || ''}`.trim();
+        const displayVehicle = `${order.year || ''} ${order.mark || ''} ${order.model || ''}`;
 
         return (
           <div 
@@ -127,8 +127,8 @@ export const WorkOrderCalendar: React.FC<Props> = ({ data, onNew, onEdit }) => {
     // ESTILO SEMANA / DÍA: Posicionamiento Absoluto
     return dailyOrders.map(order => {
       const statusColor = getStatusColor(order.status);
-      const displayName = order.customerType === 'Existing' ? order.customer : `${order.firstName} ${order.lastName}`.trim();
-      const displayVehicle = `${order.year} ${order.mark} ${order.model}`;
+      const displayName = order.customerType === 'Existing' ? order.customer : `${order.firstName || ''} ${order.lastName || ''}`.trim();
+      const displayVehicle = `${order.year || ''} ${order.mark || ''} ${order.model || ''}`;
       
       const startMin = parseTimeToMinutes(order.timeStart) || (8 * 60); 
       let endMin = parseTimeToMinutes(order.timeEnd);
@@ -312,7 +312,7 @@ export const WorkOrderCalendar: React.FC<Props> = ({ data, onNew, onEdit }) => {
 
       </div>
 
-      {/* --- DETAIL MODAL --- */}
+      {/* --- DETAIL MODAL REESTRUCTURADO --- */}
       {isDetailModalOpen && selectedOrder && (
         <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(15, 23, 42, 0.6)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: '20px' }} onClick={() => setIsDetailModalOpen(false)}>
           <div className="card animate-in zoom-in-95" style={{ backgroundColor: '#ffffff', width: '100%', maxWidth: '850px', borderRadius: '12px', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)', display: 'flex', flexDirection: 'column', maxHeight: '90vh', padding: 0, overflow: 'hidden' }} onClick={e => e.stopPropagation()}>
@@ -320,13 +320,13 @@ export const WorkOrderCalendar: React.FC<Props> = ({ data, onNew, onEdit }) => {
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '1.5rem 2rem', borderBottom: '1px solid #e5e7eb', backgroundColor: '#F8FAFC' }}>
               <div>
                 <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#0F172A', margin: 0, display: 'flex', alignItems: 'center', gap: '0.8rem' }}>
-                  Detalles de la Cita
+                  <Eye size={22} color="#3B82F6" /> Detalles de la Orden
                   <span style={{ padding: '0.2rem 0.6rem', borderRadius: '20px', fontSize: '0.75rem', backgroundColor: getStatusColor(selectedOrder.status), color: 'white', fontWeight: 600 }}>
                     {selectedOrder.status}
                   </span>
                 </h3>
                 <p style={{ margin: '0.2rem 0 0 0', color: '#64748B', fontSize: '0.9rem', fontWeight: 500 }}>
-                  Referencia: #{selectedOrder.id || 'Sin ID'} • {selectedOrder.type}
+                  Referencia: #{selectedOrder.id || 'Sin ID'} • {selectedOrder.documentType} • {selectedOrder.type}
                 </p>
               </div>
               <button style={{ background: 'none', border: 'none', color: '#94A3B8', cursor: 'pointer', padding: '4px', borderRadius: '50%', transition: 'background 0.2s' }} onClick={() => setIsDetailModalOpen(false)} onMouseOver={e => e.currentTarget.style.backgroundColor = '#E2E8F0'} onMouseOut={e => e.currentTarget.style.backgroundColor = 'transparent'}>
@@ -334,77 +334,71 @@ export const WorkOrderCalendar: React.FC<Props> = ({ data, onNew, onEdit }) => {
               </button>
             </div>
 
-            <div style={{ padding: '2rem', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+            <div style={{ padding: '2rem', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '2rem' }}>
               
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '1.5rem' }}>
-                <div style={{ backgroundColor: '#F8FAFC', padding: '1.5rem', borderRadius: '12px', border: '1px solid #E2E8F0' }}>
-                  <h4 style={{ margin: '0 0 1rem 0', fontSize: '0.85rem', color: '#475569', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.5rem', textTransform: 'uppercase', letterSpacing: '0.5px' }}><User size={16}/> Cliente</h4>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                    <div style={{ fontSize: '1.1rem', fontWeight: 700, color: '#0F172A' }}>{selectedOrder.customerType === 'Existing' ? selectedOrder.customer : `${selectedOrder.firstName} ${selectedOrder.lastName}`}</div>
-                    {selectedOrder.phone && <div style={{ fontSize: '0.9rem', color: '#64748B', display: 'flex', alignItems: 'center', gap: '0.4rem' }}><Phone size={14}/> {selectedOrder.phone}</div>}
-                    {selectedOrder.company && <div style={{ fontSize: '0.9rem', color: '#64748B' }}>Empresa: {selectedOrder.company}</div>}
-                    {selectedOrder.address && <div style={{ fontSize: '0.9rem', color: '#64748B', display: 'flex', alignItems: 'center', gap: '0.4rem', marginTop: '0.5rem' }}><MapPin size={14}/> {selectedOrder.address}</div>}
-                  </div>
-                </div>
-
-                <div style={{ backgroundColor: '#F8FAFC', padding: '1.5rem', borderRadius: '12px', border: '1px solid #E2E8F0' }}>
-                  <h4 style={{ margin: '0 0 1rem 0', fontSize: '0.85rem', color: '#475569', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.5rem', textTransform: 'uppercase', letterSpacing: '0.5px' }}><Car size={16}/> Vehículo</h4>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                    <div style={{ fontSize: '1.1rem', fontWeight: 700, color: '#0F172A' }}>{selectedOrder.year} {selectedOrder.mark} {selectedOrder.model}</div>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginTop: '0.5rem' }}>
-                      <div>
-                        <span style={{ fontSize: '0.75rem', color: '#94A3B8', fontWeight: 600, display: 'block' }}>VIN</span>
-                        <span style={{ fontSize: '0.9rem', color: '#475569', fontFamily: 'monospace', textTransform: 'uppercase' }}>{selectedOrder.vinNumber || '-'}</span>
-                      </div>
-                      <div>
-                        <span style={{ fontSize: '0.75rem', color: '#94A3B8', fontWeight: 600, display: 'block' }}>PLACA</span>
-                        <span style={{ fontSize: '0.9rem', color: '#475569', textTransform: 'uppercase' }}>{selectedOrder.plate || '-'}</span>
-                      </div>
-                    </div>
-                  </div>
+              {/* --- MAPEO DINÁMICO DE TODOS LOS CAMPOS --- */}
+              <div>
+                <h4 style={{ color: '#0F172A', borderBottom: '2px solid #F1F5F9', paddingBottom: '0.5rem', marginBottom: '1rem', fontSize: '1rem' }}>Información Completa</h4>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '1.5rem' }}>
+                  {Object.entries(selectedOrder)
+                    // Filtramos campos que ya están en el encabezado o que requieren renderizado especial
+                    .filter(([key, value]) => !['id', 'status', 'documentType', 'parts'].includes(key) && value !== undefined && value !== '')
+                    .map(([key, value]) => {
+                      // Hacemos el texto de la llave un poco más legible (ej. "insuranceCarrier" -> "Insurance Carrier")
+                      const formattedKey = key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase());
+                      return (
+                        <div key={key}>
+                          <span style={{ display: 'block', fontSize: '0.75rem', color: '#64748B', textTransform: 'uppercase', fontWeight: 600, marginBottom: '0.3rem' }}>{formattedKey}</span>
+                          <div style={{ fontWeight: 500, color: '#1E293B', wordBreak: 'break-word', backgroundColor: '#F8FAFC', padding: '0.6rem 0.8rem', borderRadius: '6px', border: '1px solid #E2E8F0' }}>
+                            {String(value)}
+                          </div>
+                        </div>
+                      )
+                    })}
                 </div>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1.5rem' }}>
+              {/* --- SECCIÓN DE PARTES Y SERVICIOS --- */}
+              {selectedOrder.parts && selectedOrder.parts.length > 0 && (
                 <div>
-                  <span style={{ fontSize: '0.75rem', color: '#64748B', fontWeight: 700, textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.3rem' }}><CalendarDays size={14}/> Fecha Cita</span>
-                  <span style={{ fontSize: '0.95rem', color: '#0F172A', fontWeight: 600, textTransform: 'capitalize' }}>{selectedOrder.appointmentDate ? new Date(selectedOrder.appointmentDate + 'T12:00:00').toLocaleDateString('es-ES', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' }) : '-'}</span>
-                </div>
-                <div>
-                  <span style={{ fontSize: '0.75rem', color: '#64748B', fontWeight: 700, textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.3rem' }}><Clock size={14}/> Horario</span>
-                  <span style={{ fontSize: '0.95rem', color: '#0F172A', fontWeight: 600 }}>{selectedOrder.timeStart || '-'} a {selectedOrder.timeEnd || '-'}</span>
-                </div>
-                <div>
-                  <span style={{ fontSize: '0.75rem', color: '#64748B', fontWeight: 700, textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.3rem' }}><Receipt size={14}/> Monto a Cobrar</span>
-                  <span style={{ fontSize: '1.1rem', color: '#059669', fontWeight: 800 }}>${((Number(selectedOrder.subtotalPart) + Number(selectedOrder.subtotalServices) + Number(selectedOrder.totalLabor)) * (1 + Number(selectedOrder.taxPercent)/100)).toFixed(2)}</span>
-                </div>
-              </div>
-
-              {selectedOrder.type === 'Insurance' && (
-                <div style={{ backgroundColor: '#F5F3FF', padding: '1.2rem 1.5rem', borderRadius: '12px', border: '1px dashed #DDD6FE', display: 'flex', alignItems: 'center', gap: '2rem' }}>
-                  <Shield size={24} color="#8B5CF6" />
-                  <div>
-                    <span style={{ fontSize: '0.75rem', color: '#6D28D9', fontWeight: 700, textTransform: 'uppercase', display: 'block', marginBottom: '0.2rem' }}>Aseguradora</span>
-                    <span style={{ fontSize: '1rem', color: '#4C1D95', fontWeight: 700 }}>{selectedOrder.insuranceCarrier || 'No definida'}</span>
-                  </div>
-                  <div>
-                    <span style={{ fontSize: '0.75rem', color: '#6D28D9', fontWeight: 700, textTransform: 'uppercase', display: 'block', marginBottom: '0.2rem' }}>Póliza / Reclamo</span>
-                    <span style={{ fontSize: '1rem', color: '#4C1D95', fontWeight: 700 }}>{selectedOrder.policyId || '-'} / {selectedOrder.referral || '-'}</span>
+                  <h4 style={{ color: '#0F172A', borderBottom: '2px solid #F1F5F9', paddingBottom: '0.5rem', marginBottom: '1rem', fontSize: '1rem' }}>Partes y Servicios</h4>
+                  <div style={{ overflowX: 'auto', border: '1px solid #E2E8F0', borderRadius: '8px' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+                      <thead style={{ backgroundColor: '#F8FAFC', borderBottom: '1px solid #E2E8F0' }}>
+                        <tr>
+                          <th style={{ padding: '0.8rem 1rem', fontSize: '0.8rem', color: '#475569' }}>Tipo</th>
+                          <th style={{ padding: '0.8rem 1rem', fontSize: '0.8rem', color: '#475569' }}>Detalle</th>
+                          <th style={{ padding: '0.8rem 1rem', fontSize: '0.8rem', color: '#475569' }}>Monto Base</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {selectedOrder.parts.map((p: any, idx: number) => {
+                          const detailText = p.type === 'Parts' ? `${p.partNumber || '-'} - ${p.nagsDescription || '-'}` : p.description || '-';
+                          const cost = p.type === 'Parts' ? Number(p.glassCost || 0) : Number(p.amount || 0);
+                          return (
+                            <tr key={idx} style={{ borderBottom: '1px solid #F1F5F9' }}>
+                              <td style={{ padding: '0.8rem 1rem', fontSize: '0.85rem', fontWeight: 500 }}>{p.type}</td>
+                              <td style={{ padding: '0.8rem 1rem', fontSize: '0.85rem' }}>{detailText}</td>
+                              <td style={{ padding: '0.8rem 1rem', fontSize: '0.85rem', fontWeight: 600 }}>${cost.toFixed(2)}</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
                   </div>
                 </div>
               )}
-
             </div>
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem', padding: '1.5rem 2rem', backgroundColor: '#F8FAFC', borderTop: '1px solid #E2E8F0' }}>
-              <button className="btn btn-danger-light" onClick={() => { if(window.confirm('¿Eliminar cita?')) { setIsDetailModalOpen(false); } }}>
+              <button className="btn btn-danger-light" onClick={() => { if(window.confirm('¿Eliminar registro?')) { setIsDetailModalOpen(false); } }}>
                 <Trash2 size={16} /> Eliminar
               </button>
               <button className="btn btn-secondary" style={{ backgroundColor: 'white' }} onClick={() => setIsDetailModalOpen(false)}>
                 Cerrar
               </button>
               <button className="btn btn-primary" onClick={() => { setIsDetailModalOpen(false); if(onEdit) onEdit(selectedOrder); }}>
-                <Edit2 size={16} /> Editar Cita
+                <Edit2 size={16} /> Editar Registro
               </button>
             </div>
           </div>

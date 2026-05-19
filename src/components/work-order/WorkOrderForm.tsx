@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import type { WorkOrderData } from '../../types/workOrder';
 import { ClipboardList, Car, Plus, Layers, UserCog, CalendarClock, Shield, Settings, Receipt, Trash2, Edit2, X, PhoneCall } from 'lucide-react';
+import { collection, query, where, getDocs, addDoc } from 'firebase/firestore';
+import { db } from '../../firebase'; 
 
 interface Props {
   data: WorkOrderData;
@@ -14,6 +16,26 @@ export const WorkOrderForm: React.FC<Props> = ({ data, requiredFields = {}, onCh
   const [isAddingPart, setIsAddingPart] = useState(false);
   const [editingPartIndex, setEditingPartIndex] = useState<number | null>(null);
   
+  const [statusOptions, setStatusOptions] = useState<string[]>([]);
+  
+  // --- Estados para las colecciones dinámicas (Formulario Principal) ---
+  const [companyOptions, setCompanyOptions] = useState<string[]>([]);
+  const [agentOptions, setAgentOptions] = useState<string[]>([]);
+  const [insuranceOptions, setInsuranceOptions] = useState<string[]>([]);
+  const [zipcodeData, setZipcodeData] = useState<{zipcode: string, longTrip: number}[]>([]);
+  const [customerOptions, setCustomerOptions] = useState<string[]>([]); 
+  
+  // --- Estados para las colecciones dinámicas (Modal de Partes) ---
+  const [jobtypeOptions, setJobtypeOptions] = useState<string[]>([]);
+  const [partNumberData, setPartNumberData] = useState<{partNumber: string, nagsDescription: string}[]>([]);
+  const [priceTierData, setPriceTierData] = useState<{priceTier: string, amount: number}[]>([]);
+  const [calibrationData, setCalibrationData] = useState<{name: string, amount: number}[]>([]);
+
+  const [isAddingCompany, setIsAddingCompany] = useState(false);
+  const [newCompanyName, setNewCompanyName] = useState('');
+  
+  const [phoneError, setPhoneError] = useState<string>('');
+
   const initialDraftPart = {
     type: 'Parts' as 'Parts' | 'Services',
     jobtype: '',
@@ -37,6 +59,206 @@ export const WorkOrderForm: React.FC<Props> = ({ data, requiredFields = {}, onCh
 
   const [draftPart, setDraftPart] = useState<any>(initialDraftPart);
 
+  // 1. Obtener estados (Status)
+  useEffect(() => {
+    const loadStatuses = async () => {
+      try {
+        const q = query(collection(db, 'catalog_tag'), where('type', '==', data.documentType));
+        const snapshot = await getDocs(q);
+        
+        if (!snapshot.empty) {
+          const options = snapshot.docs.map(doc => doc.data().name || doc.data().value || doc.id);
+          setStatusOptions(options);
+          
+          if (!options.includes(data.status)) {
+            onChange('status', options[0]);
+          }
+        } else {
+          setStatusOptions([]);
+          if (data.status !== '') {
+            onChange('status', '');
+          }
+        }
+      } catch (error) {
+        console.error("Error al cargar los Status desde catalog_tag:", error);
+        setStatusOptions([]);
+        onChange('status', '');
+      }
+    };
+
+    if (data.documentType) {
+      loadStatuses();
+    }
+  }, [data.documentType, data.status, onChange]);
+
+  // 2. Obtener Compañías
+  useEffect(() => {
+    const loadCompanies = async () => {
+      try {
+        const q = query(collection(db, 'catalog_company'));
+        const snapshot = await getDocs(q);
+        const options = snapshot.docs.map(doc => doc.data().name || doc.data().value || doc.id);
+        setCompanyOptions(options);
+      } catch (error) {
+        console.error("Error al cargar catalog_company:", error);
+      }
+    };
+    loadCompanies();
+  }, []);
+
+  // 3. Obtener Agentes
+  useEffect(() => {
+    const loadAgents = async () => {
+      if (!data.company || data.company.trim() === '') {
+        setAgentOptions([]);
+        return;
+      }
+      try {
+        const q = query(
+          collection(db, 'team'), 
+          where('type', '==', 'Agent'),
+          where('company', '==', data.company)
+        );
+        const snapshot = await getDocs(q);
+        const agents = snapshot.docs.map(doc => {
+          const d = doc.data();
+          return `${d.firstName || ''} ${d.lastName || ''}`.trim();
+        });
+        setAgentOptions(agents.filter(Boolean));
+      } catch (error) {
+        console.error("Error al cargar agentes de la colección team:", error);
+      }
+    };
+    
+    loadAgents();
+  }, [data.company]);
+
+  // 4. Obtener Aseguradoras (Insurance Carriers)
+  useEffect(() => {
+    const loadInsurances = async () => {
+      try {
+        const q = query(collection(db, 'catalog_insurance'));
+        const snapshot = await getDocs(q);
+        const insurances = snapshot.docs.map(doc => doc.data().insurance_carrier);
+        setInsuranceOptions(insurances.filter(Boolean));
+      } catch (error) {
+        console.error("Error al cargar catalog_insurance:", error);
+      }
+    };
+    loadInsurances();
+  }, []);
+
+  // 5. Obtener Zipcodes y sus Long Trips
+  useEffect(() => {
+    const loadZipcodes = async () => {
+      try {
+        const q = query(collection(db, 'catalog_zipcode'));
+        const snapshot = await getDocs(q);
+        const zips = snapshot.docs.map(doc => ({
+          zipcode: doc.data().zipcode || '',
+          longTrip: Number(doc.data().long_trip) || 0
+        }));
+        setZipcodeData(zips);
+      } catch (error) {
+        console.error("Error al cargar catalog_zipcode:", error);
+      }
+    };
+    loadZipcodes();
+  }, []);
+
+  // 6. Obtener Clientes para el buscador
+  useEffect(() => {
+    const loadCustomers = async () => {
+      try {
+        const q = query(collection(db, 'customers'));
+        const snapshot = await getDocs(q);
+        const customers = snapshot.docs.map(doc => {
+          const d = doc.data();
+          return `${d.firstName || ''} ${d.lastName || ''}`.trim();
+        });
+        setCustomerOptions(customers.filter(Boolean));
+      } catch (error) {
+        console.error("Error al cargar clientes:", error);
+      }
+    };
+    loadCustomers();
+  }, []);
+
+  // --- NUEVAS CONSULTAS PARA EL MODAL DE PARTES ---
+
+  // 7. Obtener Jobtypes dependientes del tipo de Work Order (Personal o Insurance)
+  useEffect(() => {
+    const loadJobtypes = async () => {
+      if (!data.type) {
+        setJobtypeOptions([]);
+        return;
+      }
+      try {
+        const q = query(collection(db, 'catalog_jobtype'), where('type', '==', data.type));
+        const snapshot = await getDocs(q);
+        const types = snapshot.docs.map(doc => doc.data().name);
+        setJobtypeOptions(types.filter(Boolean));
+      } catch (error) {
+        console.error("Error al cargar catalog_jobtype:", error);
+      }
+    };
+    loadJobtypes();
+  }, [data.type]);
+
+  // 8. Obtener Part Numbers y sus Nags Descriptions
+  useEffect(() => {
+    const loadParts = async () => {
+      try {
+        const q = query(collection(db, 'catalog_part_number'));
+        const snapshot = await getDocs(q);
+        const parts = snapshot.docs.map(doc => ({
+          partNumber: doc.data().part_number || '',
+          nagsDescription: doc.data().nags_description || ''
+        }));
+        setPartNumberData(parts.filter(p => p.partNumber));
+      } catch (error) {
+        console.error("Error al cargar catalog_part_number:", error);
+      }
+    };
+    loadParts();
+  }, []);
+
+  // 9. Obtener Price Tiers
+  useEffect(() => {
+    const loadPriceTiers = async () => {
+      try {
+        const q = query(collection(db, 'catalog_price_tier'));
+        const snapshot = await getDocs(q);
+        const tiers = snapshot.docs.map(doc => ({
+          priceTier: doc.data().price_tier || '',
+          amount: Number(doc.data().amount) || 0
+        }));
+        setPriceTierData(tiers.filter(t => t.priceTier));
+      } catch (error) {
+        console.error("Error al cargar catalog_price_tier:", error);
+      }
+    };
+    loadPriceTiers();
+  }, []);
+
+  // 10. Obtener Calibraciones
+  useEffect(() => {
+    const loadCalibrations = async () => {
+      try {
+        const q = query(collection(db, 'catalog_calibration_type'));
+        const snapshot = await getDocs(q);
+        const calibs = snapshot.docs.map(doc => ({
+          name: doc.data().name || '',
+          amount: Number(doc.data().amount) || 0
+        }));
+        setCalibrationData(calibs.filter(c => c.name));
+      } catch (error) {
+        console.error("Error al cargar catalog_calibration_type:", error);
+      }
+    };
+    loadCalibrations();
+  }, []);
+
   useEffect(() => {
     if (!data.date) {
       const today = new Date().toISOString().split('T')[0];
@@ -47,6 +269,28 @@ export const WorkOrderForm: React.FC<Props> = ({ data, requiredFields = {}, onCh
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     onChange(name as keyof WorkOrderData, value);
+  };
+
+  // --- LÓGICAS DEL FORMULARIO PRINCIPAL ---
+  const handleCustomerTypeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const type = e.target.value;
+    onChange('customerType', type);
+    onChange('customer', '');
+    onChange('firstName', '');
+    onChange('lastName', '');
+    onChange('phone', '');
+    onChange('altPhone', '');
+    onChange('email', '');
+    onChange('address', '');
+    setPhoneError('');
+  };
+
+  const handleCustomerBlur = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    if (val && !customerOptions.includes(val)) {
+      alert("Por favor, seleccione un cliente válido de la lista sugerida. No se permiten nombres inventados.");
+      onChange('customer', ''); 
+    }
   };
 
   const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -65,11 +309,68 @@ export const WorkOrderForm: React.FC<Props> = ({ data, requiredFields = {}, onCh
     }
     
     onChange(name as keyof WorkOrderData, formatted);
+    if (name === 'phone') setPhoneError('');
   };
 
+  const handlePhoneBlur = async () => {
+    if (data.customerType === 'New' && data.phone && data.phone.replace(/\D/g, '').length >= 10) {
+      try {
+        const q = query(collection(db, 'customers'), where('phone', '==', data.phone));
+        const snapshot = await getDocs(q);
+        if (!snapshot.empty) {
+          setPhoneError('Este teléfono ya pertenece a un cliente registrado.');
+        }
+      } catch (error) {
+        console.error("Error al validar teléfono:", error);
+      }
+    }
+  };
+
+  const handleZipcodeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const selectedZip = e.target.value;
+    onChange('zipcode', selectedZip);
+    const found = zipcodeData.find(z => z.zipcode === selectedZip);
+    onChange('longTrip', found ? found.longTrip : 0);
+  };
+
+  // --- LÓGICAS DEL MODAL DE PARTES Y SERVICIOS ---
   const handleDraftChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     setDraftPart((prev: any) => ({ ...prev, [name]: value }));
+  };
+
+  // Autofill para Part Number -> Nags Description
+  const handlePartNumberChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const val = e.target.value;
+    const found = partNumberData.find(p => p.partNumber === val);
+    setDraftPart((prev: any) => ({
+      ...prev,
+      partNumber: val,
+      // Si encuentra un Nags, lo auto-llena. Si no, o si eligen vacío, deja el actual o en blanco.
+      nagsDescription: found && found.nagsDescription ? found.nagsDescription : ''
+    }));
+  };
+
+  // Autofill para Price Tier -> Amount
+  const handlePriceTierChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const val = e.target.value;
+    const found = priceTierData.find(p => p.priceTier === val);
+    setDraftPart((prev: any) => ({
+      ...prev,
+      priceTierName: val,
+      priceTierAmount: found ? found.amount : ''
+    }));
+  };
+
+  // Autofill para Calibration -> Amount
+  const handleCalibrationChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const val = e.target.value;
+    const found = calibrationData.find(c => c.name === val);
+    setDraftPart((prev: any) => ({
+      ...prev,
+      calibrationName: val,
+      calibrationAmount: found ? found.amount : ''
+    }));
   };
 
   const toggleDraftBoolean = (field: 'hasPriceTier' | 'hasCalibration', value: boolean) => {
@@ -111,7 +412,7 @@ export const WorkOrderForm: React.FC<Props> = ({ data, requiredFields = {}, onCh
 
   const removePart = (index: number) => {
     const currentParts = data.parts || [];
-    const newParts = currentParts.filter((_, i) => i !== index);
+    const newParts = currentParts.filter((_: any, i: number) => i !== index);
     updatePartsAndTotals(newParts);
   };
 
@@ -125,6 +426,20 @@ export const WorkOrderForm: React.FC<Props> = ({ data, requiredFields = {}, onCh
     setIsAddingPart(false);
     setEditingPartIndex(null);
     setDraftPart(initialDraftPart);
+  };
+
+  const saveNewCompany = async () => {
+    if (!newCompanyName.trim()) return;
+    try {
+      await addDoc(collection(db, 'catalog_company'), { name: newCompanyName.trim() });
+      setCompanyOptions(prev => [...prev, newCompanyName.trim()]);
+      onChange('company', newCompanyName.trim()); 
+      setIsAddingCompany(false);
+      setNewCompanyName('');
+    } catch (error) {
+      console.error("Error al guardar la compañía:", error);
+      alert("Hubo un error al guardar la compañía.");
+    }
   };
 
   const FieldLabel = ({ text, fieldKey }: { text: string, fieldKey: string }) => (
@@ -164,83 +479,23 @@ export const WorkOrderForm: React.FC<Props> = ({ data, requiredFields = {}, onCh
       <style>{`
         @media print {
           @page { size: letter portrait; margin: 15mm; }
-          
-          body, .animate-in { 
-            background-color: #ffffff !important; 
-            color: #000000 !important; 
-            font-size: 10pt !important;
-            display: block !important;
-            overflow: visible !important;
-          }
-
+          body, .animate-in { background-color: #ffffff !important; color: #000000 !important; font-size: 10pt !important; display: block !important; overflow: visible !important; }
           .no-print { display: none !important; }
-          
-          .form-grid {
-            display: grid !important;
-            grid-template-columns: repeat(2, 1fr) !important;
-            gap: 15px !important;
-          }
-
-          .card {
-            border: none !important;
-            box-shadow: none !important;
-            padding: 0 !important;
-            margin-bottom: 2rem !important;
-            page-break-inside: avoid !important;
-            break-inside: avoid !important;
-          }
-
+          .form-grid { display: grid !important; grid-template-columns: repeat(2, 1fr) !important; gap: 15px !important; }
+          .card { border: none !important; box-shadow: none !important; padding: 0 !important; margin-bottom: 2rem !important; page-break-inside: avoid !important; break-inside: avoid !important; }
           .lucide { display: none !important; }
-
-          .print-header-report {
-            display: flex !important;
-            justify-content: space-between !important;
-            align-items: flex-end !important;
-            border-bottom: 3px solid #1d8cf8 !important;
-            padding-bottom: 15px !important;
-            margin-bottom: 25px !important;
-          }
+          .print-header-report { display: flex !important; justify-content: space-between !important; align-items: flex-end !important; border-bottom: 3px solid #1d8cf8 !important; padding-bottom: 15px !important; margin-bottom: 25px !important; }
           .print-header-report h1 { margin: 0 !important; font-size: 22pt !important; color: #0f172a !important; }
           .print-header-report p { margin: 5px 0 0 0 !important; color: #64748b !important; font-size: 11pt !important; }
-
-          .form-input, .form-select, .input-addon-btn, .segmented-control {
-            border: none !important;
-            background: transparent !important;
-            padding: 0 !important;
-            font-weight: 600 !important;
-            color: #000 !important;
-            box-shadow: none !important;
-            -webkit-appearance: none;
-            -moz-appearance: none;
-            appearance: none;
-          }
-          
-          .form-label {
-            font-weight: bold !important;
-            color: #475569 !important;
-            border-bottom: 1px solid #e2e8f0;
-            display: block;
-            padding-bottom: 2px;
-          }
-
+          .form-input, .form-select, .input-addon-btn, .segmented-control { border: none !important; background: transparent !important; padding: 0 !important; font-weight: 600 !important; color: #000 !important; box-shadow: none !important; -webkit-appearance: none; -moz-appearance: none; appearance: none; }
+          .form-label { font-weight: bold !important; color: #475569 !important; border-bottom: 1px solid #e2e8f0; display: block; padding-bottom: 2px; }
           .input-group { border: none !important; display: flex !important; gap: 4px !important; }
-
           .segmented-item { display: none !important; }
           .segmented-item.active { display: block !important; padding: 0 !important; }
-
           table { width: 100% !important; border-collapse: collapse !important; }
           th { border-bottom: 2px solid #000 !important; text-align: left !important; padding: 8px 0 !important; color: #000 !important; }
           td { border-bottom: 1px solid #e2e8f0 !important; padding: 8px 0 !important; }
-
-          .print-section-title {
-            font-size: 14pt !important;
-            font-weight: bold !important;
-            color: #000 !important;
-            border-bottom: 1px solid #000 !important;
-            margin-bottom: 15px !important;
-            text-transform: uppercase !important;
-          }
-
+          .print-section-title { font-size: 14pt !important; font-weight: bold !important; color: #000 !important; border-bottom: 1px solid #000 !important; margin-bottom: 15px !important; text-transform: uppercase !important; }
           .print-hide-container { display: none !important; }
         }
       `}</style>
@@ -252,8 +507,8 @@ export const WorkOrderForm: React.FC<Props> = ({ data, requiredFields = {}, onCh
             <div>
               <h2 style={{ fontSize: '2rem', fontWeight: 800, color: '#0F172A', letterSpacing: '-0.03em', margin: 0 }}>
                 {data.id
-                  ? `${data.documentType === 'Quote' ? 'Cotización' : 'Work Order'} #${data.id}`
-                  : `Nueva ${data.documentType === 'Quote' ? 'Cotización' : 'Work Order'}`
+                  ? `${data.documentType === 'Quote' ? 'Quote' : 'Work Order'} #${data.id}`
+                  : `Nueva ${data.documentType === 'Quote' ? 'Quote' : 'Work Order'}`
                 }
               </h2>
               <p style={{ color: '#64748B', marginTop: '0.4rem', fontSize: '1rem' }}>
@@ -277,7 +532,7 @@ export const WorkOrderForm: React.FC<Props> = ({ data, requiredFields = {}, onCh
 
           <div className="print-only print-header-report" style={{ display: 'none' }}>
             <div>
-              <h1>{data.documentType === 'Quote' ? 'Cotización' : 'Orden de Trabajo'}</h1>
+              <h1>{data.documentType === 'Quote' ? 'Quote' : 'Work Order'}</h1>
               <p>Referencia: #{data.id || 'N/A'} | Tipo: {data.type || 'N/A'}</p>
             </div>
             <div style={{ textAlign: 'right' }}>
@@ -293,8 +548,6 @@ export const WorkOrderForm: React.FC<Props> = ({ data, requiredFields = {}, onCh
               </div>
               <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 700, color: '#1E293B' }}>Configuración Inicial</h3>
             </div>
-
-            <h3 className="print-only print-section-title" style={{ display: 'none' }}>Detalles de la Orden</h3>
             
             <div className="form-grid">
               <div className="form-group print-hide-container" style={{ gridColumn: '1 / -1', display: 'flex', flexDirection: 'column', gap: '1.5rem', backgroundColor: '#F8FAFC', padding: '1.5rem', borderRadius: '8px', border: '1px solid #E2E8F0' }}>
@@ -302,7 +555,7 @@ export const WorkOrderForm: React.FC<Props> = ({ data, requiredFields = {}, onCh
                   <div style={{ flex: 1 }}>
                     <label className="form-label" style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.8rem', fontWeight: 600, color: '#475569', textTransform: 'uppercase' }}>Documento</label>
                     <div className="segmented-control" style={{ width: '100%' }}>
-                      <label className={`segmented-item ${data.documentType === 'Quote' ? 'active' : ''}`} style={{ flex: 1, textAlign: 'center' }}><input type="radio" name="documentType" value="Quote" checked={data.documentType === 'Quote'} onChange={handleChange} style={{ display: 'none' }} />Cotización</label>
+                      <label className={`segmented-item ${data.documentType === 'Quote' ? 'active' : ''}`} style={{ flex: 1, textAlign: 'center' }}><input type="radio" name="documentType" value="Quote" checked={data.documentType === 'Quote'} onChange={handleChange} style={{ display: 'none' }} />Quote</label>
                       <label className={`segmented-item ${data.documentType === 'Work Order' ? 'active' : ''}`} style={{ flex: 1, textAlign: 'center' }}><input type="radio" name="documentType" value="Work Order" checked={data.documentType === 'Work Order'} onChange={handleChange} style={{ display: 'none' }} />Work Order</label>
                     </div>
                   </div>
@@ -331,44 +584,93 @@ export const WorkOrderForm: React.FC<Props> = ({ data, requiredFields = {}, onCh
                 <FieldLabel text="Fecha de Creación" fieldKey="date" />
                 <input type="date" className="form-input" name="date" value={data.date} onChange={handleChange} required={requiredFields?.date} />
               </div>
+              
               <div className="form-group">
                 <label className="form-label" style={{ color: '#475569', fontSize: '0.8rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.02em', marginBottom: '0.3rem' }}>Estado (Status)</label>
-                <select className="form-select" name="status" value={data.status} onChange={handleChange} required style={{ fontWeight: 500 }}>
-                  <option value="New">New</option>
-                  <option value="In Progress">In Progress</option>
-                  <option value="Job Done">Job Done</option>
+                <select 
+                  className="form-select" 
+                  name="status" 
+                  value={data.status || ''} 
+                  onChange={handleChange} 
+                  required 
+                  style={{ fontWeight: 500 }}
+                  disabled={statusOptions.length === 0}
+                >
+                  {statusOptions.length === 0 ? (
+                    <option value="">Sin estados configurados</option>
+                  ) : (
+                    statusOptions.map((statusName: string, idx: number) => (
+                      <option key={idx} value={statusName}>{statusName}</option>
+                    ))
+                  )}
                 </select>
               </div>
               
               <div className="form-group">
                 <FieldLabel text="Compañía" fieldKey="company" />
                 <div className="input-group">
-                  <input type="text" className="form-input" name="company" value={data.company} onChange={handleChange} placeholder="Buscar compañía..." required={requiredFields?.company} />
-                  <button type="button" className="input-addon-btn no-print"><Plus size={18} /></button>
+                  <select 
+                    className="form-select" 
+                    name="company" 
+                    value={data.company || ''} 
+                    onChange={handleChange} 
+                    required={requiredFields?.company} 
+                  >
+                    <option value="">Seleccione compañía...</option>
+                    {companyOptions.map((comp: string, idx: number) => (
+                      <option key={idx} value={comp}>{comp}</option>
+                    ))}
+                  </select>
+                  <button type="button" className="input-addon-btn no-print" onClick={() => setIsAddingCompany(true)} title="Agregar Compañía Nueva">
+                    <Plus size={18} />
+                  </button>
                 </div>
               </div>
-              <div className="form-group">
-                <FieldLabel text="Agente" fieldKey="agent" />
-                <div className="input-group">
-                  <input type="text" className="form-input" name="agent" value={data.agent || ''} onChange={handleChange} placeholder="Nombre del agente..." required={requiredFields?.agent} />
-                  <button type="button" className="input-addon-btn no-print"><Plus size={18} /></button>
+
+              {/* Agente solo se muestra si existe una compañía seleccionada */}
+              {data.company && data.company.trim() !== '' && (
+                <div className="form-group">
+                  <FieldLabel text="Agente" fieldKey="agent" />
+                  <div className="input-group">
+                    <select 
+                      className="form-select" 
+                      name="agent" 
+                      value={data.agent || ''} 
+                      onChange={handleChange} 
+                      required={requiredFields?.agent} 
+                    >
+                      <option value="">Seleccione agente...</option>
+                      {agentOptions.map((ag, idx) => (
+                        <option key={idx} value={ag}>{ag}</option>
+                      ))}
+                    </select>
+                    <button type="button" className="input-addon-btn no-print"><Plus size={18} /></button>
+                  </div>
                 </div>
-              </div>
+              )}
               
               <div className="form-group">
                 <FieldLabel text="Código Postal (Zip Code)" fieldKey="zipcode" />
                 <div className="input-group">
-                  <select className="form-select" name="zipcode" value={data.zipcode} onChange={handleChange} required={requiredFields?.zipcode}>
+                  <select 
+                    className="form-select" 
+                    name="zipcode" 
+                    value={data.zipcode || ''} 
+                    onChange={handleZipcodeChange} 
+                    required={requiredFields?.zipcode}
+                  >
                     <option value="">Seleccione...</option>
-                    <option value="4001">4001</option>
-                    <option value="4002">4002</option>
+                    {zipcodeData.map((z, idx) => (
+                      <option key={idx} value={z.zipcode}>{z.zipcode}</option>
+                    ))}
                   </select>
                   <button type="button" className="input-addon-btn no-print"><Plus size={18} /></button>
                 </div>
               </div>
+
               <div className="form-group">
                 <label className="form-label" style={{ color: '#475569', fontSize: '0.8rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.02em', marginBottom: '0.3rem' }}>Viaje Largo (Long Trip)</label>
-                <input type="number" step="any" className="form-input" name="longTrip" value={data.longTrip || ''} onChange={handleChange} placeholder="Calculado automáticamente" disabled />
+                <input type="number" step="any" className="form-input" name="longTrip" value={data.longTrip || ''} onChange={handleChange} placeholder="Calculado automáticamente" />
               </div>
             </div>
           </div>
@@ -381,11 +683,22 @@ export const WorkOrderForm: React.FC<Props> = ({ data, requiredFields = {}, onCh
                 </div>
                 <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 700, color: '#1E293B' }}>Detalles del Seguro</h3>
               </div>
-
-              <h3 className="print-only print-section-title" style={{ display: 'none' }}>Información del Seguro</h3>
-
               <div className="form-grid">
-                <div className="form-group"><FieldLabel text="Aseguradora (Carrier)" fieldKey="insuranceCarrier" /><input type="text" className="form-input" name="insuranceCarrier" value={data.insuranceCarrier} onChange={handleChange} required={requiredFields?.insuranceCarrier} /></div>
+                <div className="form-group">
+                  <FieldLabel text="Aseguradora (Carrier)" fieldKey="insuranceCarrier" />
+                  <select 
+                    className="form-select" 
+                    name="insuranceCarrier" 
+                    value={data.insuranceCarrier || ''} 
+                    onChange={handleChange} 
+                    required={requiredFields?.insuranceCarrier} 
+                  >
+                    <option value="">Seleccione aseguradora...</option>
+                    {insuranceOptions.map((ins, idx) => (
+                      <option key={idx} value={ins}>{ins}</option>
+                    ))}
+                  </select>
+                </div>
                 <div className="form-group"><FieldLabel text="Número de Póliza" fieldKey="policyId" /><input type="text" className="form-input" name="policyId" value={data.policyId} onChange={handleChange} required={requiredFields?.policyId} /></div>
                 <div className="form-group"><FieldLabel text="Referencia (Referral)" fieldKey="referral" /><input type="text" className="form-input" name="referral" value={data.referral} onChange={handleChange} required={requiredFields?.referral} /></div>
                 <div className="form-group"><FieldLabel text="Titular de la Póliza" fieldKey="policyHolder" /><input type="text" className="form-input" name="policyHolder" value={data.policyHolder} onChange={handleChange} required={requiredFields?.policyHolder} /></div>
@@ -401,14 +714,12 @@ export const WorkOrderForm: React.FC<Props> = ({ data, requiredFields = {}, onCh
               </div>
               <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 700, color: '#1E293B' }}>Información del Cliente</h3>
             </div>
-            
-            <h3 className="print-only print-section-title" style={{ display: 'none' }}>Datos del Cliente</h3>
 
             <div className="no-print" style={{ marginBottom: '2rem', backgroundColor: '#F8FAFC', padding: '1.5rem', borderRadius: '8px', border: '1px solid #E2E8F0' }}>
               <label className="form-label" style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.8rem', fontWeight: 600, color: '#475569', textTransform: 'uppercase' }}>Tipo de Cliente</label>
               <div className="segmented-control">
-                <label className={`segmented-item ${data.customerType === 'Existing' ? 'active' : ''}`}><input type="radio" name="customerType" value="Existing" checked={data.customerType === 'Existing'} onChange={handleChange} style={{ display: 'none' }} /> Cliente Existente</label>
-                <label className={`segmented-item ${data.customerType === 'New' ? 'active' : ''}`}><input type="radio" name="customerType" value="New" checked={data.customerType === 'New'} onChange={handleChange} style={{ display: 'none' }} /> Cliente Nuevo</label>
+                <label className={`segmented-item ${data.customerType === 'Existing' ? 'active' : ''}`}><input type="radio" name="customerType" value="Existing" checked={data.customerType === 'Existing'} onChange={handleCustomerTypeChange} style={{ display: 'none' }} /> Cliente Existente</label>
+                <label className={`segmented-item ${data.customerType === 'New' ? 'active' : ''}`}><input type="radio" name="customerType" value="New" checked={data.customerType === 'New'} onChange={handleCustomerTypeChange} style={{ display: 'none' }} /> Cliente Nuevo</label>
               </div>
             </div>
 
@@ -416,15 +727,34 @@ export const WorkOrderForm: React.FC<Props> = ({ data, requiredFields = {}, onCh
               <div className="form-group form-grid-full" style={{ marginBottom: '2rem' }}>
                 <FieldLabel text="Buscar Cliente" fieldKey="customer" />
                 <div className="input-group">
-                  <input type="text" className="form-input" name="customer" value={data.customer} onChange={handleChange} placeholder="Nombre o teléfono..." required={requiredFields?.customer} style={{ padding: '0.8rem' }} />
-                  <button type="button" className="input-addon-btn no-print" style={{ padding: '0 1.5rem', backgroundColor: '#0F172A', color: 'white', border: 'none' }}>Buscar</button>
+                  <input 
+                    type="text" 
+                    list="customer-options"
+                    className="form-input" 
+                    name="customer" 
+                    value={data.customer || ''} 
+                    onChange={handleChange} 
+                    onBlur={handleCustomerBlur}
+                    placeholder="Escriba para buscar un cliente..." 
+                    required={requiredFields?.customer} 
+                    style={{ padding: '0.8rem' }} 
+                  />
+                  <datalist id="customer-options">
+                    {customerOptions.map((cust, idx) => (
+                      <option key={idx} value={cust} />
+                    ))}
+                  </datalist>
                 </div>
               </div>
             ) : (
               <div className="form-grid" style={{ marginBottom: '2rem' }}>
                 <div className="form-group"><FieldLabel text="Nombre (First Name)" fieldKey="firstName" /><input type="text" className="form-input" name="firstName" value={data.firstName} onChange={handleChange} required={requiredFields?.firstName} /></div>
                 <div className="form-group"><FieldLabel text="Apellido (Last Name)" fieldKey="lastName" /><input type="text" className="form-input" name="lastName" value={data.lastName} onChange={handleChange} required={requiredFields?.lastName} /></div>
-                <div className="form-group"><FieldLabel text="Teléfono Principal" fieldKey="phone" /><input type="tel" className="form-input" name="phone" value={data.phone} onChange={handlePhoneChange} placeholder="(XXX) XXX-XXXX" maxLength={14} required={requiredFields?.phone} /></div>
+                <div className="form-group">
+                  <FieldLabel text="Teléfono Principal" fieldKey="phone" />
+                  <input type="tel" className="form-input" name="phone" value={data.phone} onChange={handlePhoneChange} onBlur={handlePhoneBlur} placeholder="(XXX) XXX-XXXX" maxLength={14} required={requiredFields?.phone} />
+                  {phoneError && <span style={{ color: '#EF4444', fontSize: '0.75rem', marginTop: '0.3rem', display: 'block', fontWeight: 500 }}>{phoneError}</span>}
+                </div>
                 <div className="form-group"><FieldLabel text="Teléfono Alternativo" fieldKey="altPhone" /><input type="tel" className="form-input" name="altPhone" value={data.altPhone} onChange={handlePhoneChange} placeholder="(XXX) XXX-XXXX" maxLength={14} /></div>
                 <div className="form-group form-grid-full"><FieldLabel text="Correo Electrónico" fieldKey="email" /><input type="email" className="form-input" name="email" value={data.email} onChange={handleChange} /></div>
                 <div className="form-group form-grid-full"><FieldLabel text="Dirección Completa" fieldKey="address" /><input type="text" className="form-input" name="address" value={data.address} onChange={handleChange} /></div>
@@ -435,8 +765,6 @@ export const WorkOrderForm: React.FC<Props> = ({ data, requiredFields = {}, onCh
               <CalendarClock size={20} color="#64748B" />
               <h4 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 700, color: '#334155' }}>Agendamiento</h4>
             </div>
-            
-            <h3 className="print-only print-section-title" style={{ display: 'none', marginTop: '2rem' }}>Agendamiento</h3>
 
             <div className="form-grid">
               <div className="form-group form-grid-full"><FieldLabel text="Fecha de Cita" fieldKey="appointmentDate" /><input type="date" className="form-input" name="appointmentDate" value={data.appointmentDate} onChange={handleChange} required={requiredFields?.appointmentDate} /></div>
@@ -452,8 +780,6 @@ export const WorkOrderForm: React.FC<Props> = ({ data, requiredFields = {}, onCh
               </div>
               <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 700, color: '#1E293B' }}>Vehículo y Trabajos</h3>
             </div>
-
-            <h3 className="print-only print-section-title" style={{ display: 'none' }}>Vehículo y Trabajos</h3>
             
             <div className="form-grid" style={{ marginBottom: '2rem' }}>
               <div className="form-group"><FieldLabel text="Año" fieldKey="year" /><input type="text" className="form-input" name="year" value={data.year} onChange={handleChange} placeholder="Ej. 2024" required={requiredFields?.year} /></div>
@@ -533,41 +859,6 @@ export const WorkOrderForm: React.FC<Props> = ({ data, requiredFields = {}, onCh
                 </div>
               )}
             </div>
-
-            <div className="print-only" style={{ display: 'none', marginTop: '2rem' }}>
-              <h3 className="print-section-title">Partes y Servicios Requeridos</h3>
-              {data.parts && data.parts.length > 0 ? (
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Tipo</th>
-                      <th>Detalle / Referencia</th>
-                      <th>Monto Base</th>
-                      <th>Labor Extra</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {data.parts.map((p: any, idx: number) => {
-                      const isPart = p.type === 'Parts';
-                      const costAmount = isPart ? Number(p.glassCost) : Number(p.amount);
-                      const laborTotal = isPart ? ((p.hasPriceTier ? Number(p.priceTierAmount) || 0 : 0) + (p.hasCalibration ? Number(p.calibrationAmount) || 0 : 0)) : null;
-                      const detailText = isPart ? `${p.partNumber || '-'} / ${p.nagsDescription || '-'}` : p.description || '-';
-
-                      return (
-                        <tr key={idx}>
-                          <td>{p.type}</td>
-                          <td>{detailText}</td>
-                          <td>${(costAmount || 0).toFixed(2)}</td>
-                          <td>{laborTotal !== null ? `$${laborTotal.toFixed(2)}` : '-'}</td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              ) : (
-                <p style={{ fontStyle: 'italic', color: '#64748b' }}>No se han especificado partes o servicios para esta orden.</p>
-              )}
-            </div>
           </div>
 
           <div className="card" style={{ backgroundColor: 'white', borderRadius: '12px', border: '1px solid #E2E8F0', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.02)', padding: '2rem', marginBottom: '2.5rem' }}>
@@ -577,8 +868,6 @@ export const WorkOrderForm: React.FC<Props> = ({ data, requiredFields = {}, onCh
               </div>
               <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 700, color: '#1E293B' }}>Facturación y Totales</h3>
             </div>
-
-            <h3 className="print-only print-section-title" style={{ display: 'none' }}>Facturación y Totales</h3>
             
             <div className="form-grid">
               <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
@@ -666,6 +955,32 @@ export const WorkOrderForm: React.FC<Props> = ({ data, requiredFields = {}, onCh
         </div>
       </div>
 
+      {/* MODAL DE NUEVA COMPAÑÍA */}
+      {isAddingCompany && (
+        <div className="no-print" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(15, 23, 42, 0.65)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(4px)' }}>
+          <div style={{ width: '90%', maxWidth: '400px', backgroundColor: 'white', display: 'flex', flexDirection: 'column', padding: 0, overflow: 'hidden', borderRadius: '12px', boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)' }}>
+            
+            <div style={{ padding: '1.5rem', borderBottom: '1px solid #E2E8F0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#F8FAFC' }}>
+              <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 700, color: '#0F172A' }}>Nueva Compañía</h3>
+              <button onClick={() => setIsAddingCompany(false)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#94A3B8' }}>
+                <X size={24} />
+              </button>
+            </div>
+
+            <div style={{ padding: '2rem 1.5rem' }}>
+              <label className="form-label" style={{ fontSize: '0.85rem', fontWeight: 600, color: '#475569', marginBottom: '0.5rem', display: 'block' }}>Nombre de la Compañía</label>
+              <input type="text" className="form-input" value={newCompanyName} onChange={e => setNewCompanyName(e.target.value)} placeholder="Ej. Geico" autoFocus />
+            </div>
+
+            <div style={{ padding: '1.5rem', borderTop: '1px solid #E2E8F0', display: 'flex', justifyContent: 'flex-end', gap: '1rem', backgroundColor: '#F8FAFC' }}>
+              <button type="button" onClick={() => setIsAddingCompany(false)} style={{ padding: '0.5rem 1rem', backgroundColor: 'white', border: '1px solid #E2E8F0', borderRadius: '6px', cursor: 'pointer', fontWeight: 600 }}>Cancelar</button>
+              <button type="button" onClick={saveNewCompany} style={{ padding: '0.5rem 1rem', backgroundColor: '#0F172A', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 600 }}>Guardar Compañía</button>
+            </div>
+
+          </div>
+        </div>
+      )}
+
       {/* MODAL DE SUBFORMULARIO A 2 COLUMNAS (NO IMPRIMIBLE) */}
       {isAddingPart && (
         <div className="no-print" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(15, 23, 42, 0.65)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(4px)' }}>
@@ -698,12 +1013,28 @@ export const WorkOrderForm: React.FC<Props> = ({ data, requiredFields = {}, onCh
                   <>
                     <div className="form-group">
                       <label className="form-label">Jobtype</label>
-                      <input type="text" className="form-input" name="jobtype" value={draftPart.jobtype || ''} onChange={handleDraftChange} />
+                      <select className="form-select" name="jobtype" value={draftPart.jobtype || ''} onChange={handleDraftChange}>
+                        <option value="">Seleccione...</option>
+                        {jobtypeOptions.map((jt, idx) => (
+                          <option key={idx} value={jt}>{jt}</option>
+                        ))}
+                      </select>
                     </div>
                     <div className="form-group">
                       <label className="form-label">Part Number</label>
-                      <input type="text" className="form-input" name="partNumber" value={draftPart.partNumber || ''} onChange={handleDraftChange} />
+                      <select className="form-select" name="partNumber" value={draftPart.partNumber || ''} onChange={handlePartNumberChange}>
+                        <option value="">Seleccione...</option>
+                        {partNumberData.map((p, idx) => (
+                          <option key={idx} value={p.partNumber}>{p.partNumber}</option>
+                        ))}
+                      </select>
                     </div>
+                    {/* El Nags Description es editable para que si no hay o quieres sobrescribir, puedas hacerlo y guardar luego */}
+                    <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+                      <label className="form-label">Nags Description</label>
+                      <input type="text" className="form-input" name="nagsDescription" value={draftPart.nagsDescription || ''} onChange={handleDraftChange} placeholder="Escribe o edita la descripción..." />
+                    </div>
+
                     <div className="form-group">
                       <label className="form-label">Glass Cost</label>
                       <div className="input-group">
@@ -755,9 +1086,28 @@ export const WorkOrderForm: React.FC<Props> = ({ data, requiredFields = {}, onCh
                   </>
                 ) : draftPart.type === 'Parts' && data.type === 'Personal' ? (
                   <>
-                    <div className="form-group"><label className="form-label">Jobtype</label><input type="text" className="form-input" name="jobtype" value={draftPart.jobtype} onChange={handleDraftChange} /></div>
-                    <div className="form-group"><label className="form-label">Part Number</label><input type="text" className="form-input" name="partNumber" value={draftPart.partNumber || ''} onChange={handleDraftChange} /></div>
-                    <div className="form-group" style={{ gridColumn: '1 / -1' }}><label className="form-label">Nags Description</label><input type="text" className="form-input" name="nagsDescription" value={draftPart.nagsDescription || ''} onChange={handleDraftChange} /></div>
+                    <div className="form-group">
+                      <label className="form-label">Jobtype</label>
+                      <select className="form-select" name="jobtype" value={draftPart.jobtype || ''} onChange={handleDraftChange}>
+                        <option value="">Seleccione...</option>
+                        {jobtypeOptions.map((jt, idx) => (
+                          <option key={idx} value={jt}>{jt}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">Part Number</label>
+                      <select className="form-select" name="partNumber" value={draftPart.partNumber || ''} onChange={handlePartNumberChange}>
+                        <option value="">Seleccione...</option>
+                        {partNumberData.map((p, idx) => (
+                          <option key={idx} value={p.partNumber}>{p.partNumber}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+                      <label className="form-label">Nags Description</label>
+                      <input type="text" className="form-input" name="nagsDescription" value={draftPart.nagsDescription || ''} onChange={handleDraftChange} placeholder="Escribe o edita la descripción..." />
+                    </div>
                     
                     <div className="form-group">
                       <label className="form-label">Glass Cost</label>
@@ -786,7 +1136,15 @@ export const WorkOrderForm: React.FC<Props> = ({ data, requiredFields = {}, onCh
                       
                       {draftPart.hasPriceTier && (
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '1.5rem', borderTop: '1px solid #E2E8F0', paddingTop: '1.5rem' }}>
-                          <div className="form-group"><label className="form-label">Nombre del Price Tier</label><input type="text" className="form-input" name="priceTierName" value={draftPart.priceTierName || ''} onChange={handleDraftChange} placeholder="Ej. Premium Urethane" /></div>
+                          <div className="form-group">
+                            <label className="form-label">Nombre del Price Tier</label>
+                            <select className="form-select" name="priceTierName" value={draftPart.priceTierName || ''} onChange={handlePriceTierChange}>
+                              <option value="">Seleccione...</option>
+                              {priceTierData.map((pt, idx) => (
+                                <option key={idx} value={pt.priceTier}>{pt.priceTier}</option>
+                              ))}
+                            </select>
+                          </div>
                           <div className="form-group">
                             <label className="form-label">Monto Price Tier</label>
                             <div className="input-group">
@@ -809,7 +1167,15 @@ export const WorkOrderForm: React.FC<Props> = ({ data, requiredFields = {}, onCh
                       
                       {draftPart.hasCalibration && (
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '1.5rem', borderTop: '1px solid #E2E8F0', paddingTop: '1.5rem' }}>
-                          <div className="form-group"><label className="form-label">Nombre de Calibración</label><input type="text" className="form-input" name="calibrationName" value={draftPart.calibrationName || ''} onChange={handleDraftChange} placeholder="Ej. ADAS Static" /></div>
+                          <div className="form-group">
+                            <label className="form-label">Nombre de Calibración</label>
+                            <select className="form-select" name="calibrationName" value={draftPart.calibrationName || ''} onChange={handleCalibrationChange}>
+                              <option value="">Seleccione...</option>
+                              {calibrationData.map((c, idx) => (
+                                <option key={idx} value={c.name}>{c.name}</option>
+                              ))}
+                            </select>
+                          </div>
                           <div className="form-group">
                             <label className="form-label">Monto Calibración</label>
                             <div className="input-group">
@@ -825,7 +1191,12 @@ export const WorkOrderForm: React.FC<Props> = ({ data, requiredFields = {}, onCh
                   <>
                     <div className="form-group">
                       <label className="form-label">Jobtype</label>
-                      <input type="text" className="form-input" name="jobtype" value={draftPart.jobtype} onChange={handleDraftChange} />
+                      <select className="form-select" name="jobtype" value={draftPart.jobtype || ''} onChange={handleDraftChange}>
+                        <option value="">Seleccione...</option>
+                        {jobtypeOptions.map((jt, idx) => (
+                          <option key={idx} value={jt}>{jt}</option>
+                        ))}
+                      </select>
                     </div>
                     <div className="form-group">
                       <label className="form-label">Amount</label>
