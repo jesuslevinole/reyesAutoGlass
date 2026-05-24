@@ -10,8 +10,8 @@ export default defineConfig({
         changeOrigin: true,
         secure: true,
         // Eliminamos rastros del navegador que activan Cloudflare
-        configure: (proxy, _options) => {
-          proxy.on('proxyReq', (proxyReq, req, _res) => {
+        configure: (proxy) => {
+          proxy.on('proxyReq', (proxyReq) => {
             proxyReq.removeHeader('origin');
             proxyReq.removeHeader('referer');
             proxyReq.removeHeader('user-agent');
