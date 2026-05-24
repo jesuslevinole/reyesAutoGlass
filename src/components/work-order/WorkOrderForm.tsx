@@ -2,38 +2,44 @@ import React, { useState, useEffect, useMemo } from 'react';
 import type { WorkOrderData } from '../../types/workOrder';
 import { ClipboardList, Car, Plus, Layers, UserCog, CalendarClock, Shield, Settings, Receipt, Trash2, Edit2, X, PhoneCall } from 'lucide-react';
 import { collection, query, where, getDocs, addDoc } from 'firebase/firestore';
-import { db } from '../../firebase'; 
+import { db } from '../../firebase';
+import { mygrantApi, type MygrantPart } from '../../services/mygrantApi';
 
 interface Props {
   data: WorkOrderData;
-  requiredFields?: Record<string, boolean>; 
+  requiredFields?: Record<string, boolean>;
   onChange: (field: keyof WorkOrderData, value: any) => void;
-  onOpenSettings: () => void; 
+  onOpenSettings: () => void;
 }
 
 export const WorkOrderForm: React.FC<Props> = ({ data, requiredFields = {}, onChange, onOpenSettings }) => {
-  
+
   const [isAddingPart, setIsAddingPart] = useState(false);
   const [editingPartIndex, setEditingPartIndex] = useState<number | null>(null);
-  
+
   const [statusOptions, setStatusOptions] = useState<string[]>([]);
-  
+
   // --- Estados para las colecciones dinámicas (Formulario Principal) ---
   const [companyOptions, setCompanyOptions] = useState<string[]>([]);
   const [agentOptions, setAgentOptions] = useState<string[]>([]);
   const [insuranceOptions, setInsuranceOptions] = useState<string[]>([]);
-  const [zipcodeData, setZipcodeData] = useState<{zipcode: string, longTrip: number}[]>([]);
-  const [customerOptions, setCustomerOptions] = useState<string[]>([]); 
-  
+  const [zipcodeData, setZipcodeData] = useState<{ zipcode: string, longTrip: number }[]>([]);
+  const [customerOptions, setCustomerOptions] = useState<string[]>([]);
+
   // --- Estados para las colecciones dinámicas (Modal de Partes) ---
   const [jobtypeOptions, setJobtypeOptions] = useState<string[]>([]);
-  const [partNumberData, setPartNumberData] = useState<{partNumber: string, nagsDescription: string}[]>([]);
-  const [priceTierData, setPriceTierData] = useState<{priceTier: string, amount: number}[]>([]);
-  const [calibrationData, setCalibrationData] = useState<{name: string, amount: number}[]>([]);
+  const [partNumberData, setPartNumberData] = useState<{ partNumber: string, nagsDescription: string }[]>([]);
+  const [priceTierData, setPriceTierData] = useState<{ priceTier: string, amount: number }[]>([]);
+  const [calibrationData, setCalibrationData] = useState<{ name: string, amount: number }[]>([]);
+
+  // --- Estados para Mygrant ---
+  const [mygrantParts, setMygrantParts] = useState<MygrantPart[]>([]);
+  const [isLoadingParts, setIsLoadingParts] = useState(false);
+  const [mygrantError, setMygrantError] = useState<string | null>(null);
 
   const [isAddingCompany, setIsAddingCompany] = useState(false);
   const [newCompanyName, setNewCompanyName] = useState('');
-  
+
   const [phoneError, setPhoneError] = useState<string>('');
 
   const initialDraftPart = {
@@ -65,11 +71,11 @@ export const WorkOrderForm: React.FC<Props> = ({ data, requiredFields = {}, onCh
       try {
         const q = query(collection(db, 'catalog_tag'), where('type', '==', data.documentType));
         const snapshot = await getDocs(q);
-        
+
         if (!snapshot.empty) {
           const options = snapshot.docs.map(doc => doc.data().name || doc.data().value || doc.id);
           setStatusOptions(options);
-          
+
           if (!options.includes(data.status)) {
             onChange('status', options[0]);
           }
@@ -89,7 +95,8 @@ export const WorkOrderForm: React.FC<Props> = ({ data, requiredFields = {}, onCh
     if (data.documentType) {
       loadStatuses();
     }
-  }, [data.documentType, data.status, onChange]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data.documentType]);
 
   // 2. Obtener Compañías
   useEffect(() => {
@@ -115,7 +122,7 @@ export const WorkOrderForm: React.FC<Props> = ({ data, requiredFields = {}, onCh
       }
       try {
         const q = query(
-          collection(db, 'team'), 
+          collection(db, 'team'),
           where('type', '==', 'Agent'),
           where('company', '==', data.company)
         );
@@ -129,7 +136,7 @@ export const WorkOrderForm: React.FC<Props> = ({ data, requiredFields = {}, onCh
         console.error("Error al cargar agentes de la colección team:", error);
       }
     };
-    
+
     loadAgents();
   }, [data.company]);
 
@@ -184,7 +191,7 @@ export const WorkOrderForm: React.FC<Props> = ({ data, requiredFields = {}, onCh
     loadCustomers();
   }, []);
 
-  // --- NUEVAS CONSULTAS PARA EL MODAL DE PARTES ---
+  // --- CONSULTAS PARA EL MODAL DE PARTES ---
 
   // 7. Obtener Jobtypes dependientes del tipo de Work Order (Personal o Insurance)
   useEffect(() => {
@@ -259,6 +266,48 @@ export const WorkOrderForm: React.FC<Props> = ({ data, requiredFields = {}, onCh
     loadCalibrations();
   }, []);
 
+  // 11. Cargar partes desde la API de Mygrant según el vehículo
+  useEffect(() => {
+    const fetchMygrantParts = async () => {
+      if (
+        data.year && data.mark && data.model &&
+        data.year.trim() !== '' && data.mark.trim() !== '' && data.model.trim() !== ''
+      ) {
+        setIsLoadingParts(true);
+        setMygrantError(null);
+
+        try {
+          const partsResult = await mygrantApi.getPartsByVehicle(
+            data.year,
+            data.mark,
+            data.model
+          );
+
+          setMygrantParts(partsResult);
+
+          // Fusiona las partes de Mygrant con el catálogo local sin duplicar.
+          setPartNumberData((prevData) => {
+            const existingPartNumbers = new Set(prevData.map(p => p.partNumber));
+            const newPartsFromMygrant = partsResult
+              .filter(p => !existingPartNumbers.has(p.partNumber))
+              .map(p => ({
+                partNumber: p.partNumber,
+                nagsDescription: p.nagsDescription
+              }));
+            return [...prevData, ...newPartsFromMygrant];
+          });
+        } catch (error) {
+          console.error('Error fetching Mygrant parts:', error);
+          setMygrantError('No se pudieron cargar las partes de Mygrant para este vehículo.');
+        } finally {
+          setIsLoadingParts(false);
+        }
+      }
+    };
+
+    fetchMygrantParts();
+  }, [data.year, data.mark, data.model]);
+
   useEffect(() => {
     if (!data.date) {
       const today = new Date().toISOString().split('T')[0];
@@ -289,15 +338,15 @@ export const WorkOrderForm: React.FC<Props> = ({ data, requiredFields = {}, onCh
     const val = e.target.value;
     if (val && !customerOptions.includes(val)) {
       alert("Por favor, seleccione un cliente válido de la lista sugerida. No se permiten nombres inventados.");
-      onChange('customer', ''); 
+      onChange('customer', '');
     }
   };
 
   const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
-    const cleaned = value.replace(/\D/g, ''); 
+    const cleaned = value.replace(/\D/g, '');
     let formatted = cleaned;
-    
+
     if (cleaned.length > 0) {
       if (cleaned.length < 4) {
         formatted = `(${cleaned}`;
@@ -307,7 +356,7 @@ export const WorkOrderForm: React.FC<Props> = ({ data, requiredFields = {}, onCh
         formatted = `(${cleaned.slice(0, 3)}) ${cleaned.slice(3, 6)}-${cleaned.slice(6, 10)}`;
       }
     }
-    
+
     onChange(name as keyof WorkOrderData, formatted);
     if (name === 'phone') setPhoneError('');
   };
@@ -339,15 +388,20 @@ export const WorkOrderForm: React.FC<Props> = ({ data, requiredFields = {}, onCh
     setDraftPart((prev: any) => ({ ...prev, [name]: value }));
   };
 
-  // Autofill para Part Number -> Nags Description
+  // Autofill para Part Number -> Nags Description (catálogo local + Mygrant)
   const handlePartNumberChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const val = e.target.value;
-    const found = partNumberData.find(p => p.partNumber === val);
+    const local = partNumberData.find(p => p.partNumber === val);
+    const mygrant = mygrantParts.find(p => p.partNumber === val);
+
     setDraftPart((prev: any) => ({
       ...prev,
       partNumber: val,
-      // Si encuentra un Nags, lo auto-llena. Si no, o si eligen vacío, deja el actual o en blanco.
-      nagsDescription: found && found.nagsDescription ? found.nagsDescription : ''
+      // Prioriza el Nags del catálogo local; si no, usa el de Mygrant.
+      nagsDescription: local?.nagsDescription || mygrant?.nagsDescription || '',
+      // Si la parte viene de Mygrant, autocompleta precios.
+      listPrice: mygrant?.listPrice || prev.listPrice || '',
+      glassCost: mygrant?.listPrice || prev.glassCost || ''
     }));
   };
 
@@ -386,7 +440,7 @@ export const WorkOrderForm: React.FC<Props> = ({ data, requiredFields = {}, onCh
       }
       return sum;
     }, 0);
-    
+
     onChange('parts', newParts);
     onChange('subtotalPart', newSubtotalParts);
     onChange('subtotalServices', newSubtotalServices);
@@ -396,7 +450,7 @@ export const WorkOrderForm: React.FC<Props> = ({ data, requiredFields = {}, onCh
   const savePart = () => {
     const currentParts = data.parts || [];
     let newParts;
-    
+
     if (editingPartIndex !== null) {
       newParts = [...currentParts];
       newParts[editingPartIndex] = draftPart;
@@ -433,7 +487,7 @@ export const WorkOrderForm: React.FC<Props> = ({ data, requiredFields = {}, onCh
     try {
       await addDoc(collection(db, 'catalog_company'), { name: newCompanyName.trim() });
       setCompanyOptions(prev => [...prev, newCompanyName.trim()]);
-      onChange('company', newCompanyName.trim()); 
+      onChange('company', newCompanyName.trim());
       setIsAddingCompany(false);
       setNewCompanyName('');
     } catch (error) {
@@ -481,6 +535,7 @@ export const WorkOrderForm: React.FC<Props> = ({ data, requiredFields = {}, onCh
           @page { size: letter portrait; margin: 15mm; }
           body, .animate-in { background-color: #ffffff !important; color: #000000 !important; font-size: 10pt !important; display: block !important; overflow: visible !important; }
           .no-print { display: none !important; }
+          .print-only { display: flex !important; }
           .form-grid { display: grid !important; grid-template-columns: repeat(2, 1fr) !important; gap: 15px !important; }
           .card { border: none !important; box-shadow: none !important; padding: 0 !important; margin-bottom: 2rem !important; page-break-inside: avoid !important; break-inside: avoid !important; }
           .lucide { display: none !important; }
@@ -498,11 +553,12 @@ export const WorkOrderForm: React.FC<Props> = ({ data, requiredFields = {}, onCh
           .print-section-title { font-size: 14pt !important; font-weight: bold !important; color: #000 !important; border-bottom: 1px solid #000 !important; margin-bottom: 15px !important; text-transform: uppercase !important; }
           .print-hide-container { display: none !important; }
         }
+        .print-only { display: none; }
       `}</style>
 
       <div className="animate-in fade-in" style={{ flex: 1, overflowY: 'auto', padding: '3rem 1.5rem', backgroundColor: '#F8FAFC' }}>
         <div style={{ maxWidth: '1000px', margin: '0 auto' }}>
-          
+
           <div className="no-print" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '3rem' }}>
             <div>
               <h2 style={{ fontSize: '2rem', fontWeight: 800, color: '#0F172A', letterSpacing: '-0.03em', margin: 0 }}>
@@ -515,11 +571,11 @@ export const WorkOrderForm: React.FC<Props> = ({ data, requiredFields = {}, onCh
                 Complete la información del servicio con precisión.
               </p>
             </div>
-            
+
             <div style={{ display: 'flex', gap: '1rem' }}>
-              <button 
-                type="button" 
-                onClick={onOpenSettings} 
+              <button
+                type="button"
+                onClick={onOpenSettings}
                 title="Configurar Campos"
                 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.6rem 1rem', backgroundColor: 'white', border: '1px solid #E2E8F0', borderRadius: '8px', color: '#475569', fontWeight: 600, cursor: 'pointer', boxShadow: '0 1px 2px rgba(0,0,0,0.05)', transition: 'all 0.2s' }}
                 onMouseOver={e => e.currentTarget.style.backgroundColor = '#F1F5F9'}
@@ -530,7 +586,7 @@ export const WorkOrderForm: React.FC<Props> = ({ data, requiredFields = {}, onCh
             </div>
           </div>
 
-          <div className="print-only print-header-report" style={{ display: 'none' }}>
+          <div className="print-only print-header-report">
             <div>
               <h1>{data.documentType === 'Quote' ? 'Quote' : 'Work Order'}</h1>
               <p>Referencia: #{data.id || 'N/A'} | Tipo: {data.type || 'N/A'}</p>
@@ -548,7 +604,7 @@ export const WorkOrderForm: React.FC<Props> = ({ data, requiredFields = {}, onCh
               </div>
               <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 700, color: '#1E293B' }}>Configuración Inicial</h3>
             </div>
-            
+
             <div className="form-grid">
               <div className="form-group print-hide-container" style={{ gridColumn: '1 / -1', display: 'flex', flexDirection: 'column', gap: '1.5rem', backgroundColor: '#F8FAFC', padding: '1.5rem', borderRadius: '8px', border: '1px solid #E2E8F0' }}>
                 <div style={{ display: 'flex', gap: '2rem' }}>
@@ -584,15 +640,15 @@ export const WorkOrderForm: React.FC<Props> = ({ data, requiredFields = {}, onCh
                 <FieldLabel text="Fecha de Creación" fieldKey="date" />
                 <input type="date" className="form-input" name="date" value={data.date} onChange={handleChange} required={requiredFields?.date} />
               </div>
-              
+
               <div className="form-group">
                 <label className="form-label" style={{ color: '#475569', fontSize: '0.8rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.02em', marginBottom: '0.3rem' }}>Estado (Status)</label>
-                <select 
-                  className="form-select" 
-                  name="status" 
-                  value={data.status || ''} 
-                  onChange={handleChange} 
-                  required 
+                <select
+                  className="form-select"
+                  name="status"
+                  value={data.status || ''}
+                  onChange={handleChange}
+                  required
                   style={{ fontWeight: 500 }}
                   disabled={statusOptions.length === 0}
                 >
@@ -605,16 +661,16 @@ export const WorkOrderForm: React.FC<Props> = ({ data, requiredFields = {}, onCh
                   )}
                 </select>
               </div>
-              
+
               <div className="form-group">
                 <FieldLabel text="Compañía" fieldKey="company" />
                 <div className="input-group">
-                  <select 
-                    className="form-select" 
-                    name="company" 
-                    value={data.company || ''} 
-                    onChange={handleChange} 
-                    required={requiredFields?.company} 
+                  <select
+                    className="form-select"
+                    name="company"
+                    value={data.company || ''}
+                    onChange={handleChange}
+                    required={requiredFields?.company}
                   >
                     <option value="">Seleccione compañía...</option>
                     {companyOptions.map((comp: string, idx: number) => (
@@ -632,12 +688,12 @@ export const WorkOrderForm: React.FC<Props> = ({ data, requiredFields = {}, onCh
                 <div className="form-group">
                   <FieldLabel text="Agente" fieldKey="agent" />
                   <div className="input-group">
-                    <select 
-                      className="form-select" 
-                      name="agent" 
-                      value={data.agent || ''} 
-                      onChange={handleChange} 
-                      required={requiredFields?.agent} 
+                    <select
+                      className="form-select"
+                      name="agent"
+                      value={data.agent || ''}
+                      onChange={handleChange}
+                      required={requiredFields?.agent}
                     >
                       <option value="">Seleccione agente...</option>
                       {agentOptions.map((ag, idx) => (
@@ -648,15 +704,15 @@ export const WorkOrderForm: React.FC<Props> = ({ data, requiredFields = {}, onCh
                   </div>
                 </div>
               )}
-              
+
               <div className="form-group">
                 <FieldLabel text="Código Postal (Zip Code)" fieldKey="zipcode" />
                 <div className="input-group">
-                  <select 
-                    className="form-select" 
-                    name="zipcode" 
-                    value={data.zipcode || ''} 
-                    onChange={handleZipcodeChange} 
+                  <select
+                    className="form-select"
+                    name="zipcode"
+                    value={data.zipcode || ''}
+                    onChange={handleZipcodeChange}
                     required={requiredFields?.zipcode}
                   >
                     <option value="">Seleccione...</option>
@@ -686,12 +742,12 @@ export const WorkOrderForm: React.FC<Props> = ({ data, requiredFields = {}, onCh
               <div className="form-grid">
                 <div className="form-group">
                   <FieldLabel text="Aseguradora (Carrier)" fieldKey="insuranceCarrier" />
-                  <select 
-                    className="form-select" 
-                    name="insuranceCarrier" 
-                    value={data.insuranceCarrier || ''} 
-                    onChange={handleChange} 
-                    required={requiredFields?.insuranceCarrier} 
+                  <select
+                    className="form-select"
+                    name="insuranceCarrier"
+                    value={data.insuranceCarrier || ''}
+                    onChange={handleChange}
+                    required={requiredFields?.insuranceCarrier}
                   >
                     <option value="">Seleccione aseguradora...</option>
                     {insuranceOptions.map((ins, idx) => (
@@ -727,17 +783,17 @@ export const WorkOrderForm: React.FC<Props> = ({ data, requiredFields = {}, onCh
               <div className="form-group form-grid-full" style={{ marginBottom: '2rem' }}>
                 <FieldLabel text="Buscar Cliente" fieldKey="customer" />
                 <div className="input-group">
-                  <input 
-                    type="text" 
+                  <input
+                    type="text"
                     list="customer-options"
-                    className="form-input" 
-                    name="customer" 
-                    value={data.customer || ''} 
-                    onChange={handleChange} 
+                    className="form-input"
+                    name="customer"
+                    value={data.customer || ''}
+                    onChange={handleChange}
                     onBlur={handleCustomerBlur}
-                    placeholder="Escriba para buscar un cliente..." 
-                    required={requiredFields?.customer} 
-                    style={{ padding: '0.8rem' }} 
+                    placeholder="Escriba para buscar un cliente..."
+                    required={requiredFields?.customer}
+                    style={{ padding: '0.8rem' }}
                   />
                   <datalist id="customer-options">
                     {customerOptions.map((cust, idx) => (
@@ -780,7 +836,7 @@ export const WorkOrderForm: React.FC<Props> = ({ data, requiredFields = {}, onCh
               </div>
               <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 700, color: '#1E293B' }}>Vehículo y Trabajos</h3>
             </div>
-            
+
             <div className="form-grid" style={{ marginBottom: '2rem' }}>
               <div className="form-group"><FieldLabel text="Año" fieldKey="year" /><input type="text" className="form-input" name="year" value={data.year} onChange={handleChange} placeholder="Ej. 2024" required={requiredFields?.year} /></div>
               <div className="form-group"><FieldLabel text="Marca" fieldKey="mark" /><input type="text" className="form-input" name="mark" value={data.mark} onChange={handleChange} placeholder="Ej. Toyota" required={requiredFields?.mark} /></div>
@@ -789,7 +845,26 @@ export const WorkOrderForm: React.FC<Props> = ({ data, requiredFields = {}, onCh
               <div className="form-group form-grid-full"><FieldLabel text="Número VIN" fieldKey="vinNumber" /><input type="text" className="form-input" name="vinNumber" value={data.vinNumber} onChange={handleChange} style={{ textTransform: 'uppercase', fontFamily: 'monospace', letterSpacing: '1px' }} placeholder="17 caracteres" required={requiredFields?.vinNumber} /></div>
               <div className="form-group form-grid-full"><FieldLabel text="Matrícula (Plate)" fieldKey="plate" /><input type="text" className="form-input" name="plate" value={data.plate} onChange={handleChange} style={{ textTransform: 'uppercase' }} placeholder="ABC-1234" required={requiredFields?.plate} /></div>
             </div>
-            
+
+            {/* Indicadores de estado de la consulta a Mygrant */}
+            <div className="no-print">
+              {isLoadingParts && (
+                <p style={{ color: '#3B82F6', marginBottom: '1rem', fontSize: '0.85rem', fontWeight: 500 }}>
+                  Buscando catálogo de partes en Mygrant para este vehículo...
+                </p>
+              )}
+              {mygrantError && (
+                <p style={{ color: '#EF4444', marginBottom: '1rem', fontSize: '0.85rem', fontWeight: 500 }}>
+                  {mygrantError}
+                </p>
+              )}
+              {!isLoadingParts && !mygrantError && mygrantParts.length > 0 && (
+                <p style={{ color: '#059669', marginBottom: '1rem', fontSize: '0.85rem', fontWeight: 500 }}>
+                  {mygrantParts.length} parte(s) cargada(s) desde Mygrant. Disponibles en el selector de Part Number.
+                </p>
+              )}
+            </div>
+
             <div className="no-print" style={{ padding: '1.5rem', border: '1px dashed #CBD5E1', borderRadius: '12px', backgroundColor: '#F8FAFC' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
                 <div>
@@ -822,9 +897,9 @@ export const WorkOrderForm: React.FC<Props> = ({ data, requiredFields = {}, onCh
                         const isPart = p.type === 'Parts';
                         const costAmount = isPart ? Number(p.glassCost) : Number(p.amount);
                         const laborTotal = isPart ? ((p.hasPriceTier ? Number(p.priceTierAmount) || 0 : 0) + (p.hasCalibration ? Number(p.calibrationAmount) || 0 : 0)) : null;
-                        
-                        const detailText = isPart 
-                          ? `${p.partNumber || '-'} / ${p.nagsDescription || '-'}` 
+
+                        const detailText = isPart
+                          ? `${p.partNumber || '-'} / ${p.nagsDescription || '-'}`
                           : p.description || '-';
 
                         return (
@@ -868,7 +943,7 @@ export const WorkOrderForm: React.FC<Props> = ({ data, requiredFields = {}, onCh
               </div>
               <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 700, color: '#1E293B' }}>Facturación y Totales</h3>
             </div>
-            
+
             <div className="form-grid">
               <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '0.5rem', borderBottom: '1px dashed #E2E8F0' }}>
@@ -941,7 +1016,7 @@ export const WorkOrderForm: React.FC<Props> = ({ data, requiredFields = {}, onCh
                 </div>
               </div>
             </div>
-            
+
             <div className="no-print" style={{ marginTop: '2rem', padding: '1rem 1.5rem', backgroundColor: '#FEFCE8', borderRadius: '8px', border: '1px dashed #CA8A04', display: 'flex', alignItems: 'center', gap: '1rem', width: 'fit-content' }}>
               <span style={{ color: '#854D0E', fontWeight: 600, fontSize: '0.9rem' }}>Cash Comeback (Opcional):</span>
               <div className="input-group" style={{ width: '150px' }}>
@@ -959,7 +1034,7 @@ export const WorkOrderForm: React.FC<Props> = ({ data, requiredFields = {}, onCh
       {isAddingCompany && (
         <div className="no-print" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(15, 23, 42, 0.65)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(4px)' }}>
           <div style={{ width: '90%', maxWidth: '400px', backgroundColor: 'white', display: 'flex', flexDirection: 'column', padding: 0, overflow: 'hidden', borderRadius: '12px', boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)' }}>
-            
+
             <div style={{ padding: '1.5rem', borderBottom: '1px solid #E2E8F0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#F8FAFC' }}>
               <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 700, color: '#0F172A' }}>Nueva Compañía</h3>
               <button onClick={() => setIsAddingCompany(false)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#94A3B8' }}>
@@ -985,7 +1060,7 @@ export const WorkOrderForm: React.FC<Props> = ({ data, requiredFields = {}, onCh
       {isAddingPart && (
         <div className="no-print" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(15, 23, 42, 0.65)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(4px)' }}>
           <div style={{ width: '90%', maxWidth: '700px', maxHeight: '90vh', backgroundColor: 'white', display: 'flex', flexDirection: 'column', padding: 0, overflow: 'hidden', borderRadius: '12px', boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)' }}>
-            
+
             <div style={{ padding: '1.5rem', borderBottom: '1px solid #E2E8F0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#F8FAFC' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                 <Layers size={22} color="#0F172A" />
@@ -1000,7 +1075,7 @@ export const WorkOrderForm: React.FC<Props> = ({ data, requiredFields = {}, onCh
 
             <div style={{ padding: '2rem 1.5rem', overflowY: 'auto' }}>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '1.2rem', alignItems: 'start' }}>
-                
+
                 <div className="form-group" style={{ gridColumn: '1 / -1', marginBottom: '0.5rem' }}>
                   <label className="form-label" style={{ fontSize: '0.9rem', color: '#64748B', fontWeight: 600 }}>Tipo de Registro</label>
                   <div className="segmented-control" style={{ maxWidth: '400px' }}>
@@ -1108,7 +1183,7 @@ export const WorkOrderForm: React.FC<Props> = ({ data, requiredFields = {}, onCh
                       <label className="form-label">Nags Description</label>
                       <input type="text" className="form-input" name="nagsDescription" value={draftPart.nagsDescription || ''} onChange={handleDraftChange} placeholder="Escribe o edita la descripción..." />
                     </div>
-                    
+
                     <div className="form-group">
                       <label className="form-label">Glass Cost</label>
                       <div className="input-group">
@@ -1133,7 +1208,7 @@ export const WorkOrderForm: React.FC<Props> = ({ data, requiredFields = {}, onCh
                           <label className={`segmented-item ${!draftPart.hasPriceTier ? 'active' : ''}`} style={{ padding: '0.3rem 0.5rem', fontSize: '0.85rem' }}><input type="radio" checked={!draftPart.hasPriceTier} onChange={() => toggleDraftBoolean('hasPriceTier', false)} style={{ display: 'none' }} />No</label>
                         </div>
                       </div>
-                      
+
                       {draftPart.hasPriceTier && (
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '1.5rem', borderTop: '1px solid #E2E8F0', paddingTop: '1.5rem' }}>
                           <div className="form-group">
@@ -1164,7 +1239,7 @@ export const WorkOrderForm: React.FC<Props> = ({ data, requiredFields = {}, onCh
                           <label className={`segmented-item ${!draftPart.hasCalibration ? 'active' : ''}`} style={{ padding: '0.3rem 0.5rem', fontSize: '0.85rem' }}><input type="radio" checked={!draftPart.hasCalibration} onChange={() => toggleDraftBoolean('hasCalibration', false)} style={{ display: 'none' }} />No</label>
                         </div>
                       </div>
-                      
+
                       {draftPart.hasCalibration && (
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '1.5rem', borderTop: '1px solid #E2E8F0', paddingTop: '1.5rem' }}>
                           <div className="form-group">
@@ -1205,12 +1280,12 @@ export const WorkOrderForm: React.FC<Props> = ({ data, requiredFields = {}, onCh
                         <input type="number" step="any" className="form-input" name="amount" value={draftPart.amount || ''} onChange={handleDraftChange} />
                       </div>
                     </div>
-                    
+
                     <div className="form-group" style={{ gridColumn: '1 / -1' }}>
                       <label className="form-label">Description</label>
                       <input type="text" className="form-input" name="description" value={draftPart.description || ''} onChange={handleDraftChange} />
                     </div>
-                    
+
                     <div className="form-group" style={{ gridColumn: '1 / -1' }}>
                       <label className="form-label">Note</label>
                       <input type="text" className="form-input" name="note" value={draftPart.note || ''} onChange={handleDraftChange} placeholder="Notas adicionales..." />
