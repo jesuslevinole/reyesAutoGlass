@@ -1,3 +1,4 @@
+/// <reference types="@cloudflare/workers-types" />
 // functions/mygrant-soap/[[path]].ts
 // Proxy del lado del servidor para el API SOAP de Mygrant.
 // Se ejecuta en el edge de Cloudflare, NO en el navegador.
