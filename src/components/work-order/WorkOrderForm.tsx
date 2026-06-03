@@ -4,6 +4,7 @@ import { ClipboardList, Car, Plus, Layers, UserCog, CalendarClock, Shield, Setti
 import { collection, query, where, getDocs, addDoc } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { mygrantApi, type MygrantPart } from '../../services/mygrantApi';
+import { vehicleApi } from '../../services/vehicleApi';
 
 interface Props {
   data: WorkOrderData;
@@ -36,6 +37,18 @@ export const WorkOrderForm: React.FC<Props> = ({ data, requiredFields = {}, onCh
   const [mygrantParts, setMygrantParts] = useState<MygrantPart[]>([]);
   const [isLoadingParts, setIsLoadingParts] = useState(false);
   const [mygrantError, setMygrantError] = useState<string | null>(null);
+
+  // --- Estados para API de vehículos (NHTSA vPIC) ---
+  const [vehicleMakes, setVehicleMakes] = useState<string[]>([]);
+  const [vehicleModels, setVehicleModels] = useState<string[]>([]);
+  const [isDecodingVin, setIsDecodingVin] = useState(false);
+
+  // Años disponibles (generados localmente, no requieren API).
+  const currentYear = new Date().getFullYear();
+  const yearOptions = Array.from(
+    { length: currentYear + 1 - 1990 + 1 },
+    (_, i) => String(currentYear + 1 - i)
+  );
 
   const [isAddingCompany, setIsAddingCompany] = useState(false);
   const [newCompanyName, setNewCompanyName] = useState('');
@@ -308,6 +321,22 @@ export const WorkOrderForm: React.FC<Props> = ({ data, requiredFields = {}, onCh
     fetchMygrantParts();
   }, [data.year, data.mark, data.model]);
 
+  // 12. Cargar marcas de vehículos desde la API (NHTSA vPIC) al iniciar.
+  useEffect(() => {
+    vehicleApi.getMakes().then(setVehicleMakes).catch(() => setVehicleMakes([]));
+  }, []);
+
+  // 13. Cargar modelos cuando cambian la marca y/o el año.
+  useEffect(() => {
+    if (data.mark && data.mark.trim()) {
+      vehicleApi.getModels(data.mark, data.year)
+        .then(setVehicleModels)
+        .catch(() => setVehicleModels([]));
+    } else {
+      setVehicleModels([]);
+    }
+  }, [data.mark, data.year]);
+
   useEffect(() => {
     if (!data.date) {
       const today = new Date().toISOString().split('T')[0];
@@ -382,6 +411,24 @@ export const WorkOrderForm: React.FC<Props> = ({ data, requiredFields = {}, onCh
     onChange('longTrip', found ? found.longTrip : 0);
   };
 
+  // Al salir del campo VIN, decodifica y autocompleta año/marca/modelo/carrocería.
+  const handleVinBlur = async () => {
+    const vin = (data.vinNumber || '').trim();
+    if (vin.length !== 17) return;
+    setIsDecodingVin(true);
+    try {
+      const info = await vehicleApi.decodeVin(vin);
+      if (info.year) onChange('year', info.year);
+      if (info.make) onChange('mark', info.make);
+      if (info.model) onChange('model', info.model);
+      if (info.body) onChange('body', info.body);
+    } catch (error) {
+      console.error('Error decodificando el VIN:', error);
+    } finally {
+      setIsDecodingVin(false);
+    }
+  };
+
   // --- LÓGICAS DEL MODAL DE PARTES Y SERVICIOS ---
   const handleDraftChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -397,9 +444,7 @@ export const WorkOrderForm: React.FC<Props> = ({ data, requiredFields = {}, onCh
     setDraftPart((prev: any) => ({
       ...prev,
       partNumber: val,
-      // Prioriza el Nags del catálogo local; si no, usa el de Mygrant.
       nagsDescription: local?.nagsDescription || mygrant?.nagsDescription || '',
-      // Si la parte viene de Mygrant, autocompleta precios.
       listPrice: mygrant?.listPrice || prev.listPrice || '',
       glassCost: mygrant?.listPrice || prev.glassCost || ''
     }));
@@ -683,7 +728,6 @@ export const WorkOrderForm: React.FC<Props> = ({ data, requiredFields = {}, onCh
                 </div>
               </div>
 
-              {/* Agente solo se muestra si existe una compañía seleccionada */}
               {data.company && data.company.trim() !== '' && (
                 <div className="form-group">
                   <FieldLabel text="Agente" fieldKey="agent" />
@@ -838,15 +882,51 @@ export const WorkOrderForm: React.FC<Props> = ({ data, requiredFields = {}, onCh
             </div>
 
             <div className="form-grid" style={{ marginBottom: '2rem' }}>
-              <div className="form-group"><FieldLabel text="Año" fieldKey="year" /><input type="text" className="form-input" name="year" value={data.year} onChange={handleChange} placeholder="Ej. 2024" required={requiredFields?.year} /></div>
-              <div className="form-group"><FieldLabel text="Marca" fieldKey="mark" /><input type="text" className="form-input" name="mark" value={data.mark} onChange={handleChange} placeholder="Ej. Toyota" required={requiredFields?.mark} /></div>
-              <div className="form-group"><FieldLabel text="Modelo" fieldKey="model" /><input type="text" className="form-input" name="model" value={data.model} onChange={handleChange} placeholder="Ej. Camry" required={requiredFields?.model} /></div>
+              <div className="form-group">
+                <FieldLabel text="Año" fieldKey="year" />
+                <select className="form-select" name="year" value={data.year || ''} onChange={handleChange} required={requiredFields?.year}>
+                  <option value="">Seleccione año...</option>
+                  {yearOptions.map((y) => (
+                    <option key={y} value={y}>{y}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="form-group">
+                <FieldLabel text="Marca" fieldKey="mark" />
+                <input type="text" list="make-options" className="form-input" name="mark" value={data.mark} onChange={handleChange} placeholder="Ej. Toyota" required={requiredFields?.mark} />
+                <datalist id="make-options">
+                  {vehicleMakes.map((m, idx) => (
+                    <option key={idx} value={m} />
+                  ))}
+                </datalist>
+              </div>
+
+              <div className="form-group">
+                <FieldLabel text="Modelo" fieldKey="model" />
+                <input type="text" list="model-options" className="form-input" name="model" value={data.model} onChange={handleChange} placeholder="Ej. Camry" required={requiredFields?.model} />
+                <datalist id="model-options">
+                  {vehicleModels.map((m, idx) => (
+                    <option key={idx} value={m} />
+                  ))}
+                </datalist>
+              </div>
+
               <div className="form-group"><FieldLabel text="Carrocería (Body)" fieldKey="body" /><input type="text" className="form-input" name="body" value={data.body} onChange={handleChange} placeholder="Ej. Sedan" required={requiredFields?.body} /></div>
-              <div className="form-group form-grid-full"><FieldLabel text="Número VIN" fieldKey="vinNumber" /><input type="text" className="form-input" name="vinNumber" value={data.vinNumber} onChange={handleChange} style={{ textTransform: 'uppercase', fontFamily: 'monospace', letterSpacing: '1px' }} placeholder="17 caracteres" required={requiredFields?.vinNumber} /></div>
+
+              <div className="form-group form-grid-full">
+                <FieldLabel text="Número VIN" fieldKey="vinNumber" />
+                <input type="text" className="form-input" name="vinNumber" value={data.vinNumber} onChange={handleChange} onBlur={handleVinBlur} style={{ textTransform: 'uppercase', fontFamily: 'monospace', letterSpacing: '1px' }} placeholder="17 caracteres (autocompleta el vehículo)" maxLength={17} required={requiredFields?.vinNumber} />
+                {isDecodingVin && (
+                  <span style={{ color: '#3B82F6', fontSize: '0.75rem', marginTop: '0.3rem', display: 'block', fontWeight: 500 }}>
+                    Decodificando VIN...
+                  </span>
+                )}
+              </div>
+
               <div className="form-group form-grid-full"><FieldLabel text="Matrícula (Plate)" fieldKey="plate" /><input type="text" className="form-input" name="plate" value={data.plate} onChange={handleChange} style={{ textTransform: 'uppercase' }} placeholder="ABC-1234" required={requiredFields?.plate} /></div>
             </div>
 
-            {/* Indicadores de estado de la consulta a Mygrant */}
             <div className="no-print">
               {isLoadingParts && (
                 <p style={{ color: '#3B82F6', marginBottom: '1rem', fontSize: '0.85rem', fontWeight: 500 }}>
@@ -1104,7 +1184,6 @@ export const WorkOrderForm: React.FC<Props> = ({ data, requiredFields = {}, onCh
                         ))}
                       </select>
                     </div>
-                    {/* El Nags Description es editable para que si no hay o quieres sobrescribir, puedas hacerlo y guardar luego */}
                     <div className="form-group" style={{ gridColumn: '1 / -1' }}>
                       <label className="form-label">Nags Description</label>
                       <input type="text" className="form-input" name="nagsDescription" value={draftPart.nagsDescription || ''} onChange={handleDraftChange} placeholder="Escribe o edita la descripción..." />

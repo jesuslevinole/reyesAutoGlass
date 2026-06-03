@@ -1,24 +1,25 @@
 import React from 'react';
 import type { WorkOrderData } from '../../types/workOrder';
-import { Save, XCircle, User, Car, CalendarClock, Shield, Receipt } from 'lucide-react';
+import { Save, XCircle, User, Car, CalendarClock, Shield, Receipt, Loader2 } from 'lucide-react';
 
-interface SummaryProps { 
-  data: WorkOrderData; 
-  onSave: () => void; 
-  onCancel: () => void; 
+interface SummaryProps {
+  data: WorkOrderData;
+  onSave: () => void;
+  onCancel: () => void;
+  isSaving?: boolean; // <-- NUEVO: bloquea el botón mientras se guarda
 }
 
 // AQUÍ ESTÁ LA EXPORTACIÓN CLAVE QUE BUSCA TYPESCRIPT
-export const WorkOrderSummary: React.FC<SummaryProps> = ({ data, onSave, onCancel }) => {
-  
+export const WorkOrderSummary: React.FC<SummaryProps> = ({ data, onSave, onCancel, isSaving = false }) => {
+
   // --- FORMATEO DE DATOS ---
-  const customerName = data.customerType === 'Existing' 
-    ? data.customer 
+  const customerName = data.customerType === 'Existing'
+    ? data.customer
     : `${data.firstName || ''} ${data.lastName || ''}`.trim();
 
   const vehicleName = [data.year, data.mark, data.model].filter(Boolean).join(' ');
 
-  const formatCurrency = (value: number) => 
+  const formatCurrency = (value: number) =>
     new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value || 0);
 
   const formatDate = (dateStr: string) => {
@@ -41,30 +42,30 @@ export const WorkOrderSummary: React.FC<SummaryProps> = ({ data, onSave, onCance
 
   const totalBase = subPart + subMolding + subServices + totLabor;
   const taxAmount = totalBase * (taxPct / 100);
-  
+
   // El deducible resta al total si es seguro, el kitFlat suma
   const total = totalBase + taxAmount + upsell + kitFlat - deductible;
-  
+
   const balance = total - (Number(data.paid) || 0);
 
   return (
-    <aside style={{ 
-      width: '380px', 
-      backgroundColor: 'var(--bg-surface)', 
-      borderLeft: '1px solid var(--color-border)', 
-      display: 'flex', flexDirection: 'column', 
+    <aside style={{
+      width: '380px',
+      backgroundColor: 'var(--bg-surface)',
+      borderLeft: '1px solid var(--color-border)',
+      display: 'flex', flexDirection: 'column',
       height: '100%',
       boxShadow: '-4px 0 15px rgba(0,0,0,0.02)', zIndex: 5
     }}>
-      
+
       {/* --- CONTENIDO DESLIZABLE (SCROLL) --- */}
       <div style={{ padding: '2rem 1.5rem', flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-        
+
         {/* Encabezado del Resumen */}
         <div>
           <h2 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#1E293B', display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '0 0 0.5rem 0' }}>
             Resumen de Orden
-            <span style={{ 
+            <span style={{
               padding: '0.3rem 0.6rem', borderRadius: '20px', fontSize: '0.7rem', fontWeight: 700,
               backgroundColor: data.status === 'New' ? '#DBEAFE' : data.status === 'In Progress' ? '#FEF9C3' : '#D1FAE5',
               color: data.status === 'New' ? '#1E40AF' : data.status === 'In Progress' ? '#854D0E' : '#065F46',
@@ -168,7 +169,7 @@ export const WorkOrderSummary: React.FC<SummaryProps> = ({ data, onSave, onCance
                 <span>Partes y Vidrios</span> <span>{formatCurrency(subPart + subMolding)}</span>
               </div>
             )}
-            
+
             {(totLabor > 0 || subServices > 0) && (
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', color: '#475569' }}>
                 <span>Mano de Obra / Servicios</span> <span>{formatCurrency(totLabor + subServices)}</span>
@@ -195,16 +196,16 @@ export const WorkOrderSummary: React.FC<SummaryProps> = ({ data, onSave, onCance
 
             {/* Total Principal */}
             <div style={{ margin: '0.5rem 0', borderTop: '1px dashed #CBD5E1' }}></div>
-            
+
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginTop: '0.5rem' }}>
-              <span style={{ fontSize: '1.1rem', fontWeight: 700, color: '#0F172A' }}>Total</span> 
+              <span style={{ fontSize: '1.1rem', fontWeight: 700, color: '#0F172A' }}>Total</span>
               <span style={{ fontSize: '2rem', fontWeight: 900, color: '#0F172A', lineHeight: 1 }}>{formatCurrency(total)}</span>
             </div>
 
             {/* Balance Restante si hay abonos */}
             {(Number(data.paid) > 0) && (
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.5rem', padding: '0.8rem', backgroundColor: balance <= 0 ? '#ECFCCB' : '#FEF2F2', borderRadius: '8px' }}>
-                <span style={{ fontSize: '0.85rem', fontWeight: 600, color: balance <= 0 ? '#4D7C0F' : '#B91C1C' }}>Balance Pendiente</span> 
+                <span style={{ fontSize: '0.85rem', fontWeight: 600, color: balance <= 0 ? '#4D7C0F' : '#B91C1C' }}>Balance Pendiente</span>
                 <span style={{ fontSize: '1.1rem', fontWeight: 800, color: balance <= 0 ? '#4D7C0F' : '#B91C1C' }}>{formatCurrency(balance)}</span>
               </div>
             )}
@@ -215,10 +216,34 @@ export const WorkOrderSummary: React.FC<SummaryProps> = ({ data, onSave, onCance
 
       {/* --- BOTONERA --- */}
       <div style={{ padding: '1.5rem', backgroundColor: '#F8FAFC', borderTop: '1px solid var(--color-border)', display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
-        <button className="btn btn-primary" onClick={onSave} style={{ width: '100%', padding: '0.9rem', fontSize: '0.95rem', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}>
-          <Save size={18} /> Confirmar y Guardar
+        <style>{`@keyframes spin { 100% { transform: rotate(360deg); } }`}</style>
+        <button
+          className="btn btn-primary"
+          onClick={onSave}
+          disabled={isSaving}
+          style={{
+            width: '100%', padding: '0.9rem', fontSize: '0.95rem',
+            boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)',
+            opacity: isSaving ? 0.7 : 1,
+            cursor: isSaving ? 'not-allowed' : 'pointer'
+          }}
+        >
+          {isSaving ? (
+            <>
+              <Loader2 size={18} style={{ animation: 'spin 1s linear infinite' }} /> Guardando...
+            </>
+          ) : (
+            <>
+              <Save size={18} /> Confirmar y Guardar
+            </>
+          )}
         </button>
-        <button className="btn btn-secondary" onClick={onCancel} style={{ width: '100%', padding: '0.9rem', fontSize: '0.95rem', backgroundColor: 'white' }}>
+        <button
+          className="btn btn-secondary"
+          onClick={onCancel}
+          disabled={isSaving}
+          style={{ width: '100%', padding: '0.9rem', fontSize: '0.95rem', backgroundColor: 'white', cursor: isSaving ? 'not-allowed' : 'pointer' }}
+        >
           <XCircle size={18} color="#64748B" /> Cancelar
         </button>
       </div>
