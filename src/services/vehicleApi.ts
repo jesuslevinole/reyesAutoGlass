@@ -1,28 +1,35 @@
 /**
- * vehicleApi.ts
+ * vehicleApi.ts  (versión CarAPI - carapi.app)
  *
- * Wrapper de la API pública y gratuita vPIC de la NHTSA (gobierno de EE. UU.).
- *  - No requiere API key ni catálogo local.
- *  - Documentación: https://vpic.nhtsa.dot.gov/api/
+ * Adaptador para CarAPI manteniendo la MISMA interfaz que la versión NHTSA,
+ * para que sea reemplazo directo en WorkOrderForm.tsx:
+ *   - getMakes(year?)              -> marcas (opcionalmente filtradas por año)
+ *   - getModels(make, year?)       -> modelos de una marca (filtrados por año)
+ *   - getBodyClasses(year?, make?, model?) -> tipos de carrocería (body)
+ *   - decodeVin(vin)               -> { year, make, model, body }
  *
- * Provee:
- *   - getMakes()            -> marcas de autos
- *   - getModels(make, year) -> modelos de una marca (filtrados por año si se pasa)
- *   - getBodyClasses()      -> tipos de carrocería (body class)
- *   - decodeVin(vin)        -> { year, make, model, body } a partir de un VIN
+ * ────────────────────────────────────────────────────────────────────────
+ *  IMPORTANTE - LÉEME ANTES DE USAR
+ * ────────────────────────────────────────────────────────────────────────
+ * 1) CORS: CarAPI NO permite llamadas desde el navegador. Esta app es React
+ *    del lado del cliente, así que NO puedes apuntar CARAPI_BASE directamente
+ *    a "https://carapi.app/api": el navegador bloqueará la respuesta.
+ *    Debes pasar por un PROXY propio del lado del servidor (por ejemplo una
+ *    Cloud Function de Firebase) que reenvíe la petición a CarAPI.
+ *    Por eso CARAPI_BASE abajo apunta a una ruta de proxy, no a CarAPI.
+ *
+ * 2) CAPA GRATUITA: sin suscripción, CarAPI devuelve un dataset de DEMO
+ *    (datos limitados) y la decodificación de VIN es función de pago. Para
+ *    datos reales completos necesitas un plan y enviar un JWT (ver el proxy).
+ *
+ * 3) Sin proxy aún: si solo quieres probar el dataset demo desde un entorno
+ *    server-side (no navegador), puedes poner CARAPI_BASE = 'https://carapi.app/api'.
  */
 
-const BASE_URL = 'https://vpic.nhtsa.dot.gov/api/vehicles';
-
-interface NhtsaResult {
-  [key: string]: any;
-}
-
-interface NhtsaResponse {
-  Count: number;
-  Message: string;
-  Results: NhtsaResult[];
-}
+// Apunta esto a TU proxy. Ejemplos:
+//   - Cloud Function:  'https://us-central1-tu-proyecto.cloudfunctions.net/carapi'
+//   - Mismo dominio:   '/api/carapi'
+const CARAPI_BASE = '/api/carapi';
 
 export interface DecodedVehicle {
   year: string;
@@ -31,77 +38,97 @@ export interface DecodedVehicle {
   body: string;
 }
 
-async function fetchVpic(endpoint: string): Promise<NhtsaResult[]> {
-  const separator = endpoint.includes('?') ? '&' : '?';
-  const url = `${BASE_URL}/${endpoint}${separator}format=json`;
-
-  const res = await fetch(url);
-  if (!res.ok) {
-    throw new Error(`vPIC respondió ${res.status} para ${endpoint}`);
+/**
+ * Construye una query string a partir de un objeto, omitiendo valores vacíos.
+ */
+function buildQuery(params: Record<string, string | number | undefined>): string {
+  const parts: string[] = [];
+  for (const [key, value] of Object.entries(params)) {
+    if (value !== undefined && value !== null && String(value).trim() !== '') {
+      parts.push(`${encodeURIComponent(key)}=${encodeURIComponent(String(value).trim())}`);
+    }
   }
+  return parts.length ? `?${parts.join('&')}` : '';
+}
 
-  const json = (await res.json()) as NhtsaResponse;
-  return json.Results || [];
+async function fetchCarApi(endpoint: string): Promise<any> {
+  const url = `${CARAPI_BASE}/${endpoint}`;
+  const res = await fetch(url, {
+    headers: { accept: 'application/json' },
+  });
+  if (!res.ok) {
+    throw new Error(`CarAPI respondió ${res.status} para ${endpoint}`);
+  }
+  return res.json();
+}
+
+/**
+ * CarAPI devuelve colecciones tipo { data: [...] } o, en algunos endpoints,
+ * un array directo (ej. /years). Esta función normaliza ambos casos.
+ */
+function extractData(json: any): any[] {
+  if (Array.isArray(json)) return json;
+  if (json && Array.isArray(json.data)) return json.data;
+  return [];
 }
 
 export const vehicleApi = {
   /**
-   * Marcas de vehículos tipo "car", ordenadas alfabéticamente.
+   * Marcas. CarAPI permite filtrar por año (a diferencia de la NHTSA).
    */
-  async getMakes(): Promise<string[]> {
+  async getMakes(year?: string): Promise<string[]> {
     try {
-      const results = await fetchVpic('GetMakesForVehicleType/car');
-      const makes = results
-        .map((r) => (r.MakeName || r.Make_Name || '').toString().trim())
+      const json = await fetchCarApi(`makes${buildQuery({ year })}`);
+      const makes = extractData(json)
+        .map((m) => (m.name || m.make || '').toString().trim())
         .filter(Boolean);
       return Array.from(new Set(makes)).sort((a, b) => a.localeCompare(b));
     } catch (error) {
-      console.error('Error obteniendo marcas (vPIC):', error);
+      console.error('Error obteniendo marcas (CarAPI):', error);
       return [];
     }
   },
 
   /**
-   * Modelos de una marca. Si se pasa el año, filtra por año/marca.
+   * Modelos de una marca, filtrados por año si se pasa.
    */
   async getModels(make: string, year?: string): Promise<string[]> {
     if (!make || !make.trim()) return [];
     try {
-      const makeEnc = encodeURIComponent(make.trim());
-      const endpoint =
-        year && year.trim()
-          ? `GetModelsForMakeYear/make/${makeEnc}/modelyear/${encodeURIComponent(year.trim())}`
-          : `GetModelsForMake/${makeEnc}`;
-
-      const results = await fetchVpic(endpoint);
-      const models = results
-        .map((r) => (r.Model_Name || r.ModelName || '').toString().trim())
+      const json = await fetchCarApi(`models${buildQuery({ make: make.trim(), year })}`);
+      const models = extractData(json)
+        .map((m) => (m.name || m.model || '').toString().trim())
         .filter(Boolean);
       return Array.from(new Set(models)).sort((a, b) => a.localeCompare(b));
     } catch (error) {
-      console.error('Error obteniendo modelos (vPIC):', error);
+      console.error('Error obteniendo modelos (CarAPI):', error);
       return [];
     }
   },
 
   /**
-   * Tipos de carrocería (body class) que maneja la NHTSA.
+   * Tipos de carrocería (body). CarAPI permite filtrar por año/marca/modelo,
+   * así el body puede depender del modelo (cosa que la NHTSA no permitía).
+   * Los parámetros son opcionales para mantener compatibilidad con la llamada
+   * actual del formulario (getBodyClasses() sin argumentos).
    */
-  async getBodyClasses(): Promise<string[]> {
+  async getBodyClasses(year?: string, make?: string, model?: string): Promise<string[]> {
     try {
-      const results = await fetchVpic(`GetVehicleVariableValuesList/${encodeURIComponent('body class')}`);
-      const names = results
-        .map((r) => (r.Name || '').toString().trim())
+      const json = await fetchCarApi(`bodies${buildQuery({ year, make, model })}`);
+      const bodies = extractData(json)
+        .map((b) => (b.type || b.name || '').toString().trim())
         .filter(Boolean);
-      return Array.from(new Set(names)).sort((a, b) => a.localeCompare(b));
+      return Array.from(new Set(bodies)).sort((a, b) => a.localeCompare(b));
     } catch (error) {
-      console.error('Error obteniendo body classes (vPIC):', error);
+      console.error('Error obteniendo body classes (CarAPI):', error);
       return [];
     }
   },
 
   /**
    * Decodifica un VIN (17 caracteres) -> año, marca, modelo y carrocería.
+   * Nota: la decodificación de VIN en CarAPI es función de PAGO; en la capa
+   * gratuita / demo puede no devolver datos.
    */
   async decodeVin(vin: string): Promise<DecodedVehicle> {
     const cleanVin = (vin || '').trim().toUpperCase();
@@ -109,14 +136,22 @@ export const vehicleApi = {
       throw new Error('El VIN debe tener 17 caracteres.');
     }
 
-    const results = await fetchVpic(`DecodeVinValues/${encodeURIComponent(cleanVin)}`);
-    const info = results[0] || {};
+    const json = await fetchCarApi(`vin/${encodeURIComponent(cleanVin)}`);
+    const info = Array.isArray(json) ? json[0] || {} : json || {};
+
+    // CarAPI suele anidar el body dentro de "bodies" (array). Tomamos el primero.
+    let body = '';
+    if (Array.isArray(info.bodies) && info.bodies.length > 0) {
+      body = (info.bodies[0].type || '').toString().trim();
+    } else if (info.body_type || info.body) {
+      body = (info.body_type || info.body).toString().trim();
+    }
 
     return {
-      year: (info.ModelYear || '').toString().trim(),
-      make: (info.Make || '').toString().trim(),
-      model: (info.Model || '').toString().trim(),
-      body: (info.BodyClass || '').toString().trim(),
+      year: (info.year || '').toString().trim(),
+      make: (info.make || '').toString().trim(),
+      model: (info.model || '').toString().trim(),
+      body,
     };
   },
 };

@@ -53,9 +53,10 @@ export const WorkOrderForm: React.FC<Props> = ({ data, requiredFields = {}, onCh
     (_, i) => String(currentYear + 1 - i)
   );
 
-  // Banderas de dependencia en cascada.
+  // Banderas de dependencia en cascada: año -> marca -> modelo -> body.
   const yearSelected = !!(data.year && data.year.trim());
   const makeSelected = !!(data.mark && data.mark.trim());
+  const modelSelected = !!(data.model && data.model.trim());
 
   const [isAddingCompany, setIsAddingCompany] = useState(false);
   const [newCompanyName, setNewCompanyName] = useState('');
@@ -333,7 +334,7 @@ export const WorkOrderForm: React.FC<Props> = ({ data, requiredFields = {}, onCh
     vehicleApi.getBodyClasses().then(setVehicleBodyClasses).catch(() => setVehicleBodyClasses([]));
   }, []);
 
-  // 13. Cargar modelos cuando hay marca (y año), para la búsqueda de Modelo.
+  // 13. Cargar modelos (filtrados por marca + año) para la búsqueda de Modelo.
   useEffect(() => {
     if (data.mark && data.mark.trim()) {
       setIsLoadingModels(true);
@@ -359,29 +360,23 @@ export const WorkOrderForm: React.FC<Props> = ({ data, requiredFields = {}, onCh
   };
 
   // --- LÓGICAS DE DEPENDENCIA EN CASCADA DEL VEHÍCULO ---
-  // Al cambiar el AÑO: si se vacía, se bloquea/limpia marca, modelo y body.
-  // Si cambia a otro año, se limpia el modelo (depende del año).
+  // Año -> Marca -> Modelo -> Body. Al cambiar un nivel se limpian los inferiores.
   const handleYearChange = (val: string) => {
     onChange('year', val);
-    if (!val.trim()) {
-      onChange('mark', '');
-      onChange('model', '');
-      onChange('body', '');
-    } else {
-      onChange('model', '');
-    }
+    onChange('mark', '');
+    onChange('model', '');
+    onChange('body', '');
   };
 
-  // Al cambiar la MARCA: se limpia el modelo (depende de la marca).
-  // Si se vacía, se bloquea/limpia también el body.
   const handleMakeChange = (val: string) => {
     onChange('mark', val);
-    if (!val.trim()) {
-      onChange('model', '');
-      onChange('body', '');
-    } else {
-      onChange('model', '');
-    }
+    onChange('model', '');
+    onChange('body', '');
+  };
+
+  const handleModelChange = (val: string) => {
+    onChange('model', val);
+    onChange('body', '');
   };
 
   // --- LÓGICAS DEL FORMULARIO PRINCIPAL ---
@@ -942,7 +937,7 @@ export const WorkOrderForm: React.FC<Props> = ({ data, requiredFields = {}, onCh
                 <FieldLabel text="Modelo" fieldKey="model" />
                 <SearchableInput
                   value={data.model || ''}
-                  onChange={(v) => onChange('model', v)}
+                  onChange={handleModelChange}
                   options={vehicleModels}
                   placeholder="Buscar modelo..."
                   disabled={!makeSelected}
@@ -959,8 +954,8 @@ export const WorkOrderForm: React.FC<Props> = ({ data, requiredFields = {}, onCh
                   onChange={(v) => onChange('body', v)}
                   options={vehicleBodyClasses}
                   placeholder="Buscar carrocería..."
-                  disabled={!makeSelected}
-                  disabledMessage="Seleccione primero la marca"
+                  disabled={!modelSelected}
+                  disabledMessage="Seleccione primero el modelo"
                   required={requiredFields?.body}
                 />
               </div>
