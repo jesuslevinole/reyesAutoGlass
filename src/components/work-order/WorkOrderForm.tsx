@@ -5,6 +5,7 @@ import { collection, query, where, getDocs, addDoc } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { mygrantApi, type MygrantPart } from '../../services/mygrantApi';
 import { vehicleApi } from '../../services/vehicleApi';
+import { SearchableInput } from './SearchableInput';
 
 interface Props {
   data: WorkOrderData;
@@ -41,6 +42,8 @@ export const WorkOrderForm: React.FC<Props> = ({ data, requiredFields = {}, onCh
   // --- Estados para API de vehículos (NHTSA vPIC) ---
   const [vehicleMakes, setVehicleMakes] = useState<string[]>([]);
   const [vehicleModels, setVehicleModels] = useState<string[]>([]);
+  const [vehicleBodyClasses, setVehicleBodyClasses] = useState<string[]>([]);
+  const [isLoadingModels, setIsLoadingModels] = useState(false);
   const [isDecodingVin, setIsDecodingVin] = useState(false);
 
   // Años disponibles (generados localmente, no requieren API).
@@ -49,6 +52,10 @@ export const WorkOrderForm: React.FC<Props> = ({ data, requiredFields = {}, onCh
     { length: currentYear + 1 - 1990 + 1 },
     (_, i) => String(currentYear + 1 - i)
   );
+
+  // Banderas de dependencia en cascada.
+  const yearSelected = !!(data.year && data.year.trim());
+  const makeSelected = !!(data.mark && data.mark.trim());
 
   const [isAddingCompany, setIsAddingCompany] = useState(false);
   const [newCompanyName, setNewCompanyName] = useState('');
@@ -298,7 +305,6 @@ export const WorkOrderForm: React.FC<Props> = ({ data, requiredFields = {}, onCh
 
           setMygrantParts(partsResult);
 
-          // Fusiona las partes de Mygrant con el catálogo local sin duplicar.
           setPartNumberData((prevData) => {
             const existingPartNumbers = new Set(prevData.map(p => p.partNumber));
             const newPartsFromMygrant = partsResult
@@ -321,17 +327,20 @@ export const WorkOrderForm: React.FC<Props> = ({ data, requiredFields = {}, onCh
     fetchMygrantParts();
   }, [data.year, data.mark, data.model]);
 
-  // 12. Cargar marcas de vehículos desde la API (NHTSA vPIC) al iniciar.
+  // 12. Cargar marcas y body classes desde la API (NHTSA vPIC) al iniciar.
   useEffect(() => {
     vehicleApi.getMakes().then(setVehicleMakes).catch(() => setVehicleMakes([]));
+    vehicleApi.getBodyClasses().then(setVehicleBodyClasses).catch(() => setVehicleBodyClasses([]));
   }, []);
 
-  // 13. Cargar modelos cuando cambian la marca y/o el año.
+  // 13. Cargar modelos cuando hay marca (y año), para la búsqueda de Modelo.
   useEffect(() => {
     if (data.mark && data.mark.trim()) {
+      setIsLoadingModels(true);
       vehicleApi.getModels(data.mark, data.year)
         .then(setVehicleModels)
-        .catch(() => setVehicleModels([]));
+        .catch(() => setVehicleModels([]))
+        .finally(() => setIsLoadingModels(false));
     } else {
       setVehicleModels([]);
     }
@@ -347,6 +356,32 @@ export const WorkOrderForm: React.FC<Props> = ({ data, requiredFields = {}, onCh
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     onChange(name as keyof WorkOrderData, value);
+  };
+
+  // --- LÓGICAS DE DEPENDENCIA EN CASCADA DEL VEHÍCULO ---
+  // Al cambiar el AÑO: si se vacía, se bloquea/limpia marca, modelo y body.
+  // Si cambia a otro año, se limpia el modelo (depende del año).
+  const handleYearChange = (val: string) => {
+    onChange('year', val);
+    if (!val.trim()) {
+      onChange('mark', '');
+      onChange('model', '');
+      onChange('body', '');
+    } else {
+      onChange('model', '');
+    }
+  };
+
+  // Al cambiar la MARCA: se limpia el modelo (depende de la marca).
+  // Si se vacía, se bloquea/limpia también el body.
+  const handleMakeChange = (val: string) => {
+    onChange('mark', val);
+    if (!val.trim()) {
+      onChange('model', '');
+      onChange('body', '');
+    } else {
+      onChange('model', '');
+    }
   };
 
   // --- LÓGICAS DEL FORMULARIO PRINCIPAL ---
@@ -435,7 +470,6 @@ export const WorkOrderForm: React.FC<Props> = ({ data, requiredFields = {}, onCh
     setDraftPart((prev: any) => ({ ...prev, [name]: value }));
   };
 
-  // Autofill para Part Number -> Nags Description (catálogo local + Mygrant)
   const handlePartNumberChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const val = e.target.value;
     const local = partNumberData.find(p => p.partNumber === val);
@@ -450,7 +484,6 @@ export const WorkOrderForm: React.FC<Props> = ({ data, requiredFields = {}, onCh
     }));
   };
 
-  // Autofill para Price Tier -> Amount
   const handlePriceTierChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const val = e.target.value;
     const found = priceTierData.find(p => p.priceTier === val);
@@ -461,7 +494,6 @@ export const WorkOrderForm: React.FC<Props> = ({ data, requiredFields = {}, onCh
     }));
   };
 
-  // Autofill para Calibration -> Amount
   const handleCalibrationChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const val = e.target.value;
     const found = calibrationData.find(c => c.name === val);
@@ -884,35 +916,54 @@ export const WorkOrderForm: React.FC<Props> = ({ data, requiredFields = {}, onCh
             <div className="form-grid" style={{ marginBottom: '2rem' }}>
               <div className="form-group">
                 <FieldLabel text="Año" fieldKey="year" />
-                <select className="form-select" name="year" value={data.year || ''} onChange={handleChange} required={requiredFields?.year}>
-                  <option value="">Seleccione año...</option>
-                  {yearOptions.map((y) => (
-                    <option key={y} value={y}>{y}</option>
-                  ))}
-                </select>
+                <SearchableInput
+                  value={data.year || ''}
+                  onChange={handleYearChange}
+                  options={yearOptions}
+                  placeholder="Buscar año..."
+                  required={requiredFields?.year}
+                />
               </div>
 
               <div className="form-group">
                 <FieldLabel text="Marca" fieldKey="mark" />
-                <input type="text" list="make-options" className="form-input" name="mark" value={data.mark} onChange={handleChange} placeholder="Ej. Toyota" required={requiredFields?.mark} />
-                <datalist id="make-options">
-                  {vehicleMakes.map((m, idx) => (
-                    <option key={idx} value={m} />
-                  ))}
-                </datalist>
+                <SearchableInput
+                  value={data.mark || ''}
+                  onChange={handleMakeChange}
+                  options={vehicleMakes}
+                  placeholder="Buscar marca..."
+                  disabled={!yearSelected}
+                  disabledMessage="Seleccione primero el año"
+                  required={requiredFields?.mark}
+                />
               </div>
 
               <div className="form-group">
                 <FieldLabel text="Modelo" fieldKey="model" />
-                <input type="text" list="model-options" className="form-input" name="model" value={data.model} onChange={handleChange} placeholder="Ej. Camry" required={requiredFields?.model} />
-                <datalist id="model-options">
-                  {vehicleModels.map((m, idx) => (
-                    <option key={idx} value={m} />
-                  ))}
-                </datalist>
+                <SearchableInput
+                  value={data.model || ''}
+                  onChange={(v) => onChange('model', v)}
+                  options={vehicleModels}
+                  placeholder="Buscar modelo..."
+                  disabled={!makeSelected}
+                  disabledMessage="Seleccione primero la marca"
+                  loading={isLoadingModels}
+                  required={requiredFields?.model}
+                />
               </div>
 
-              <div className="form-group"><FieldLabel text="Carrocería (Body)" fieldKey="body" /><input type="text" className="form-input" name="body" value={data.body} onChange={handleChange} placeholder="Ej. Sedan" required={requiredFields?.body} /></div>
+              <div className="form-group">
+                <FieldLabel text="Carrocería (Body)" fieldKey="body" />
+                <SearchableInput
+                  value={data.body || ''}
+                  onChange={(v) => onChange('body', v)}
+                  options={vehicleBodyClasses}
+                  placeholder="Buscar carrocería..."
+                  disabled={!makeSelected}
+                  disabledMessage="Seleccione primero la marca"
+                  required={requiredFields?.body}
+                />
+              </div>
 
               <div className="form-group form-grid-full">
                 <FieldLabel text="Número VIN" fieldKey="vinNumber" />
