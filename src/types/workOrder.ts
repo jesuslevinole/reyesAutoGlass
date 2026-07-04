@@ -1,0 +1,63 @@
+export interface WorkOrderPart {
+  type: 'Parts' | 'Services';
+  jobtype: string;
+  partNumber?: string;
+  nagsDescription?: string;
+  glassCost?: number;
+  hasPriceTier?: boolean;
+  priceTierName?: string;
+  priceTierAmount?: number;
+  hasCalibration?: boolean;
+  calibrationName?: string;
+  calibrationAmount?: number;
+  description?: string;
+  amount?: number;
+  note?: string;
+}
+
+export interface WorkOrderData {
+  id: string;
+  documentType: 'Quote' | 'Work Order';
+  type: 'Personal' | 'Insurance';
+  date: string;
+  status: 'New' | 'In Progress' | 'Job Done' | 'Cancelled' | '';
+  company: string;
+  zipcode: string;
+  longTrip: number;
+  year: string;
+  mark: string;
+  model: string;
+  body: string;
+  vinNumber: string;
+  plate: string;
+  customerType: 'Existing' | 'New';
+  customer: string;
+  firstName: string;
+  lastName: string;
+  phone: string;
+  altPhone: string;
+  email: string;
+  address: string;
+  appointmentDate: string;
+  timeStart: string;
+  timeEnd: string;
+  insuranceCarrier: string;
+  policyId: string;
+  referral: string;
+  policyHolder: string;
+  policyAddress: string;
+  agent?: string;
+  subtotalPart: number;
+  subtotalMolding: number;
+  subtotalServices: number;
+  totalLabor: number;
+  deductible: number;
+  kitFlatRate: number;
+  upsell: number;
+  taxPercent: number;
+  callDirection: 'IN' | 'OUT';
+  cashComeback?: number;
+  upsold?: number;
+  paid?: number;
+  parts?: WorkOrderPart[];
+}
