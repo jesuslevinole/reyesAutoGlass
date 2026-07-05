@@ -55,7 +55,7 @@ export const WORK_ORDER_HEADER_SCHEMA: CollectionSchema = {
     { key: 'documentType', label: 'Tipo de Documento', type: 'enum', required: true, enumValues: ['Work Order', 'Quote'], example: 'Work Order' },
     { key: 'type', label: 'Tipo', type: 'enum', required: true, enumValues: ['Personal', 'Insurance'], example: 'Personal' },
     { key: 'date', label: 'Fecha de Orden', type: 'date', example: '2026-01-15' },
-    { key: 'status', label: 'Estatus', type: 'enum', enumValues: ['New', 'In Progress', 'Job Done', 'Cancelled', ''], example: 'New' },
+    { key: 'status', label: 'Estatus', type: 'string', example: 'New', note: 'New / In Progress / Job Done / Cancelled, u otros estatus históricos.' },
     { key: 'company', label: 'Compañía', type: 'string', example: '' },
     { key: 'zipcode', label: 'Código Postal', type: 'string', example: '92501' },
     { key: 'longTrip', label: 'Long Trip', type: 'number', example: 0 },

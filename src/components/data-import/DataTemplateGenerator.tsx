@@ -113,7 +113,7 @@ export const DataTemplateGenerator: React.FC = () => {
   };
 
   return (
-    <div className="animate-in fade-in" style={{ padding: '2rem 2.5rem', flex: 1, display: 'flex', flexDirection: 'column', width: '100%', boxSizing: 'border-box' }}>
+    <div className="animate-in fade-in" style={{ padding: '2rem 2.5rem', flex: 1, minHeight: 0, overflowY: 'auto', display: 'flex', flexDirection: 'column', width: '100%', boxSizing: 'border-box' }}>
       {/* HEADER */}
       <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', flexWrap: 'wrap', gap: '16px', width: '100%' }}>
         <div>

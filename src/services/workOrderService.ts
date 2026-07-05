@@ -78,36 +78,25 @@ async function readDetails(workOrderId: string): Promise<WorkOrderPart[]> {
 
 export const workOrderService = {
   /**
-   * Devuelve todas las Work Orders con sus partes ya reensambladas.
-   * Trae todos los detalles en UNA sola consulta y los agrupa (evita N+1 consultas).
+   * Devuelve SOLO las cabeceras de todas las Work Orders (sin partes).
+   * La lista/calendario/mapa no necesitan las partes, así que NO se descarga la
+   * colección `work_order_details` aquí (era el gran cuello de botella al cargar).
+   * Las partes se leen bajo demanda con `getParts(id)` / `getById(id)` al abrir
+   * o editar una orden.
    */
   async getAll(): Promise<WorkOrderData[]> {
-    const [headerSnap, detailSnap] = await Promise.all([
-      getDocs(collection(db, HEADER_COLLECTION)),
-      getDocs(collection(db, DETAIL_COLLECTION)),
-    ]);
+    const headerSnap = await getDocs(collection(db, HEADER_COLLECTION));
+    console.log(`[workOrderService] work_orders leídas: ${headerSnap.size}`);
+    return headerSnap.docs.map(
+      (d) => ({ ...(d.data() as WorkOrderData), id: d.id, parts: [] } as WorkOrderData)
+    );
+  },
 
-    // Agrupar detalles por workOrderId.
-    const partsByOrder = new Map<string, { lineOrder: number; part: WorkOrderPart }[]>();
-    detailSnap.docs.forEach((d) => {
-      const { workOrderId, lineOrder, ...part } = d.data() as WorkOrderPart & {
-        workOrderId: string;
-        lineOrder: number;
-      };
-      if (!workOrderId) return;
-      if (!partsByOrder.has(workOrderId)) partsByOrder.set(workOrderId, []);
-      partsByOrder.get(workOrderId)!.push({
-        lineOrder: lineOrder ?? 0,
-        part: part as WorkOrderPart,
-      });
-    });
-
-    return headerSnap.docs.map((d) => {
-      const parts = (partsByOrder.get(d.id) || [])
-        .sort((a, b) => a.lineOrder - b.lineOrder)
-        .map((x) => x.part);
-      return { ...(d.data() as WorkOrderData), id: d.id, parts } as WorkOrderData;
-    });
+  /**
+   * Lee SOLO las partes de una Work Order (bajo demanda). Una sola consulta.
+   */
+  async getParts(id: string): Promise<WorkOrderPart[]> {
+    return readDetails(id);
   },
 
   /**

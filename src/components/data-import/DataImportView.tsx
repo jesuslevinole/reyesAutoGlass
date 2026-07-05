@@ -16,18 +16,64 @@ interface Props {
 }
 
 // ---------------------------------------------------------------------------
-//  Parser CSV (sin dependencias). Soporta comillas, comas y saltos internos.
+//  Parser CSV robusto (sin dependencias).
+//  - Detecta el separador (coma, punto y coma o tabulador).
+//  - Soporta comillas, separadores y saltos de línea internos.
+//  - Recupera archivos "rotos" por Excel donde cada fila viene envuelta
+//    entera entre comillas (queda todo en una sola celda).
 // ---------------------------------------------------------------------------
+
+// Separa una línea lógica en campos respetando comillas.
+function tokenizeLine(line: string, delim: string): string[] {
+  const out: string[] = [];
+  let field = '';
+  let inQuotes = false;
+  let i = 0;
+  while (i < line.length) {
+    const c = line[i];
+    if (inQuotes) {
+      if (c === '"') {
+        if (line[i + 1] === '"') { field += '"'; i += 2; continue; }
+        inQuotes = false; i++; continue;
+      }
+      field += c; i++; continue;
+    }
+    if (c === '"') { inQuotes = true; i++; continue; }
+    if (c === delim) { out.push(field); field = ''; i++; continue; }
+    field += c; i++;
+  }
+  out.push(field);
+  return out;
+}
+
+// Detecta el separador contando ocurrencias fuera de comillas en la 1a línea.
+function detectDelimiter(text: string): string {
+  let line = '';
+  let q = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (c === '"') q = !q;
+    else if (!q && (c === '\n')) break;
+    else line += c;
+  }
+  const cands = [',', ';', '\t'];
+  const counts = cands.map((d) => (line.split(d).length - 1));
+  let best = ',', max = -1;
+  cands.forEach((d, idx) => { if (counts[idx] > max) { max = counts[idx]; best = d; } });
+  return best;
+}
+
 function parseCSV(input: string): { headers: string[]; rows: Record<string, string>[] } {
   let text = input;
   if (text.charCodeAt(0) === 0xfeff) text = text.slice(1); // quitar BOM
+
+  const delim = detectDelimiter(text);
 
   const matrix: string[][] = [];
   let cur: string[] = [];
   let field = '';
   let inQuotes = false;
   let i = 0;
-
   while (i < text.length) {
     const c = text[i];
     if (inQuotes) {
@@ -38,7 +84,7 @@ function parseCSV(input: string): { headers: string[]; rows: Record<string, stri
       field += c; i++; continue;
     }
     if (c === '"') { inQuotes = true; i++; continue; }
-    if (c === ',') { cur.push(field); field = ''; i++; continue; }
+    if (c === delim) { cur.push(field); field = ''; i++; continue; }
     if (c === '\r') { i++; continue; }
     if (c === '\n') { cur.push(field); matrix.push(cur); cur = []; field = ''; i++; continue; }
     field += c; i++;
@@ -49,7 +95,12 @@ function parseCSV(input: string): { headers: string[]; rows: Record<string, stri
   if (nonEmpty.length === 0) return { headers: [], rows: [] };
 
   const headers = nonEmpty[0].map((h) => h.trim());
+
   const rows = nonEmpty.slice(1).map((r) => {
+    // Recuperación Excel: fila entera quedó en una sola celda con separadores dentro.
+    if (headers.length > 1 && r.length === 1 && r[0].includes(delim)) {
+      r = tokenizeLine(r[0], delim);
+    }
     const obj: Record<string, string> = {};
     headers.forEach((h, idx) => { obj[h] = r[idx] ?? ''; });
     return obj;
@@ -286,7 +337,7 @@ export const DataImportView: React.FC<Props> = ({ onImported }) => {
   //  UI
   // -------------------------------------------------------------------------
   return (
-    <div className="animate-in fade-in" style={{ padding: '2rem 2.5rem', flex: 1, display: 'flex', flexDirection: 'column', width: '100%', boxSizing: 'border-box' }}>
+    <div className="animate-in fade-in" style={{ padding: '2rem 2.5rem', flex: 1, minHeight: 0, overflowY: 'auto', display: 'flex', flexDirection: 'column', width: '100%', boxSizing: 'border-box' }}>
       <style>{`@keyframes spin { 100% { transform: rotate(360deg); } }`}</style>
 
       {/* HEADER */}
@@ -383,9 +434,9 @@ export const DataImportView: React.FC<Props> = ({ onImported }) => {
         </div>
       )}
 
-      {/* PASO 3: OPCIONES + BOTÓN IMPORTAR */}
+      {/* PASO 3: OPCIONES + BOTÓN IMPORTAR (barra fija al fondo) */}
       {validation && (
-        <div style={{ backgroundColor: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: '12px', padding: '1.25rem 1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+        <div style={{ position: 'sticky', bottom: 0, zIndex: 5, backgroundColor: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: '12px', padding: '1.25rem 1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', flexWrap: 'wrap', boxShadow: '0 -6px 16px -8px rgba(15,23,42,0.15)', marginTop: '0.5rem' }}>
           <label style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', cursor: 'pointer', fontSize: '0.88rem', fontWeight: 600, color: '#334155' }}>
             <input type="checkbox" checked={overwrite} onChange={(e) => setOverwrite(e.target.checked)} style={{ width: 18, height: 18, accentColor: '#2563EB', cursor: 'pointer' }} />
             Sobrescribir órdenes que ya existan (si se desmarca, se omiten)

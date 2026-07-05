@@ -6,10 +6,9 @@ interface SummaryProps {
   data: WorkOrderData;
   onSave: () => void;
   onCancel: () => void;
-  isSaving?: boolean; // <-- NUEVO: bloquea el botón mientras se guarda
+  isSaving?: boolean; // bloquea el botón mientras se guarda
 }
 
-// AQUÍ ESTÁ LA EXPORTACIÓN CLAVE QUE BUSCA TYPESCRIPT
 export const WorkOrderSummary: React.FC<SummaryProps> = ({ data, onSave, onCancel, isSaving = false }) => {
 
   // --- FORMATEO DE DATOS ---
@@ -48,165 +47,175 @@ export const WorkOrderSummary: React.FC<SummaryProps> = ({ data, onSave, onCance
 
   const balance = total - (Number(data.paid) || 0);
 
+  // --- ESTILO DEL BADGE DE ESTADO ---
+  const statusStyle = (() => {
+    const st = (data.status || 'New').toLowerCase();
+    if (st.includes('cancel')) return { bg: '#FEE2E2', color: '#991B1B' };
+    if (st === 'new' || st.includes('nuev')) return { bg: '#DBEAFE', color: '#1E40AF' };
+    if (st.includes('progress') || st.includes('proceso')) return { bg: '#FEF9C3', color: '#854D0E' };
+    return { bg: '#D1FAE5', color: '#065F46' }; // Job Done / completado / otros
+  })();
+
+  // Encabezado reutilizable de bloque (chip de icono + eyebrow).
+  const BlockHeader: React.FC<{ icon: React.ReactNode; chipBg: string; chipColor: string; label: string }> = ({ icon, chipBg, chipColor, label }) => (
+    <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.9rem' }}>
+      <span style={{ flexShrink: 0, width: '30px', height: '30px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', backgroundColor: chipBg, borderRadius: '8px', color: chipColor }}>
+        {icon}
+      </span>
+      <h4 style={{ margin: 0, fontSize: '0.72rem', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{label}</h4>
+    </div>
+  );
+
+  const cardStyle: React.CSSProperties = {
+    backgroundColor: '#FFFFFF', padding: '1.1rem 1.2rem', borderRadius: '12px', border: '1px solid #E2E8F0',
+  };
+
   return (
     <aside style={{
       width: '380px',
-      backgroundColor: 'var(--bg-surface)',
-      borderLeft: '1px solid var(--color-border)',
+      backgroundColor: 'var(--bg-surface, #FFFFFF)',
+      borderLeft: '1px solid var(--color-border, #E2E8F0)',
       display: 'flex', flexDirection: 'column',
       height: '100%',
       boxShadow: '-4px 0 15px rgba(0,0,0,0.02)', zIndex: 5
     }}>
 
       {/* --- CONTENIDO DESLIZABLE (SCROLL) --- */}
-      <div style={{ padding: '2rem 1.5rem', flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+      <div style={{ padding: '1.75rem 1.5rem', flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '1.1rem', backgroundColor: '#F8FAFC' }}>
 
         {/* Encabezado del Resumen */}
-        <div>
-          <h2 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#1E293B', display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '0 0 0.5rem 0' }}>
-            Resumen de Orden
+        <div style={{ paddingBottom: '0.25rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.75rem', marginBottom: '0.35rem' }}>
+            <h2 style={{ fontSize: '1.2rem', fontWeight: 800, color: '#0F172A', margin: 0, letterSpacing: '-0.01em' }}>
+              Resumen de Orden
+            </h2>
             <span style={{
-              padding: '0.3rem 0.6rem', borderRadius: '20px', fontSize: '0.7rem', fontWeight: 700,
-              backgroundColor: data.status === 'New' ? '#DBEAFE' : data.status === 'In Progress' ? '#FEF9C3' : '#D1FAE5',
-              color: data.status === 'New' ? '#1E40AF' : data.status === 'In Progress' ? '#854D0E' : '#065F46',
-              textTransform: 'uppercase'
+              flexShrink: 0, padding: '0.3rem 0.65rem', borderRadius: '20px', fontSize: '0.68rem', fontWeight: 700,
+              backgroundColor: statusStyle.bg, color: statusStyle.color, textTransform: 'uppercase', letterSpacing: '0.03em'
             }}>
               {data.status || 'New'}
             </span>
-          </h2>
-          <p style={{ margin: 0, fontSize: '0.85rem', color: '#64748B', fontWeight: 500 }}>
+          </div>
+          <p style={{ margin: 0, fontSize: '0.82rem', color: '#64748B', fontWeight: 500 }}>
             {data.documentType === 'Quote' ? 'Cotización' : 'Orden de Trabajo'} • {data.type || 'Personal'}
+            {data.id && <> • <span style={{ fontFamily: 'ui-monospace, Menlo, monospace', color: '#334155' }}>#{data.id}</span></>}
           </p>
         </div>
 
         {/* Bloque: Cliente */}
-        <div style={{ backgroundColor: '#F8FAFC', padding: '1.2rem', borderRadius: '12px', border: '1px solid #E2E8F0' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.8rem' }}>
-            <div style={{ padding: '0.4rem', backgroundColor: '#E0E7FF', borderRadius: '6px', color: '#4F46E5' }}>
-              <User size={16} />
-            </div>
-            <h4 style={{ margin: 0, fontSize: '0.85rem', fontWeight: 700, color: '#334155', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Datos del Cliente</h4>
-          </div>
-          <div style={{ paddingLeft: '2.4rem' }}>
-            <p style={{ margin: 0, fontSize: '0.95rem', fontWeight: 600, color: customerName ? '#0F172A' : '#94A3B8' }}>
-              {customerName || 'Cliente no definido'}
-            </p>
-            {data.phone && <p style={{ margin: '0.2rem 0 0 0', fontSize: '0.85rem', color: '#64748B' }}>{data.phone}</p>}
-            {data.company && <p style={{ margin: '0.2rem 0 0 0', fontSize: '0.85rem', color: '#64748B' }}>{data.company}</p>}
-          </div>
-        </div>
-
-        {/* Bloque: Vehículo */}
-        <div style={{ backgroundColor: '#F8FAFC', padding: '1.2rem', borderRadius: '12px', border: '1px solid #E2E8F0' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.8rem' }}>
-            <div style={{ padding: '0.4rem', backgroundColor: '#FCE7F3', borderRadius: '6px', color: '#DB2777' }}>
-              <Car size={16} />
-            </div>
-            <h4 style={{ margin: 0, fontSize: '0.85rem', fontWeight: 700, color: '#334155', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Información del Vehículo</h4>
-          </div>
-          <div style={{ paddingLeft: '2.4rem' }}>
-            <p style={{ margin: 0, fontSize: '0.95rem', fontWeight: 600, color: vehicleName ? '#0F172A' : '#94A3B8' }}>
-              {vehicleName || 'Vehículo no definido'}
-            </p>
-            <div style={{ display: 'flex', gap: '1rem', marginTop: '0.4rem' }}>
-              {data.vinNumber && (
-                <div>
-                  <span style={{ fontSize: '0.7rem', color: '#94A3B8', fontWeight: 600, display: 'block' }}>VIN</span>
-                  <span style={{ fontSize: '0.85rem', color: '#475569', fontFamily: 'monospace', textTransform: 'uppercase' }}>{data.vinNumber}</span>
-                </div>
-              )}
-              {data.plate && (
-                <div>
-                  <span style={{ fontSize: '0.7rem', color: '#94A3B8', fontWeight: 600, display: 'block' }}>PLACA</span>
-                  <span style={{ fontSize: '0.85rem', color: '#475569', textTransform: 'uppercase' }}>{data.plate}</span>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* Bloque: Seguro */}
-        {data.type === 'Insurance' && (
-          <div style={{ backgroundColor: '#F5F3FF', padding: '1.2rem', borderRadius: '12px', border: '1px solid #DDD6FE' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.8rem' }}>
-              <div style={{ padding: '0.4rem', backgroundColor: 'white', borderRadius: '6px', color: '#8B5CF6' }}>
-                <Shield size={16} />
-              </div>
-              <h4 style={{ margin: 0, fontSize: '0.85rem', fontWeight: 700, color: '#5B21B6', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Detalles de Aseguranza</h4>
-            </div>
-            <div style={{ paddingLeft: '2.4rem' }}>
-              <p style={{ margin: 0, fontSize: '0.9rem', fontWeight: 600, color: '#4C1D95' }}>{data.insuranceCarrier || 'Aseguradora no especificada'}</p>
-              {data.policyId && <p style={{ margin: '0.2rem 0 0 0', fontSize: '0.85rem', color: '#6D28D9' }}>Póliza: {data.policyId}</p>}
-            </div>
-          </div>
-        )}
-
-        {/* Bloque: Agendamiento */}
-        <div style={{ backgroundColor: '#F8FAFC', padding: '1.2rem', borderRadius: '12px', border: '1px solid #E2E8F0' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.6rem' }}>
-            <CalendarClock size={16} color="#64748B" />
-            <span style={{ fontSize: '0.85rem', color: '#475569', fontWeight: 600, textTransform: 'capitalize' }}>
-              {formatDate(data.appointmentDate)}
-            </span>
-          </div>
-          {data.timeStart && (
-            <div style={{ paddingLeft: '1.8rem', fontSize: '0.85rem', color: '#64748B' }}>
-              Hora: {data.timeStart} {data.timeEnd ? `- ${data.timeEnd}` : ''}
+        <div style={cardStyle}>
+          <BlockHeader icon={<User size={16} />} chipBg="#E0E7FF" chipColor="#4F46E5" label="Datos del Cliente" />
+          <p style={{ margin: 0, fontSize: '0.95rem', fontWeight: 700, color: customerName ? '#0F172A' : '#94A3B8' }}>
+            {customerName || 'Cliente no definido'}
+          </p>
+          {(data.phone || data.company) && (
+            <div style={{ marginTop: '0.35rem', display: 'flex', flexDirection: 'column', gap: '0.1rem' }}>
+              {data.phone && <span style={{ fontSize: '0.82rem', color: '#64748B' }}>{data.phone}</span>}
+              {data.company && <span style={{ fontSize: '0.82rem', color: '#64748B' }}>{data.company}</span>}
             </div>
           )}
         </div>
 
-        {/* Bloque: Resumen Financiero */}
-        <div style={{ marginTop: 'auto', paddingTop: '1.5rem', borderTop: '2px solid #F1F5F9' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '1rem' }}>
-            <Receipt size={18} color="#0F172A" />
-            <h4 style={{ margin: 0, fontSize: '1rem', fontWeight: 700, color: '#0F172A' }}>Costos de Servicio</h4>
-          </div>
+        {/* Bloque: Vehículo */}
+        <div style={cardStyle}>
+          <BlockHeader icon={<Car size={16} />} chipBg="#FCE7F3" chipColor="#DB2777" label="Información del Vehículo" />
+          <p style={{ margin: 0, fontSize: '0.95rem', fontWeight: 700, color: vehicleName ? '#0F172A' : '#94A3B8' }}>
+            {vehicleName || 'Vehículo no definido'}
+          </p>
+          {(data.vinNumber || data.plate) && (
+            <div style={{ display: 'flex', gap: '1.5rem', marginTop: '0.6rem' }}>
+              {data.vinNumber && (
+                <div>
+                  <span style={{ fontSize: '0.68rem', color: '#94A3B8', fontWeight: 700, display: 'block', textTransform: 'uppercase', letterSpacing: '0.05em' }}>VIN</span>
+                  <span style={{ fontSize: '0.82rem', color: '#475569', fontFamily: 'ui-monospace, Menlo, monospace', textTransform: 'uppercase' }}>{data.vinNumber}</span>
+                </div>
+              )}
+              {data.plate && (
+                <div>
+                  <span style={{ fontSize: '0.68rem', color: '#94A3B8', fontWeight: 700, display: 'block', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Placa</span>
+                  <span style={{ fontSize: '0.82rem', color: '#475569', textTransform: 'uppercase' }}>{data.plate}</span>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+        {/* Bloque: Seguro */}
+        {data.type === 'Insurance' && (
+          <div style={{ ...cardStyle, backgroundColor: '#F5F3FF', borderColor: '#DDD6FE' }}>
+            <BlockHeader icon={<Shield size={16} />} chipBg="#FFFFFF" chipColor="#8B5CF6" label="Detalles de Aseguranza" />
+            <p style={{ margin: 0, fontSize: '0.9rem', fontWeight: 700, color: '#4C1D95' }}>{data.insuranceCarrier || 'Aseguradora no especificada'}</p>
+            {data.policyId && <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.82rem', color: '#6D28D9' }}>Póliza: {data.policyId}</p>}
+          </div>
+        )}
+
+        {/* Bloque: Agendamiento */}
+        <div style={cardStyle}>
+          <BlockHeader icon={<CalendarClock size={16} />} chipBg="#F1F5F9" chipColor="#64748B" label="Agendamiento" />
+          <p style={{ margin: 0, fontSize: '0.88rem', color: '#475569', fontWeight: 600, textTransform: 'capitalize' }}>
+            {formatDate(data.appointmentDate)}
+          </p>
+          {data.timeStart && (
+            <p style={{ margin: '0.2rem 0 0 0', fontSize: '0.82rem', color: '#64748B' }}>
+              Hora: {data.timeStart} {data.timeEnd ? `- ${data.timeEnd}` : ''}
+            </p>
+          )}
+        </div>
+
+        {/* Bloque: Resumen Financiero */}
+        <div style={{ ...cardStyle, marginTop: '0.25rem' }}>
+          <BlockHeader icon={<Receipt size={16} />} chipBg="#0F172A" chipColor="#FFFFFF" label="Costos de Servicio" />
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.55rem' }}>
             {(subPart > 0 || subMolding > 0) && (
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', color: '#475569' }}>
-                <span>Partes y Vidrios</span> <span>{formatCurrency(subPart + subMolding)}</span>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.84rem', color: '#475569' }}>
+                <span>Partes y Vidrios</span> <span style={{ fontWeight: 600, color: '#334155' }}>{formatCurrency(subPart + subMolding)}</span>
               </div>
             )}
 
             {(totLabor > 0 || subServices > 0) && (
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', color: '#475569' }}>
-                <span>Mano de Obra / Servicios</span> <span>{formatCurrency(totLabor + subServices)}</span>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.84rem', color: '#475569' }}>
+                <span>Mano de Obra / Servicios</span> <span style={{ fontWeight: 600, color: '#334155' }}>{formatCurrency(totLabor + subServices)}</span>
               </div>
             )}
 
             {upsell > 0 && (
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', color: '#475569' }}>
-                <span>Adicionales (Upsell)</span> <span>{formatCurrency(upsell)}</span>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.84rem', color: '#475569' }}>
+                <span>Adicionales (Upsell)</span> <span style={{ fontWeight: 600, color: '#334155' }}>{formatCurrency(upsell)}</span>
+              </div>
+            )}
+
+            {kitFlat > 0 && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.84rem', color: '#475569' }}>
+                <span>Kit Flat Rate</span> <span style={{ fontWeight: 600, color: '#334155' }}>{formatCurrency(kitFlat)}</span>
               </div>
             )}
 
             {taxAmount > 0 && (
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', color: '#475569' }}>
-                <span>Impuestos ({data.taxPercent || 0}%)</span> <span>{formatCurrency(taxAmount)}</span>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.84rem', color: '#475569' }}>
+                <span>Impuestos ({data.taxPercent || 0}%)</span> <span style={{ fontWeight: 600, color: '#334155' }}>{formatCurrency(taxAmount)}</span>
               </div>
             )}
 
             {deductible > 0 && (
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', color: '#DC2626', fontWeight: 600 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.84rem', color: '#DC2626', fontWeight: 600 }}>
                 <span>Deducible Cliente</span> <span>-{formatCurrency(deductible)}</span>
               </div>
             )}
 
             {/* Total Principal */}
-            <div style={{ margin: '0.5rem 0', borderTop: '1px dashed #CBD5E1' }}></div>
+            <div style={{ margin: '0.35rem 0', borderTop: '1px dashed #CBD5E1' }}></div>
 
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginTop: '0.5rem' }}>
-              <span style={{ fontSize: '1.1rem', fontWeight: 700, color: '#0F172A' }}>Total</span>
-              <span style={{ fontSize: '2rem', fontWeight: 900, color: '#0F172A', lineHeight: 1 }}>{formatCurrency(total)}</span>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+              <span style={{ fontSize: '1rem', fontWeight: 700, color: '#0F172A' }}>Total</span>
+              <span style={{ fontSize: '1.85rem', fontWeight: 900, color: '#0F172A', lineHeight: 1, letterSpacing: '-0.02em' }}>{formatCurrency(total)}</span>
             </div>
 
             {/* Balance Restante si hay abonos */}
             {(Number(data.paid) > 0) && (
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.5rem', padding: '0.8rem', backgroundColor: balance <= 0 ? '#ECFCCB' : '#FEF2F2', borderRadius: '8px' }}>
-                <span style={{ fontSize: '0.85rem', fontWeight: 600, color: balance <= 0 ? '#4D7C0F' : '#B91C1C' }}>Balance Pendiente</span>
-                <span style={{ fontSize: '1.1rem', fontWeight: 800, color: balance <= 0 ? '#4D7C0F' : '#B91C1C' }}>{formatCurrency(balance)}</span>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.6rem', padding: '0.7rem 0.85rem', backgroundColor: balance <= 0 ? '#ECFCCB' : '#FEF2F2', borderRadius: '10px' }}>
+                <span style={{ fontSize: '0.82rem', fontWeight: 600, color: balance <= 0 ? '#4D7C0F' : '#B91C1C' }}>Balance Pendiente</span>
+                <span style={{ fontSize: '1.05rem', fontWeight: 800, color: balance <= 0 ? '#4D7C0F' : '#B91C1C' }}>{formatCurrency(balance)}</span>
               </div>
             )}
           </div>
@@ -215,7 +224,7 @@ export const WorkOrderSummary: React.FC<SummaryProps> = ({ data, onSave, onCance
       </div>
 
       {/* --- BOTONERA --- */}
-      <div style={{ padding: '1.5rem', backgroundColor: '#F8FAFC', borderTop: '1px solid var(--color-border)', display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
+      <div style={{ padding: '1.25rem 1.5rem', backgroundColor: '#FFFFFF', borderTop: '1px solid var(--color-border, #E2E8F0)', display: 'flex', flexDirection: 'column', gap: '0.7rem' }}>
         <style>{`@keyframes spin { 100% { transform: rotate(360deg); } }`}</style>
         <button
           className="btn btn-primary"

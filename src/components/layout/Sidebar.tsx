@@ -1,6 +1,7 @@
 import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { FileText, Users, LogOut, Settings, ChevronLeft, ChevronRight, Briefcase, CalendarDays } from 'lucide-react';
+import { FileText, Users, LogOut, Settings, ChevronLeft, ChevronRight, Briefcase, CalendarDays, Database } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
 
 interface SidebarProps { 
   isCollapsed: boolean; 
@@ -10,9 +11,19 @@ interface SidebarProps {
 export const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, onToggle }) => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { logout } = useAuth();
 
   const handleNavigation = (path: string) => {
     navigate(path);
+  };
+
+  const handleLogout = async () => {
+    if (!window.confirm('¿Cerrar sesión?')) return;
+    try {
+      await logout();
+    } finally {
+      navigate('/login', { replace: true });
+    }
   };
 
   return (
@@ -60,6 +71,15 @@ export const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, onToggle }) => {
             active={location.pathname.includes('/equipo')} 
             onClick={() => handleNavigation('/equipo')} 
           />
+
+          {/* IMPORTAR DATOS */}
+          <MenuItem 
+            icon={<Database size={20} />} 
+            label="Importar Datos" 
+            isCollapsed={isCollapsed} 
+            active={location.pathname.includes('/data-import')} 
+            onClick={() => handleNavigation('/data-import')} 
+          />
         </nav>
       </div>
       
@@ -75,6 +95,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, onToggle }) => {
           icon={<LogOut size={20} />} 
           label="Logout" 
           isCollapsed={isCollapsed} 
+          onClick={handleLogout}
         />
         
         <div 

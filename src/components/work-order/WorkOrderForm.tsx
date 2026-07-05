@@ -694,7 +694,10 @@ export const WorkOrderForm: React.FC<Props> = ({ data, requiredFields = {}, onCh
               <div style={{ padding: '0.5rem', backgroundColor: '#EFF6FF', borderRadius: '8px', color: '#2563EB' }}>
                 <ClipboardList size={22} />
               </div>
-              <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 700, color: '#1E293B' }}>Configuración Inicial</h3>
+              <div>
+                <div style={{ fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#94A3B8', marginBottom: '2px' }}>Documento y estado</div>
+                <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 700, color: '#1E293B', lineHeight: 1.15 }}>Configuración Inicial</h3>
+              </div>
             </div>
 
             <div className="form-grid">
@@ -828,7 +831,10 @@ export const WorkOrderForm: React.FC<Props> = ({ data, requiredFields = {}, onCh
                 <div style={{ padding: '0.5rem', backgroundColor: '#F5F3FF', borderRadius: '8px', color: '#8B5CF6' }}>
                   <Shield size={22} />
                 </div>
-                <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 700, color: '#1E293B' }}>Detalles del Seguro</h3>
+                <div>
+                  <div style={{ fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#94A3B8', marginBottom: '2px' }}>Aseguradora y póliza</div>
+                  <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 700, color: '#1E293B', lineHeight: 1.15 }}>Detalles del Seguro</h3>
+                </div>
               </div>
               <div className="form-grid">
                 <div className="form-group">
@@ -859,7 +865,10 @@ export const WorkOrderForm: React.FC<Props> = ({ data, requiredFields = {}, onCh
               <div style={{ padding: '0.5rem', backgroundColor: '#ECFCCB', borderRadius: '8px', color: '#CA8A04' }}>
                 <UserCog size={22} />
               </div>
-              <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 700, color: '#1E293B' }}>Información del Cliente</h3>
+              <div>
+                <div style={{ fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#94A3B8', marginBottom: '2px' }}>Contacto y dirección</div>
+                <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 700, color: '#1E293B', lineHeight: 1.15 }}>Información del Cliente</h3>
+              </div>
             </div>
 
             <div className="no-print" style={{ marginBottom: '2rem', backgroundColor: '#F8FAFC', padding: '1.5rem', borderRadius: '8px', border: '1px solid #E2E8F0' }}>
@@ -925,7 +934,10 @@ export const WorkOrderForm: React.FC<Props> = ({ data, requiredFields = {}, onCh
               <div style={{ padding: '0.5rem', backgroundColor: '#FEF2F2', borderRadius: '8px', color: '#EF4444' }}>
                 <Car size={22} />
               </div>
-              <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 700, color: '#1E293B' }}>Vehículo y Trabajos</h3>
+              <div>
+                <div style={{ fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#94A3B8', marginBottom: '2px' }}>Vehículo, partes y servicios</div>
+                <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 700, color: '#1E293B', lineHeight: 1.15 }}>Vehículo y Trabajos</h3>
+              </div>
             </div>
 
             <div className="form-grid" style={{ marginBottom: '2rem' }}>
@@ -1087,7 +1099,10 @@ export const WorkOrderForm: React.FC<Props> = ({ data, requiredFields = {}, onCh
               <div style={{ padding: '0.5rem', backgroundColor: '#ECFCCB', borderRadius: '8px', color: '#65A30D' }}>
                 <Receipt size={22} />
               </div>
-              <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 700, color: '#1E293B' }}>Facturación y Totales</h3>
+              <div>
+                <div style={{ fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#94A3B8', marginBottom: '2px' }}>Costos y balance</div>
+                <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 700, color: '#1E293B', lineHeight: 1.15 }}>Facturación y Totales</h3>
+              </div>
             </div>
 
             <div className="form-grid">

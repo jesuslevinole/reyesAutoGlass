@@ -168,8 +168,16 @@ export const WorkOrderPage: React.FC = () => {
     else setActiveView('list');
   };
 
-  const handleEditOrder = (order: WorkOrderData) => {
-    setCurrentWorkOrder(order);
+  const handleEditOrder = async (order: WorkOrderData) => {
+    // Como getAll() ya no trae las partes, se cargan aquí (bajo demanda) antes de
+    // abrir el formulario, para no perderlas al guardar.
+    try {
+      const full = order.id ? await workOrderService.getById(order.id) : null;
+      setCurrentWorkOrder(full || order);
+    } catch (error) {
+      console.error('No se pudieron cargar las partes de la orden:', error);
+      setCurrentWorkOrder(order);
+    }
     setActiveView('create');
   };
 
