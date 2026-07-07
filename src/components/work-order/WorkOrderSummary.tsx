@@ -29,7 +29,10 @@ export const WorkOrderSummary: React.FC<SummaryProps> = ({ data, onSave, onCance
     } catch (e) { return dateStr; }
   };
 
-  // --- CÁLCULOS MATEMÁTICOS (Con alta precisión) ---
+  // --- CÁLCULOS MATEMÁTICOS (ESPEJO EXACTO del formulario WorkOrderForm) ---
+  // ⚠️ Deben coincidir 1:1 con las fórmulas del formulario para que el Total y el
+  //    Balance sean idénticos. El impuesto se calcula SOLO sobre partes + molduras;
+  //    upsold, deducible y cashComeback NO entran en el total (son informativos).
   const subPart = Number(data.subtotalPart) || 0;
   const subMolding = Number(data.subtotalMolding) || 0;
   const subServices = Number(data.subtotalServices) || 0;
@@ -38,14 +41,13 @@ export const WorkOrderSummary: React.FC<SummaryProps> = ({ data, onSave, onCance
   const upsell = Number(data.upsell) || 0;
   const kitFlat = Number(data.kitFlatRate) || 0;
   const deductible = Number(data.deductible) || 0;
+  const upsold = Number(data.upsold) || 0;
+  const cashComeback = Number(data.cashComeback) || 0;
+  const paidAmt = Number(data.paid) || 0;
 
-  const totalBase = subPart + subMolding + subServices + totLabor;
-  const taxAmount = totalBase * (taxPct / 100);
-
-  // El deducible resta al total si es seguro, el kitFlat suma
-  const total = totalBase + taxAmount + upsell + kitFlat - deductible;
-
-  const balance = total - (Number(data.paid) || 0);
+  const calculatedTax = (subPart + subMolding) * (taxPct / 100);
+  const calculatedTotal = subPart + subMolding + subServices + totLabor + upsell + kitFlat + calculatedTax;
+  const calculatedBalance = calculatedTotal - paidAmt;
 
   // --- ESTILO DEL BADGE DE ESTADO ---
   const statusStyle = (() => {
@@ -69,6 +71,8 @@ export const WorkOrderSummary: React.FC<SummaryProps> = ({ data, onSave, onCance
   const cardStyle: React.CSSProperties = {
     backgroundColor: '#FFFFFF', padding: '1.1rem 1.2rem', borderRadius: '12px', border: '1px solid #E2E8F0',
   };
+  const rowStyle: React.CSSProperties = { display: 'flex', justifyContent: 'space-between', fontSize: '0.84rem', color: '#475569' };
+  const valStyle: React.CSSProperties = { fontWeight: 600, color: '#334155' };
 
   return (
     <aside style={{
@@ -167,55 +171,41 @@ export const WorkOrderSummary: React.FC<SummaryProps> = ({ data, onSave, onCance
           <BlockHeader icon={<Receipt size={16} />} chipBg="#0F172A" chipColor="#FFFFFF" label="Costos de Servicio" />
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.55rem' }}>
-            {(subPart > 0 || subMolding > 0) && (
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.84rem', color: '#475569' }}>
-                <span>Partes y Vidrios</span> <span style={{ fontWeight: 600, color: '#334155' }}>{formatCurrency(subPart + subMolding)}</span>
-              </div>
-            )}
-
-            {(totLabor > 0 || subServices > 0) && (
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.84rem', color: '#475569' }}>
-                <span>Mano de Obra / Servicios</span> <span style={{ fontWeight: 600, color: '#334155' }}>{formatCurrency(totLabor + subServices)}</span>
-              </div>
-            )}
-
-            {upsell > 0 && (
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.84rem', color: '#475569' }}>
-                <span>Adicionales (Upsell)</span> <span style={{ fontWeight: 600, color: '#334155' }}>{formatCurrency(upsell)}</span>
-              </div>
-            )}
-
-            {kitFlat > 0 && (
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.84rem', color: '#475569' }}>
-                <span>Kit Flat Rate</span> <span style={{ fontWeight: 600, color: '#334155' }}>{formatCurrency(kitFlat)}</span>
-              </div>
-            )}
-
-            {taxAmount > 0 && (
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.84rem', color: '#475569' }}>
-                <span>Impuestos ({data.taxPercent || 0}%)</span> <span style={{ fontWeight: 600, color: '#334155' }}>{formatCurrency(taxAmount)}</span>
-              </div>
-            )}
-
-            {deductible > 0 && (
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.84rem', color: '#DC2626', fontWeight: 600 }}>
-                <span>Deducible Cliente</span> <span>-{formatCurrency(deductible)}</span>
-              </div>
-            )}
+            {/* Filas que COMPONEN el total (mismo cálculo que el formulario) */}
+            <div style={rowStyle}><span>Subtotal Partes</span><span style={valStyle}>{formatCurrency(subPart)}</span></div>
+            {subMolding > 0 && <div style={rowStyle}><span>Subtotal Molduras</span><span style={valStyle}>{formatCurrency(subMolding)}</span></div>}
+            <div style={rowStyle}><span>Subtotal Servicios</span><span style={valStyle}>{formatCurrency(subServices)}</span></div>
+            <div style={rowStyle}><span>Labor Total (Partes)</span><span style={valStyle}>{formatCurrency(totLabor)}</span></div>
+            {kitFlat > 0 && <div style={rowStyle}><span>Kit Flat Rate</span><span style={valStyle}>{formatCurrency(kitFlat)}</span></div>}
+            {upsell > 0 && <div style={rowStyle}><span>Comisión Extra (Upsell)</span><span style={valStyle}>{formatCurrency(upsell)}</span></div>}
+            <div style={rowStyle}><span>Impuestos ({data.taxPercent || 0}%)</span><span style={valStyle}>{formatCurrency(calculatedTax)}</span></div>
 
             {/* Total Principal */}
             <div style={{ margin: '0.35rem 0', borderTop: '1px dashed #CBD5E1' }}></div>
 
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
               <span style={{ fontSize: '1rem', fontWeight: 700, color: '#0F172A' }}>Total</span>
-              <span style={{ fontSize: '1.85rem', fontWeight: 900, color: '#0F172A', lineHeight: 1, letterSpacing: '-0.02em' }}>{formatCurrency(total)}</span>
+              <span style={{ fontSize: '1.85rem', fontWeight: 900, color: '#0F172A', lineHeight: 1, letterSpacing: '-0.02em' }}>{formatCurrency(calculatedTotal)}</span>
             </div>
 
-            {/* Balance Restante si hay abonos */}
-            {(Number(data.paid) > 0) && (
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.6rem', padding: '0.7rem 0.85rem', backgroundColor: balance <= 0 ? '#ECFCCB' : '#FEF2F2', borderRadius: '10px' }}>
-                <span style={{ fontSize: '0.82rem', fontWeight: 600, color: balance <= 0 ? '#4D7C0F' : '#B91C1C' }}>Balance Pendiente</span>
-                <span style={{ fontSize: '1.05rem', fontWeight: 800, color: balance <= 0 ? '#4D7C0F' : '#B91C1C' }}>{formatCurrency(balance)}</span>
+            {/* Abonado + Balance (solo si hay abono) */}
+            {paidAmt > 0 && (
+              <>
+                <div style={{ ...rowStyle, marginTop: '0.2rem' }}><span>Abonado (Paid)</span><span style={valStyle}>{formatCurrency(paidAmt)}</span></div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.3rem', padding: '0.7rem 0.85rem', backgroundColor: calculatedBalance > 0 ? '#FEF2F2' : '#ECFCCB', borderRadius: '10px' }}>
+                  <span style={{ fontSize: '0.82rem', fontWeight: 600, color: calculatedBalance > 0 ? '#B91C1C' : '#4D7C0F' }}>Balance Restante</span>
+                  <span style={{ fontSize: '1.05rem', fontWeight: 800, color: calculatedBalance > 0 ? '#B91C1C' : '#4D7C0F' }}>{formatCurrency(calculatedBalance)}</span>
+                </div>
+              </>
+            )}
+
+            {/* Informativo: NO afecta el total (igual que en el formulario) */}
+            {(deductible > 0 || upsold > 0 || cashComeback > 0) && (
+              <div style={{ marginTop: '0.55rem', paddingTop: '0.55rem', borderTop: '1px dashed #E2E8F0', display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                <span style={{ fontSize: '0.64rem', fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Informativo · no suma al total</span>
+                {deductible > 0 && <div style={rowStyle}><span>Deducible</span><span style={valStyle}>{formatCurrency(deductible)}</span></div>}
+                {upsold > 0 && <div style={rowStyle}><span>Venta Adicional (Upsold)</span><span style={valStyle}>{formatCurrency(upsold)}</span></div>}
+                {cashComeback > 0 && <div style={rowStyle}><span>Cash Comeback</span><span style={valStyle}>{formatCurrency(cashComeback)}</span></div>}
               </div>
             )}
           </div>
