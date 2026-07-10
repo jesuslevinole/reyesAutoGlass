@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
-import { FileSpreadsheet, UploadCloud, Download, RefreshCw } from 'lucide-react';
+import { FileSpreadsheet, UploadCloud, Download, RefreshCw, Wallet } from 'lucide-react';
 import { DataTemplateGenerator } from '../components/data-import/DataTemplateGenerator';
 import { DataImportView } from '../components/data-import/DataImportView';
 import { DataExportView } from '../components/data-import/DataExportView';
 import DataUpdateView from '../components/data-import/DataUpdateView';
+import { CommissionsImportView } from '../components/data-import/CommissionsImportView';
 
-type Tab = 'templates' | 'import' | 'export' | 'update';
+type Tab = 'templates' | 'import' | 'export' | 'update' | 'commissions';
 
 interface Props {
   /** Se llama cuando una importación crea/actualiza órdenes (para refrescar listas). */
@@ -40,6 +41,7 @@ export const DataImportPage: React.FC<Props> = ({ onImported }) => {
           {tabBtn('import', 'Importar', <UploadCloud size={18} />)}
           {tabBtn('export', 'Exportar', <Download size={18} />)}
           {tabBtn('update', 'Actualizar', <RefreshCw size={18} />)}
+          {tabBtn('commissions', 'Comisiones', <Wallet size={18} />)}
         </div>
       </div>
 
@@ -51,6 +53,11 @@ export const DataImportPage: React.FC<Props> = ({ onImported }) => {
         {tab === 'update' && (
           <div style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
             <DataUpdateView />
+          </div>
+        )}
+        {tab === 'commissions' && (
+          <div style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
+            <CommissionsImportView />
           </div>
         )}
       </div>

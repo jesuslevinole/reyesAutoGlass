@@ -6,6 +6,7 @@ import { WorkOrderTable } from '../components/work-order/WorkOrderTable';
 import { WorkOrderCalendar } from '../components/work-order/WorkOrderCalendar';
 import { WorkOrderMap } from '../components/work-order/WorkOrderMap';
 import { workOrderService } from '../services/workOrderService';
+import { agentCommissionService } from '../services/agentCommissionService';
 import type { WorkOrderData } from '../types/workOrder';
 import { X, Save, LayoutList, CalendarDays, Map, Loader2 } from 'lucide-react';
 
@@ -144,6 +145,43 @@ export const WorkOrderPage: React.FC = () => {
         await workOrderService.update(currentWorkOrder.id, finalData);
       }
 
+      // --- COMISIÓN DEL AGENTE (derivada de las PARTES agregadas) ---
+      // Si la orden tiene agente, se recorren las partes, se agrupan por categoría
+      // (aftermarket / recommend / OEM / servicios / seguro) y se guarda/actualiza
+      // el registro en `agent_commissions` enlazado por el id del work order.
+      const agentName = String(finalData.agent || '').trim();
+      if (agentName) {
+        try {
+          const parts = (finalData.parts || []) as any[];
+          const comm = {
+            aftermarketCommission: 0, recommendCommission: 0, oemCommission: 0,
+            servicesCommission: 0, insuranceCommission: 0,
+          };
+          for (const p of parts) {
+            // ⚠️ MONTO de comisión de cada parte. Ajustar según la regla real
+            //    (ver nota: hoy toma p.commission; puede venir de un catálogo, un % o un fijo).
+            const amount = Number(p.commission) || 0;
+            if (!amount) continue;
+            const jt = String(p.jobtype || '').toLowerCase();
+            if (p.type === 'Services') comm.servicesCommission += amount;
+            else if (finalData.type === 'Insurance') comm.insuranceCommission += amount;
+            else if (jt.includes('oem')) comm.oemCommission += amount;
+            else if (jt.includes('recommend') || jt.includes('recomend')) comm.recommendCommission += amount;
+            else comm.aftermarketCommission += amount;
+          }
+          const total = comm.aftermarketCommission + comm.recommendCommission + comm.oemCommission + comm.servicesCommission + comm.insuranceCommission;
+          if (total > 0) {
+            await agentCommissionService.saveForWorkOrder(finalData.id, {
+              agent: agentName,
+              company: finalData.company,
+              ...comm,
+            });
+          }
+        } catch (commErr) {
+          console.error('No se pudo guardar la comisión del agente:', commErr);
+        }
+      }
+
       const updatedList = await workOrderService.getAll();
       setWorkOrdersList(updatedList);
 
@@ -187,6 +225,7 @@ export const WorkOrderPage: React.FC = () => {
     setIsLoading(true);
     try {
       await workOrderService.remove(id);
+      await agentCommissionService.removeByWorkOrder(id);
       const updatedList = await workOrderService.getAll();
       setWorkOrdersList(updatedList);
     } catch (error) {

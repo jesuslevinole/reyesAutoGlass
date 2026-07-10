@@ -1,6 +1,6 @@
 import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { FileText, Users, LogOut, Settings, ChevronLeft, ChevronRight, Briefcase, CalendarDays, Database } from 'lucide-react';
+import { FileText, Users, LogOut, Settings, ChevronLeft, ChevronRight, Briefcase, CalendarDays, Database, Wallet } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
 interface SidebarProps { 
@@ -70,6 +70,15 @@ export const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, onToggle }) => {
             isCollapsed={isCollapsed} 
             active={location.pathname.includes('/equipo')} 
             onClick={() => handleNavigation('/equipo')} 
+          />
+
+          {/* COMISIONES */}
+          <MenuItem 
+            icon={<Wallet size={20} />} 
+            label="Comisiones" 
+            isCollapsed={isCollapsed} 
+            active={location.pathname.includes('/commissions')} 
+            onClick={() => handleNavigation('/commissions')} 
           />
 
           {/* IMPORTAR DATOS */}

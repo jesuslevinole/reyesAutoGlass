@@ -11,7 +11,7 @@ import { EquipoTrabajo } from './pages/EquipoTrabajo';
 import { SettingsPage } from './pages/SettingsPage';
 import { CatalogView } from './pages/CatalogView';
 import { DataImportPage } from './pages/DataImportPage';
-import DataUpdateView from './components/data-import/DataUpdateView';
+import { CommissionsPage } from './pages/CommissionsPage';
 import { LoginPage } from './pages/LoginPage';
 
 // Pantalla de carga mientras se resuelve el estado de sesión.
@@ -59,7 +59,7 @@ const App: React.FC = () => {
             <Route path="customers" element={<CustomersPage />} />
             <Route path="equipo" element={<EquipoTrabajo />} />
             <Route path="data-import" element={<DataImportPage />} /> {/* IMPORTACIÓN DE DATOS */}
-            <Route path="data-update" element={<DataUpdateView />} /> {/* ACTUALIZAR CONSECUTIVOS */}
+            <Route path="commissions" element={<CommissionsPage />} /> {/* COMISIONES DE AGENTES */}
             <Route path="settings" element={<SettingsPage />} />
             <Route path="*" element={<Navigate to="/work-orders" replace />} />
           </Route>

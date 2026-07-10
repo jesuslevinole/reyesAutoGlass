@@ -25,6 +25,19 @@ import type { WorkOrderData } from '../types/workOrder';
 const HEADER_COLLECTION = 'work_orders';
 const DETAIL_COLLECTION = 'work_order_details';
 
+// ─── Caché en memoria de las cabeceras ──────────────────────────────────────
+// Evita re-descargar todas las órdenes cada vez que se cambia de vista.
+// Se invalida automáticamente al crear/editar/eliminar. TTL de seguridad por si
+// otra pestaña/usuario cambia datos (se refresca solo tras ese tiempo).
+let _headerCache: WorkOrderData[] | null = null;
+let _headerCacheAt = 0;
+const HEADER_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutos
+
+function invalidateHeaderCache() {
+  _headerCache = null;
+  _headerCacheAt = 0;
+}
+
 // Tipo auxiliar: una parte/servicio individual del array `parts`.
 type WorkOrderPart = NonNullable<WorkOrderData['parts']>[number];
 
@@ -84,12 +97,23 @@ export const workOrderService = {
    * Las partes se leen bajo demanda con `getParts(id)` / `getById(id)` al abrir
    * o editar una orden.
    */
-  async getAll(): Promise<WorkOrderData[]> {
+  async getAll(force = false): Promise<WorkOrderData[]> {
+    // Si hay caché reciente y no se fuerza, devuelve al instante (cambio de vista rápido).
+    if (!force && _headerCache && (Date.now() - _headerCacheAt) < HEADER_CACHE_TTL_MS) {
+      return _headerCache;
+    }
     const headerSnap = await getDocs(collection(db, HEADER_COLLECTION));
-    console.log(`[workOrderService] work_orders leídas: ${headerSnap.size}`);
-    return headerSnap.docs.map(
+    const list = headerSnap.docs.map(
       (d) => ({ ...(d.data() as WorkOrderData), id: d.id, parts: [] } as WorkOrderData)
     );
+    _headerCache = list;
+    _headerCacheAt = Date.now();
+    return list;
+  },
+
+  /** Invalida el caché manualmente (por si se necesita forzar un refresco). */
+  invalidateCache(): void {
+    invalidateHeaderCache();
   },
 
   /**
@@ -157,6 +181,7 @@ export const workOrderService = {
     writeDetails(batch, workOrderId, parts || []);
 
     await batch.commit();
+    invalidateHeaderCache();
     return workOrderId;
   },
 
@@ -185,6 +210,7 @@ export const workOrderService = {
     writeDetails(batch, id, parts || []);
 
     await batch.commit();
+    invalidateHeaderCache();
   },
 
   /**
@@ -200,5 +226,6 @@ export const workOrderService = {
     details.forEach((d) => batch.delete(d.ref));
 
     await batch.commit();
+    invalidateHeaderCache();
   },
 };
