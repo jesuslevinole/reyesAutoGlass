@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc } from 'firebase/firestore';
-import { Users, Plus, Edit2, Trash2, X, Search, Phone, Mail, MapPin } from 'lucide-react';
-import { db } from '../firebase';
+import { Users, Plus, Edit2, Trash2, X, Search, Phone, Mail, MapPin, Loader2 } from 'lucide-react';
+import { customerService } from '../services/customerService';
 import type { CustomerData } from '../types/customer';
 
 export const CustomersPage: React.FC = () => {
   const [customers, setCustomers] = useState<CustomerData[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [currentCustomer, setCurrentCustomer] = useState<CustomerData | null>(null);
@@ -14,11 +14,18 @@ export const CustomersPage: React.FC = () => {
   });
 
   useEffect(() => {
-    const unsubscribe = onSnapshot(collection(db, 'customers'), (snapshot) => {
-      const fetchedData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as CustomerData));
-      setCustomers(fetchedData);
-    });
-    return () => unsubscribe();
+    // Carga con caché (memoria + localStorage): pinta al instante al volver a la
+    // vista o tras una recarga; el servicio se encarga de refrescar en segundo plano.
+    (async () => {
+      try {
+        const data = await customerService.getAll();
+        setCustomers(data);
+      } catch (error) {
+        console.error('Error cargando clientes:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    })();
   }, []);
 
   const filteredCustomers = customers.filter(c => 
@@ -29,11 +36,11 @@ export const CustomersPage: React.FC = () => {
     e.preventDefault();
     try {
       if (currentCustomer?.id) {
-        await updateDoc(doc(db, 'customers', currentCustomer.id), { ...formData });
+        await customerService.update(currentCustomer.id, { ...formData });
+        setCustomers(prev => prev.map(c => (c.id === currentCustomer.id ? { ...c, ...formData, id: currentCustomer.id } : c)));
       } else {
-        const dateOptions: Intl.DateTimeFormatOptions = { year: 'numeric', month: 'long', day: 'numeric' };
-        const formattedDate = new Date().toLocaleDateString('es-ES', dateOptions);
-        await addDoc(collection(db, 'customers'), { ...formData, createdAt: formattedDate });
+        const nuevo = await customerService.create({ ...formData });
+        setCustomers(prev => [...prev, nuevo]);
       }
       setIsModalOpen(false);
     } catch (error) {
@@ -43,7 +50,12 @@ export const CustomersPage: React.FC = () => {
 
   const handleDelete = async (id: string) => {
     if (window.confirm('¿Está seguro de eliminar este cliente?')) {
-      await deleteDoc(doc(db, 'customers', id));
+      try {
+        await customerService.remove(id);
+        setCustomers(prev => prev.filter(c => c.id !== id));
+      } catch (error) {
+        alert('No se pudo eliminar el cliente.');
+      }
     }
   };
 
@@ -104,7 +116,12 @@ export const CustomersPage: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredCustomers.length === 0 ? (
+                  {isLoading ? (
+                    <tr><td colSpan={5} style={{ textAlign: 'center', padding: '3rem', color: 'var(--color-text-muted)' }}>
+                      <style>{`@keyframes spin { 100% { transform: rotate(360deg); } }`}</style>
+                      <Loader2 size={26} color="#2563EB" style={{ animation: 'spin 1s linear infinite' }} />
+                    </td></tr>
+                  ) : filteredCustomers.length === 0 ? (
                     <tr><td colSpan={5} style={{ textAlign: 'center', padding: '3rem', color: 'var(--color-text-muted)' }}>No se encontraron clientes.</td></tr>
                   ) : (
                     filteredCustomers.map((customer) => (

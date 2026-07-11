@@ -1,6 +1,6 @@
 // Importa las funciones necesarias de los SDKs
 import { initializeApp } from "firebase/app";
-import { initializeFirestore } from "firebase/firestore";
+import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
 
 // Configuración de tu web app usando variables de entorno (Sintaxis de Vite)
@@ -27,6 +27,10 @@ const app = initializeApp(firebaseConfig);
 //    evitando el problema sin afectar al resto de la app.
 export const db = initializeFirestore(app, {
   experimentalAutoDetectLongPolling: true,
+  // ⭐ Caché persistente en IndexedDB (igual que en Precise Cleaning): las lecturas
+  //    se sirven también desde disco entre recargas y la app funciona sin conexión.
+  //    multipleTabManager permite tener varias pestañas abiertas sin conflicto.
+  localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }),
 });
 
 export const auth = getAuth(app);

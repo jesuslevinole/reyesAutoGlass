@@ -2,6 +2,7 @@ import {
   collection,
   doc,
   getDocs,
+  getDocsFromServer,
   query,
   where,
   limit,
@@ -23,6 +24,64 @@ import { db } from '../firebase';
 
 const COLLECTION = 'agent_commissions';
 const PAYMENTS_COLLECTION = 'commission_payments';
+
+// ─── Caché (memoria + localStorage) para comisiones y facturas ──────────────
+// Igual que en workOrderService: la vista pinta al instante (incluso tras F5)
+// y se refresca en segundo plano. Toda mutación invalida el caché correspondiente.
+const CACHE_TTL_MS = 5 * 60 * 1000;
+
+function makeCache<T>(lsKey: string) {
+  let mem: T[] | null = null;
+  let at = 0;
+  let revalidating = false;
+
+  const readLS = (): { at: number; list: T[] } | null => {
+    try {
+      const raw = localStorage.getItem(lsKey);
+      if (!raw) return null;
+      const p = JSON.parse(raw);
+      return (p && Array.isArray(p.list) && p.list.length > 0) ? p : null; // nunca servir snapshot vacío
+    } catch { return null; }
+  };
+  const writeLS = (list: T[]) => {
+    try { localStorage.setItem(lsKey, JSON.stringify({ at: Date.now(), list })); } catch { /* cuota llena: solo memoria */ }
+  };
+
+  const api = {
+    invalidate() {
+      mem = null; at = 0;
+      try { localStorage.removeItem(lsKey); } catch { /* ignorar */ }
+    },
+    store(list: T[]) { mem = list; at = Date.now(); if (list.length > 0) writeLS(list); },
+    async get(fetcher: () => Promise<T[]>, force = false): Promise<T[]> {
+      if (!force && mem && (Date.now() - at) < CACHE_TTL_MS) return mem;
+      if (!force) {
+        const local = readLS();
+        if (local) {
+          mem = local.list; at = local.at;
+          if ((Date.now() - local.at) >= CACHE_TTL_MS && !revalidating) {
+            revalidating = true;
+            fetcher().then((fresh) => api.store(fresh)).catch(() => {}).finally(() => { revalidating = false; });
+          }
+          return local.list;
+        }
+      }
+      try {
+        const fresh = await fetcher();
+        api.store(fresh);
+        return fresh;
+      } catch (err) {
+        const local = readLS();
+        if (local) return local.list; // sin red: respaldo local aunque esté viejo
+        throw err;
+      }
+    },
+  };
+  return api;
+}
+
+const commCache = makeCache<AgentCommission>('rag_agent_commissions_v2');
+const payCache = makeCache<CommissionPayment>('rag_commission_payments_v2');
 
 export interface CommissionPayment {
   id?: string;
@@ -113,6 +172,7 @@ export const agentCommissionService = {
     const existing = await agentCommissionService.getByWorkOrder(workOrderId);
     if (existing?.id) {
       await updateDoc(doc(db, COLLECTION, existing.id), payload);
+      commCache.invalidate();
       return existing.id;
     }
 
@@ -122,6 +182,7 @@ export const agentCommissionService = {
       checked: data.checked ?? false,
       createdAt: new Date().toISOString(),
     });
+    commCache.invalidate();
     return ref.id;
   },
 
@@ -132,17 +193,29 @@ export const agentCommissionService = {
       query(collection(db, COLLECTION), where('workOrderId', '==', workOrderId))
     );
     await Promise.all(qs.docs.map((d) => deleteDoc(doc(db, COLLECTION, d.id))));
+    commCache.invalidate();
   },
 
   /** Marca una comisión como pagada / pendiente. */
   async setPaid(commissionId: string, paid: boolean): Promise<void> {
     await updateDoc(doc(db, COLLECTION, commissionId), { paid, updatedAt: new Date().toISOString() });
+    commCache.invalidate();
   },
 
-  /** Lista todas las comisiones (para reportes por agente). */
-  async listAll(): Promise<AgentCommission[]> {
-    const qs = await getDocs(collection(db, COLLECTION));
-    return qs.docs.map((d) => ({ id: d.id, ...(d.data() as AgentCommission) }));
+  /** Lista todas las comisiones (con caché; pinta al instante tras recargas). */
+  async listAll(force = false): Promise<AgentCommission[]> {
+    return commCache.get(async () => {
+      let qs;
+      try { qs = await getDocsFromServer(collection(db, COLLECTION)); }
+      catch { qs = await getDocs(collection(db, COLLECTION)); }
+      return qs.docs.map((d) => ({ id: d.id, ...(d.data() as AgentCommission) }));
+    }, force);
+  },
+
+  /** Invalida los cachés de comisiones y facturas (útil tras importaciones). */
+  invalidateCache(): void {
+    commCache.invalidate();
+    payCache.invalidate();
   },
 
   /** Crea una comisión directamente (desde la vista de Comisiones). */
@@ -164,6 +237,7 @@ export const agentCommissionService = {
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     });
+    commCache.invalidate();
     return ref.id;
   },
 
@@ -182,11 +256,13 @@ export const agentCommissionService = {
       totalCommission: total,
       updatedAt: new Date().toISOString(),
     });
+    commCache.invalidate();
   },
 
   /** Elimina una comisión por su ID de documento. */
   async remove(id: string): Promise<void> {
     await deleteDoc(doc(db, COLLECTION, id));
+    commCache.invalidate();
   },
 
   // ── FACTURAS DE PAGO ─────────────────────────────────────────────────────
@@ -245,6 +321,8 @@ export const agentCommissionService = {
       batch.update(doc(db, COLLECTION, c.id!), { paid: true, paymentId: payRef.id, updatedAt: new Date().toISOString() });
     });
     await batch.commit();
+    payCache.invalidate();
+    commCache.invalidate();
 
     return payRef.id;
   },
@@ -272,11 +350,14 @@ export const agentCommissionService = {
       batch.update(doc(db, COLLECTION, c.id!), { paid: true, paymentId: payment.id, updatedAt: new Date().toISOString() });
     });
     await batch.commit();
+    payCache.invalidate();
+    commCache.invalidate();
   },
 
   /** Marca una factura como pagada / pendiente. */
   async setInvoicePaid(paymentId: string, paid: boolean): Promise<void> {
     await updateDoc(doc(db, PAYMENTS_COLLECTION, paymentId), { paid, updatedAt: new Date().toISOString() });
+    payCache.invalidate();
   },
 
   /**
@@ -310,6 +391,7 @@ export const agentCommissionService = {
     }
 
     await updateDoc(doc(db, PAYMENTS_COLLECTION, payment.id), patch);
+    payCache.invalidate();
   },
 
   /**
@@ -324,13 +406,19 @@ export const agentCommissionService = {
     });
     batch.delete(doc(db, PAYMENTS_COLLECTION, paymentId));
     await batch.commit();
+    payCache.invalidate();
+    commCache.invalidate();
   },
 
-  /** Historial de facturas (más recientes primero). */
-  async listPayments(): Promise<CommissionPayment[]> {
-    const qs = await getDocs(collection(db, PAYMENTS_COLLECTION));
-    return qs.docs
-      .map((d) => ({ id: d.id, ...(d.data() as CommissionPayment) }))
-      .sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')));
+  /** Historial de facturas (con caché; más recientes primero). */
+  async listPayments(force = false): Promise<CommissionPayment[]> {
+    return payCache.get(async () => {
+      let qs;
+      try { qs = await getDocsFromServer(collection(db, PAYMENTS_COLLECTION)); }
+      catch { qs = await getDocs(collection(db, PAYMENTS_COLLECTION)); }
+      return qs.docs
+        .map((d) => ({ id: d.id, ...(d.data() as CommissionPayment) }))
+        .sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')));
+    }, force);
   },
 };

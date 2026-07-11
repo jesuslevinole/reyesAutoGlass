@@ -1,5 +1,9 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate, Outlet, useLocation } from 'react-router-dom';
+import { MemoryRouter as Router, Routes, Route, Navigate, Outlet, useLocation } from 'react-router-dom';
+// ⭐ MemoryRouter: la navegación vive EN MEMORIA, la URL del navegador nunca cambia
+//    (siempre se queda en la raíz). Esto hace que la app se comporte como aplicación
+//    y no como sitio web: los clics del menú jamás provocan cargas de página, y al
+//    desplegar en Cloudflare no hay problemas de rutas directas (/work-orders → 404).
 import { Loader2 } from 'lucide-react';
 import { MainLayout } from './components/layout/MainLayout';
 import { AuthProvider, useAuth } from './context/AuthContext';

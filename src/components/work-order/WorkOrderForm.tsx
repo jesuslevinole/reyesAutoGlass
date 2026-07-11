@@ -413,14 +413,6 @@ export const WorkOrderForm: React.FC<Props> = ({ data, requiredFields = {}, onCh
     setPhoneError('');
   };
 
-  const handleCustomerBlur = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = e.target.value;
-    if (val && !customerOptions.includes(val)) {
-      alert("Por favor, seleccione un cliente válido de la lista sugerida. No se permiten nombres inventados.");
-      onChange('customer', '');
-    }
-  };
-
   const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     const cleaned = value.replace(/\D/g, '');
@@ -589,7 +581,7 @@ export const WorkOrderForm: React.FC<Props> = ({ data, requiredFields = {}, onCh
   };
 
   const FieldLabel = ({ text, fieldKey }: { text: string, fieldKey: string }) => (
-    <label className="form-label" style={{ color: '#475569', fontSize: '0.8rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.02em', marginBottom: '0.3rem' }}>
+    <label className="form-label">
       {text} {requiredFields?.[fieldKey] && <span style={{ color: '#EF4444', marginLeft: '2px' }}>*</span>}
     </label>
   );
@@ -646,20 +638,36 @@ export const WorkOrderForm: React.FC<Props> = ({ data, requiredFields = {}, onCh
           .print-hide-container { display: none !important; }
         }
         .print-only { display: none; }
+
+        /* ── Sistema de diseño estilo Roelca (adaptado a tema claro) ── */
+        .ragf-card { background: #fff; border: 1px solid #E2E8F0; border-radius: 12px; padding: 24px 26px; margin-bottom: 18px; transition: border-color 0.2s ease; }
+        .ragf-card:hover { border-color: #CBD5E1; }
+        .ragf-card-header { display: flex; align-items: center; gap: 12px; margin: 0 0 20px 0; padding-bottom: 14px; border-bottom: 1px solid #F1F5F9; }
+        .ragf-card-icon { width: 36px; height: 36px; border-radius: 9px; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; background-color: rgba(37, 99, 235, 0.08); color: #2563EB; border: 1px solid rgba(37, 99, 235, 0.18); }
+        .ragf-card-title { margin: 0; font-size: 0.98rem; font-weight: 600; color: #0F172A; letter-spacing: 0.1px; }
+        .ragf .form-label { display: block; font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.6px; color: #64748B; margin-bottom: 6px; }
+        .ragf .form-input, .ragf .form-select { padding: 0.6rem 0.75rem; font-size: 0.875rem; border-radius: 8px; }
+        .ragf .form-grid { gap: 1.1rem 1.25rem; }
+        .ragf .form-group { margin-bottom: 0.25rem; }
+        /* Segmentados: contenedor sutil, opción activa blanca con acento azul */
+        .ragf .segmented-control { display: inline-flex; gap: 4px; padding: 4px; background-color: #F1F5F9 !important; border: 1px solid #E2E8F0 !important; border-radius: 10px; }
+        .ragf .segmented-item { display: flex; align-items: center; justify-content: center; gap: 6px; padding: 0.5rem 1rem; border-radius: 8px; font-size: 0.82rem; font-weight: 600; color: #64748B !important; background-color: transparent !important; border: 1px solid transparent !important; cursor: pointer; transition: color 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease; user-select: none; }
+        .ragf .segmented-item:hover { color: #0F172A !important; }
+        .ragf .segmented-item.active { background-color: #FFFFFF !important; color: #2563EB !important; border-color: #E2E8F0 !important; box-shadow: 0 1px 3px rgba(15, 23, 42, 0.10); }
       `}</style>
 
-      <div className="animate-in fade-in" style={{ flex: 1, overflowY: 'auto', padding: '3rem 1.5rem', backgroundColor: '#F8FAFC' }}>
+      <div className="animate-in fade-in ragf" style={{ flex: 1, overflowY: 'auto', padding: '2rem 1.5rem', backgroundColor: '#F8FAFC' }}>
         <div style={{ maxWidth: '1000px', margin: '0 auto' }}>
 
-          <div className="no-print" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '3rem' }}>
+          <div className="no-print" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.75rem' }}>
             <div>
-              <h2 style={{ fontSize: '2rem', fontWeight: 800, color: '#0F172A', letterSpacing: '-0.03em', margin: 0 }}>
+              <h2 style={{ fontSize: '1.5rem', fontWeight: 700, color: '#0F172A', letterSpacing: '-0.02em', margin: 0 }}>
                 {data.id
                   ? `${data.documentType === 'Quote' ? 'Quote' : 'Work Order'} #${data.id}`
                   : `Nueva ${data.documentType === 'Quote' ? 'Quote' : 'Work Order'}`
                 }
               </h2>
-              <p style={{ color: '#64748B', marginTop: '0.4rem', fontSize: '1rem' }}>
+              <p style={{ color: '#64748B', marginTop: '0.35rem', fontSize: '0.875rem' }}>
                 Complete la información del servicio con precisión.
               </p>
             </div>
@@ -689,22 +697,17 @@ export const WorkOrderForm: React.FC<Props> = ({ data, requiredFields = {}, onCh
             </div>
           </div>
 
-          <div className="card" style={{ backgroundColor: 'white', borderRadius: '12px', border: '1px solid #E2E8F0', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.02)', padding: '2rem', marginBottom: '2.5rem' }}>
-            <div className="no-print" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '2rem', paddingBottom: '1rem', borderBottom: '2px solid #F1F5F9' }}>
-              <div style={{ padding: '0.5rem', backgroundColor: '#EFF6FF', borderRadius: '8px', color: '#2563EB' }}>
-                <ClipboardList size={22} />
-              </div>
-              <div>
-                <div style={{ fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#94A3B8', marginBottom: '2px' }}>Documento y estado</div>
-                <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 700, color: '#1E293B', lineHeight: 1.15 }}>Configuración Inicial</h3>
-              </div>
+          <div className="card ragf-card">
+            <div className="no-print ragf-card-header">
+              <div className="ragf-card-icon"><ClipboardList size={18} /></div>
+              <h3 className="ragf-card-title">Configuración Inicial</h3>
             </div>
 
             <div className="form-grid">
-              <div className="form-group print-hide-container" style={{ gridColumn: '1 / -1', display: 'flex', flexDirection: 'column', gap: '1.5rem', backgroundColor: '#F8FAFC', padding: '1.5rem', borderRadius: '8px', border: '1px solid #E2E8F0' }}>
+              <div className="form-group print-hide-container" style={{ gridColumn: '1 / -1', display: 'flex', flexDirection: 'column', gap: '1.25rem', paddingBottom: '1.25rem', borderBottom: '1px dashed #E2E8F0' }}>
                 <div style={{ display: 'flex', gap: '2rem' }}>
                   <div style={{ flex: 1 }}>
-                    <label className="form-label" style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.8rem', fontWeight: 600, color: '#475569', textTransform: 'uppercase' }}>Documento</label>
+                    <label className="form-label">Documento</label>
                     <div className="segmented-control" style={{ width: '100%' }}>
                       <label className={`segmented-item ${data.documentType === 'Quote' ? 'active' : ''}`} style={{ flex: 1, textAlign: 'center' }}><input type="radio" name="documentType" value="Quote" checked={data.documentType === 'Quote'} onChange={handleChange} style={{ display: 'none' }} />Quote</label>
                       <label className={`segmented-item ${data.documentType === 'Work Order' ? 'active' : ''}`} style={{ flex: 1, textAlign: 'center' }}><input type="radio" name="documentType" value="Work Order" checked={data.documentType === 'Work Order'} onChange={handleChange} style={{ display: 'none' }} />Work Order</label>
@@ -712,7 +715,7 @@ export const WorkOrderForm: React.FC<Props> = ({ data, requiredFields = {}, onCh
                   </div>
 
                   <div style={{ flex: 1 }}>
-                    <label className="form-label" style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.8rem', fontWeight: 600, color: '#475569', textTransform: 'uppercase' }}>Tipo de Pago</label>
+                    <label className="form-label">Tipo de Pago</label>
                     <div className="segmented-control" style={{ width: '100%' }}>
                       <label className={`segmented-item ${data.type === 'Personal' ? 'active' : ''}`} style={{ flex: 1, textAlign: 'center' }}><input type="radio" name="type" value="Personal" checked={data.type === 'Personal'} onChange={handleChange} style={{ display: 'none' }} />Personal</label>
                       <label className={`segmented-item ${data.type === 'Insurance' ? 'active' : ''}`} style={{ flex: 1, textAlign: 'center' }}><input type="radio" name="type" value="Insurance" checked={data.type === 'Insurance'} onChange={handleChange} style={{ display: 'none' }} />Insurance</label>
@@ -721,7 +724,7 @@ export const WorkOrderForm: React.FC<Props> = ({ data, requiredFields = {}, onCh
                 </div>
 
                 <div>
-                  <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', marginBottom: '0.5rem', fontSize: '0.8rem', fontWeight: 600, color: '#475569', textTransform: 'uppercase' }}>
+                  <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
                     <PhoneCall size={14} /> Dirección Llamada
                   </label>
                   <div className="segmented-control" style={{ width: '100%', maxWidth: '400px' }}>
@@ -732,47 +735,53 @@ export const WorkOrderForm: React.FC<Props> = ({ data, requiredFields = {}, onCh
               </div>
 
               <div className="form-group">
+                <label className="form-label">Correlativo (Wo-XXXX)</label>
+                <input
+                  type="text"
+                  className="form-input"
+                  name="consecutivo"
+                  value={(data as any).consecutivo || ''}
+                  onChange={(e) => onChange('consecutivo' as any, e.target.value)}
+                  placeholder={data.id ? 'Sin correlativo' : 'Automático al guardar'}
+                  style={{ fontWeight: 700, color: '#2563EB' }}
+                />
+                <p style={{ margin: '4px 0 0', fontSize: '0.72rem', color: '#94A3B8' }}>
+                  {data.id
+                    ? 'Puedes corregir el número; se guarda con la orden.'
+                    : 'Déjalo vacío para asignar el siguiente número automáticamente.'}
+                </p>
+              </div>
+
+              <div className="form-group">
                 <FieldLabel text="Fecha de Creación" fieldKey="date" />
                 <input type="date" className="form-input" name="date" value={data.date} onChange={handleChange} required={requiredFields?.date} />
               </div>
 
               <div className="form-group">
-                <label className="form-label" style={{ color: '#475569', fontSize: '0.8rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.02em', marginBottom: '0.3rem' }}>Estado (Status)</label>
-                <select
-                  className="form-select"
-                  name="status"
+                <label className="form-label">Estado (Status)</label>
+                <SearchableInput
                   value={data.status || ''}
-                  onChange={handleChange}
+                  onChange={(val: string) => handleChange({ target: { name: 'status', value: val } } as any)}
+                  options={statusOptions}
+                  placeholder={statusOptions.length === 0 ? 'Sin estados configurados' : 'Buscar estado...'}
                   required
-                  style={{ fontWeight: 500 }}
                   disabled={statusOptions.length === 0}
-                >
-                  {statusOptions.length === 0 ? (
-                    <option value="">Sin estados configurados</option>
-                  ) : (
-                    statusOptions.map((statusName: string, idx: number) => (
-                      <option key={idx} value={statusName}>{statusName}</option>
-                    ))
-                  )}
-                </select>
+                />
               </div>
 
               <div className="form-group">
                 <FieldLabel text="Compañía" fieldKey="company" />
-                <div className="input-group">
-                  <select
-                    className="form-select"
-                    name="company"
-                    value={data.company || ''}
-                    onChange={handleChange}
-                    required={requiredFields?.company}
-                  >
-                    <option value="">Seleccione compañía...</option>
-                    {companyOptions.map((comp: string, idx: number) => (
-                      <option key={idx} value={comp}>{comp}</option>
-                    ))}
-                  </select>
-                  <button type="button" className="input-addon-btn no-print" onClick={() => setIsAddingCompany(true)} title="Agregar Compañía Nueva">
+                <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'stretch' }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <SearchableInput
+                      value={data.company || ''}
+                      onChange={(val: string) => handleChange({ target: { name: 'company', value: val } } as any)}
+                      options={companyOptions}
+                      placeholder="Buscar compañía..."
+                      required={requiredFields?.company}
+                    />
+                  </div>
+                  <button type="button" className="input-addon-btn no-print" onClick={() => setIsAddingCompany(true)} title="Agregar Compañía Nueva" style={{ borderRadius: '8px', border: '1px solid #E2E8F0' }}>
                     <Plus size={18} />
                   </button>
                 </div>
@@ -781,76 +790,60 @@ export const WorkOrderForm: React.FC<Props> = ({ data, requiredFields = {}, onCh
               {data.company && data.company.trim() !== '' && (
                 <div className="form-group">
                   <FieldLabel text="Agente" fieldKey="agent" />
-                  <div className="input-group">
-                    <select
-                      className="form-select"
-                      name="agent"
-                      value={data.agent || ''}
-                      onChange={handleChange}
-                      required={requiredFields?.agent}
-                    >
-                      <option value="">Seleccione agente...</option>
-                      {agentOptions.map((ag, idx) => (
-                        <option key={idx} value={ag}>{ag}</option>
-                      ))}
-                    </select>
-                    <button type="button" className="input-addon-btn no-print"><Plus size={18} /></button>
+                  <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'stretch' }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <SearchableInput
+                        value={data.agent || ''}
+                        onChange={(val: string) => handleChange({ target: { name: 'agent', value: val } } as any)}
+                        options={agentOptions}
+                        placeholder="Buscar agente..."
+                        required={requiredFields?.agent}
+                      />
+                    </div>
+                    <button type="button" className="input-addon-btn no-print" style={{ borderRadius: '8px', border: '1px solid #E2E8F0' }}><Plus size={18} /></button>
                   </div>
                 </div>
               )}
 
               <div className="form-group">
                 <FieldLabel text="Código Postal (Zip Code)" fieldKey="zipcode" />
-                <div className="input-group">
-                  <select
-                    className="form-select"
-                    name="zipcode"
-                    value={data.zipcode || ''}
-                    onChange={handleZipcodeChange}
-                    required={requiredFields?.zipcode}
-                  >
-                    <option value="">Seleccione...</option>
-                    {zipcodeData.map((z, idx) => (
-                      <option key={idx} value={z.zipcode}>{z.zipcode}</option>
-                    ))}
-                  </select>
-                  <button type="button" className="input-addon-btn no-print"><Plus size={18} /></button>
+                <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'stretch' }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <SearchableInput
+                      value={data.zipcode || ''}
+                      onChange={(val: string) => handleZipcodeChange({ target: { name: 'zipcode', value: val } } as any)}
+                      options={zipcodeData.map((z) => String(z.zipcode))}
+                      placeholder="Buscar código postal..."
+                      required={requiredFields?.zipcode}
+                    />
+                  </div>
+                  <button type="button" className="input-addon-btn no-print" style={{ borderRadius: '8px', border: '1px solid #E2E8F0' }}><Plus size={18} /></button>
                 </div>
               </div>
 
               <div className="form-group">
-                <label className="form-label" style={{ color: '#475569', fontSize: '0.8rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.02em', marginBottom: '0.3rem' }}>Viaje Largo (Long Trip)</label>
+                <label className="form-label">Viaje Largo (Long Trip)</label>
                 <input type="number" step="any" className="form-input" name="longTrip" value={data.longTrip || ''} onChange={handleChange} placeholder="Calculado automáticamente" />
               </div>
             </div>
           </div>
 
           {data.type === 'Insurance' && (
-            <div className="card" style={{ backgroundColor: 'white', borderRadius: '12px', border: '1px solid #E2E8F0', borderLeft: '4px solid #8B5CF6', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.02)', padding: '2rem', marginBottom: '2.5rem' }}>
-              <div className="no-print" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '2rem', paddingBottom: '1rem', borderBottom: '2px solid #F1F5F9' }}>
-                <div style={{ padding: '0.5rem', backgroundColor: '#F5F3FF', borderRadius: '8px', color: '#8B5CF6' }}>
-                  <Shield size={22} />
-                </div>
-                <div>
-                  <div style={{ fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#94A3B8', marginBottom: '2px' }}>Aseguradora y póliza</div>
-                  <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 700, color: '#1E293B', lineHeight: 1.15 }}>Detalles del Seguro</h3>
-                </div>
-              </div>
+            <div className="card ragf-card">
+              <div className="no-print ragf-card-header">
+              <div className="ragf-card-icon"><Shield size={18} /></div>
+              <h3 className="ragf-card-title">Detalles del Seguro</h3>
+            </div>
               <div className="form-grid">
                 <div className="form-group">
                   <FieldLabel text="Aseguradora (Carrier)" fieldKey="insuranceCarrier" />
-                  <select
-                    className="form-select"
-                    name="insuranceCarrier"
+                  <SearchableInput
                     value={data.insuranceCarrier || ''}
-                    onChange={handleChange}
+                    onChange={(val: string) => handleChange({ target: { name: 'insuranceCarrier', value: val } } as any)}
+                    options={insuranceOptions}
+                    placeholder="Buscar aseguradora..."
                     required={requiredFields?.insuranceCarrier}
-                  >
-                    <option value="">Seleccione aseguradora...</option>
-                    {insuranceOptions.map((ins, idx) => (
-                      <option key={idx} value={ins}>{ins}</option>
-                    ))}
-                  </select>
+                  />
                 </div>
                 <div className="form-group"><FieldLabel text="Número de Póliza" fieldKey="policyId" /><input type="text" className="form-input" name="policyId" value={data.policyId} onChange={handleChange} required={requiredFields?.policyId} /></div>
                 <div className="form-group"><FieldLabel text="Referencia (Referral)" fieldKey="referral" /><input type="text" className="form-input" name="referral" value={data.referral} onChange={handleChange} required={requiredFields?.referral} /></div>
@@ -860,19 +853,14 @@ export const WorkOrderForm: React.FC<Props> = ({ data, requiredFields = {}, onCh
             </div>
           )}
 
-          <div className="card" style={{ backgroundColor: 'white', borderRadius: '12px', border: '1px solid #E2E8F0', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.02)', padding: '2rem', marginBottom: '2.5rem' }}>
-            <div className="no-print" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '2rem', paddingBottom: '1rem', borderBottom: '2px solid #F1F5F9' }}>
-              <div style={{ padding: '0.5rem', backgroundColor: '#ECFCCB', borderRadius: '8px', color: '#CA8A04' }}>
-                <UserCog size={22} />
-              </div>
-              <div>
-                <div style={{ fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#94A3B8', marginBottom: '2px' }}>Contacto y dirección</div>
-                <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 700, color: '#1E293B', lineHeight: 1.15 }}>Información del Cliente</h3>
-              </div>
+          <div className="card ragf-card">
+            <div className="no-print ragf-card-header">
+              <div className="ragf-card-icon"><UserCog size={18} /></div>
+              <h3 className="ragf-card-title">Información del Cliente</h3>
             </div>
 
             <div className="no-print" style={{ marginBottom: '2rem', backgroundColor: '#F8FAFC', padding: '1.5rem', borderRadius: '8px', border: '1px solid #E2E8F0' }}>
-              <label className="form-label" style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.8rem', fontWeight: 600, color: '#475569', textTransform: 'uppercase' }}>Tipo de Cliente</label>
+              <label className="form-label">Tipo de Cliente</label>
               <div className="segmented-control">
                 <label className={`segmented-item ${data.customerType === 'Existing' ? 'active' : ''}`}><input type="radio" name="customerType" value="Existing" checked={data.customerType === 'Existing'} onChange={handleCustomerTypeChange} style={{ display: 'none' }} /> Cliente Existente</label>
                 <label className={`segmented-item ${data.customerType === 'New' ? 'active' : ''}`}><input type="radio" name="customerType" value="New" checked={data.customerType === 'New'} onChange={handleCustomerTypeChange} style={{ display: 'none' }} /> Cliente Nuevo</label>
@@ -882,25 +870,22 @@ export const WorkOrderForm: React.FC<Props> = ({ data, requiredFields = {}, onCh
             {data.customerType === 'Existing' ? (
               <div className="form-group form-grid-full" style={{ marginBottom: '2rem' }}>
                 <FieldLabel text="Buscar Cliente" fieldKey="customer" />
-                <div className="input-group">
-                  <input
-                    type="text"
-                    list="customer-options"
-                    className="form-input"
-                    name="customer"
-                    value={data.customer || ''}
-                    onChange={handleChange}
-                    onBlur={handleCustomerBlur}
-                    placeholder="Escriba para buscar un cliente..."
-                    required={requiredFields?.customer}
-                    style={{ padding: '0.8rem' }}
-                  />
-                  <datalist id="customer-options">
-                    {customerOptions.map((cust, idx) => (
-                      <option key={idx} value={cust} />
-                    ))}
-                  </datalist>
-                </div>
+                <SearchableInput
+                  value={data.customer || ''}
+                  onChange={(val: string) => {
+                    onChange('customer', val);
+                    // Misma validación que antes: solo clientes existentes de la lista.
+                    if (val && !customerOptions.includes(val)) {
+                      // El componente filtra por texto; si el valor final no coincide
+                      // con un cliente real, se limpia (evita nombres inventados).
+                      const exact = customerOptions.find((c) => c.toLowerCase() === val.toLowerCase());
+                      if (exact) onChange('customer', exact);
+                    }
+                  }}
+                  options={customerOptions}
+                  placeholder="Escriba para buscar un cliente..."
+                  required={requiredFields?.customer}
+                />
               </div>
             ) : (
               <div className="form-grid" style={{ marginBottom: '2rem' }}>
@@ -929,15 +914,10 @@ export const WorkOrderForm: React.FC<Props> = ({ data, requiredFields = {}, onCh
             </div>
           </div>
 
-          <div className="card" style={{ backgroundColor: 'white', borderRadius: '12px', border: '1px solid #E2E8F0', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.02)', padding: '2rem', marginBottom: '2.5rem' }}>
-            <div className="no-print" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '2rem', paddingBottom: '1rem', borderBottom: '2px solid #F1F5F9' }}>
-              <div style={{ padding: '0.5rem', backgroundColor: '#FEF2F2', borderRadius: '8px', color: '#EF4444' }}>
-                <Car size={22} />
-              </div>
-              <div>
-                <div style={{ fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#94A3B8', marginBottom: '2px' }}>Vehículo, partes y servicios</div>
-                <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 700, color: '#1E293B', lineHeight: 1.15 }}>Vehículo y Trabajos</h3>
-              </div>
+          <div className="card ragf-card">
+            <div className="no-print ragf-card-header">
+              <div className="ragf-card-icon"><Car size={18} /></div>
+              <h3 className="ragf-card-title">Vehículo y Trabajos</h3>
             </div>
 
             <div className="form-grid" style={{ marginBottom: '2rem' }}>
@@ -1094,15 +1074,10 @@ export const WorkOrderForm: React.FC<Props> = ({ data, requiredFields = {}, onCh
             </div>
           </div>
 
-          <div className="card" style={{ backgroundColor: 'white', borderRadius: '12px', border: '1px solid #E2E8F0', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.02)', padding: '2rem', marginBottom: '2.5rem' }}>
-            <div className="no-print" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '2rem', paddingBottom: '1rem', borderBottom: '2px solid #F1F5F9' }}>
-              <div style={{ padding: '0.5rem', backgroundColor: '#ECFCCB', borderRadius: '8px', color: '#65A30D' }}>
-                <Receipt size={22} />
-              </div>
-              <div>
-                <div style={{ fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#94A3B8', marginBottom: '2px' }}>Costos y balance</div>
-                <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 700, color: '#1E293B', lineHeight: 1.15 }}>Facturación y Totales</h3>
-              </div>
+          <div className="card ragf-card">
+            <div className="no-print ragf-card-header">
+              <div className="ragf-card-icon"><Receipt size={18} /></div>
+              <h3 className="ragf-card-title">Facturación y Totales</h3>
             </div>
 
             <div className="form-grid">
@@ -1249,21 +1224,21 @@ export const WorkOrderForm: React.FC<Props> = ({ data, requiredFields = {}, onCh
                   <>
                     <div className="form-group">
                       <label className="form-label">Jobtype</label>
-                      <select className="form-select" name="jobtype" value={draftPart.jobtype || ''} onChange={handleDraftChange}>
-                        <option value="">Seleccione...</option>
-                        {jobtypeOptions.map((jt, idx) => (
-                          <option key={idx} value={jt}>{jt}</option>
-                        ))}
-                      </select>
+                      <SearchableInput
+                        value={draftPart.jobtype || ''}
+                        onChange={(val: string) => handleDraftChange({ target: { name: 'jobtype', value: val } } as any)}
+                        options={jobtypeOptions}
+                        placeholder="Buscar jobtype..."
+                      />
                     </div>
                     <div className="form-group">
                       <label className="form-label">Part Number</label>
-                      <select className="form-select" name="partNumber" value={draftPart.partNumber || ''} onChange={handlePartNumberChange}>
-                        <option value="">Seleccione...</option>
-                        {partNumberData.map((p, idx) => (
-                          <option key={idx} value={p.partNumber}>{p.partNumber}</option>
-                        ))}
-                      </select>
+                      <SearchableInput
+                        value={draftPart.partNumber || ''}
+                        onChange={(val: string) => handlePartNumberChange({ target: { name: 'partNumber', value: val } } as any)}
+                        options={partNumberData.map((p) => String(p.partNumber))}
+                        placeholder="Buscar número de parte..."
+                      />
                     </div>
                     <div className="form-group" style={{ gridColumn: '1 / -1' }}>
                       <label className="form-label">Nags Description</label>
@@ -1323,21 +1298,21 @@ export const WorkOrderForm: React.FC<Props> = ({ data, requiredFields = {}, onCh
                   <>
                     <div className="form-group">
                       <label className="form-label">Jobtype</label>
-                      <select className="form-select" name="jobtype" value={draftPart.jobtype || ''} onChange={handleDraftChange}>
-                        <option value="">Seleccione...</option>
-                        {jobtypeOptions.map((jt, idx) => (
-                          <option key={idx} value={jt}>{jt}</option>
-                        ))}
-                      </select>
+                      <SearchableInput
+                        value={draftPart.jobtype || ''}
+                        onChange={(val: string) => handleDraftChange({ target: { name: 'jobtype', value: val } } as any)}
+                        options={jobtypeOptions}
+                        placeholder="Buscar jobtype..."
+                      />
                     </div>
                     <div className="form-group">
                       <label className="form-label">Part Number</label>
-                      <select className="form-select" name="partNumber" value={draftPart.partNumber || ''} onChange={handlePartNumberChange}>
-                        <option value="">Seleccione...</option>
-                        {partNumberData.map((p, idx) => (
-                          <option key={idx} value={p.partNumber}>{p.partNumber}</option>
-                        ))}
-                      </select>
+                      <SearchableInput
+                        value={draftPart.partNumber || ''}
+                        onChange={(val: string) => handlePartNumberChange({ target: { name: 'partNumber', value: val } } as any)}
+                        options={partNumberData.map((p) => String(p.partNumber))}
+                        placeholder="Buscar número de parte..."
+                      />
                     </div>
                     <div className="form-group" style={{ gridColumn: '1 / -1' }}>
                       <label className="form-label">Nags Description</label>
@@ -1373,12 +1348,12 @@ export const WorkOrderForm: React.FC<Props> = ({ data, requiredFields = {}, onCh
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '1.5rem', borderTop: '1px solid #E2E8F0', paddingTop: '1.5rem' }}>
                           <div className="form-group">
                             <label className="form-label">Nombre del Price Tier</label>
-                            <select className="form-select" name="priceTierName" value={draftPart.priceTierName || ''} onChange={handlePriceTierChange}>
-                              <option value="">Seleccione...</option>
-                              {priceTierData.map((pt, idx) => (
-                                <option key={idx} value={pt.priceTier}>{pt.priceTier}</option>
-                              ))}
-                            </select>
+                            <SearchableInput
+                              value={draftPart.priceTierName || ''}
+                              onChange={(val: string) => handlePriceTierChange({ target: { name: 'priceTierName', value: val } } as any)}
+                              options={priceTierData.map((pt) => String(pt.priceTier))}
+                              placeholder="Buscar price tier..."
+                            />
                           </div>
                           <div className="form-group">
                             <label className="form-label">Monto Price Tier</label>
@@ -1404,12 +1379,12 @@ export const WorkOrderForm: React.FC<Props> = ({ data, requiredFields = {}, onCh
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '1.5rem', borderTop: '1px solid #E2E8F0', paddingTop: '1.5rem' }}>
                           <div className="form-group">
                             <label className="form-label">Nombre de Calibración</label>
-                            <select className="form-select" name="calibrationName" value={draftPart.calibrationName || ''} onChange={handleCalibrationChange}>
-                              <option value="">Seleccione...</option>
-                              {calibrationData.map((c, idx) => (
-                                <option key={idx} value={c.name}>{c.name}</option>
-                              ))}
-                            </select>
+                            <SearchableInput
+                              value={draftPart.calibrationName || ''}
+                              onChange={(val: string) => handleCalibrationChange({ target: { name: 'calibrationName', value: val } } as any)}
+                              options={calibrationData.map((c) => String(c.name))}
+                              placeholder="Buscar calibración..."
+                            />
                           </div>
                           <div className="form-group">
                             <label className="form-label">Monto Calibración</label>
@@ -1426,12 +1401,12 @@ export const WorkOrderForm: React.FC<Props> = ({ data, requiredFields = {}, onCh
                   <>
                     <div className="form-group">
                       <label className="form-label">Jobtype</label>
-                      <select className="form-select" name="jobtype" value={draftPart.jobtype || ''} onChange={handleDraftChange}>
-                        <option value="">Seleccione...</option>
-                        {jobtypeOptions.map((jt, idx) => (
-                          <option key={idx} value={jt}>{jt}</option>
-                        ))}
-                      </select>
+                      <SearchableInput
+                        value={draftPart.jobtype || ''}
+                        onChange={(val: string) => handleDraftChange({ target: { name: 'jobtype', value: val } } as any)}
+                        options={jobtypeOptions}
+                        placeholder="Buscar jobtype..."
+                      />
                     </div>
                     <div className="form-group">
                       <label className="form-label">Amount</label>

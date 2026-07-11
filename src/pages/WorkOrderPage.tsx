@@ -134,13 +134,27 @@ export const WorkOrderPage: React.FC = () => {
       const isNew = !currentWorkOrder.id;
       let finalData = { ...currentWorkOrder, customer: customerDisplayName };
 
-      if (isNew) {
-        const lastNum = await workOrderService.getLastNumber();
-        const nextNum = lastNum + 1;
-        const prefix = currentWorkOrder.documentType === 'Quote' ? 'Quote' : 'WO';
-        finalData.id = `${prefix}-${String(nextNum).padStart(3, '0')}`;
+      // Si se capturó un correlativo A MANO, validar que no esté repetido
+      // (los automáticos ya son únicos por la transacción del servicio).
+      const manualConsec = String((finalData as any).consecutivo || '').trim();
+      if (manualConsec) {
+        const all = await workOrderService.getAll();
+        const dup = (all as any[]).find(
+          (o) => String(o.consecutivo || '').trim().toLowerCase() === manualConsec.toLowerCase() && o.id !== finalData.id
+        );
+        if (dup) {
+          alert(`El correlativo "${manualConsec}" ya está en uso por la orden ${dup.id}. Corrígelo antes de guardar.`);
+          return;
+        }
+      }
 
-        await workOrderService.create(finalData);
+      if (isNew) {
+        // El consecutivo (Wo-XXXX) lo asigna el servicio dentro de una TRANSACCIÓN
+        // de Firestore: sin duplicados aunque dos usuarios guarden a la vez, sin
+        // saltos, y continuando la secuencia existente. El ID devuelto es el del
+        // documento creado (el propio consecutivo para órdenes nuevas).
+        const newId = await workOrderService.create(finalData);
+        finalData.id = newId;
       } else {
         await workOrderService.update(currentWorkOrder.id, finalData);
       }

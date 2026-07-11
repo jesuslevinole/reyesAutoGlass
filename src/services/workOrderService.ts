@@ -3,9 +3,11 @@ import {
   doc,
   getDoc,
   getDocs,
+  getDocsFromServer,
   query,
   where,
   writeBatch,
+  runTransaction,
 } from 'firebase/firestore';
 import { db } from '../firebase';
 import type { WorkOrderData } from '../types/workOrder';
@@ -25,17 +27,86 @@ import type { WorkOrderData } from '../types/workOrder';
 const HEADER_COLLECTION = 'work_orders';
 const DETAIL_COLLECTION = 'work_order_details';
 
-// ─── Caché en memoria de las cabeceras ──────────────────────────────────────
-// Evita re-descargar todas las órdenes cada vez que se cambia de vista.
-// Se invalida automáticamente al crear/editar/eliminar. TTL de seguridad por si
-// otra pestaña/usuario cambia datos (se refresca solo tras ese tiempo).
+// ─── Consecutivo transaccional (Wo-XXXX) ────────────────────────────────────
+// El número correlativo vive en el documento `counters/work_orders` ({ last: 3865 })
+// y se asigna dentro de una TRANSACCIÓN junto con la escritura de la orden:
+//  - Sin duplicados: si dos usuarios guardan a la vez, Firestore reintenta una de
+//    las transacciones y cada orden recibe un número distinto.
+//  - Sin saltos: el contador solo avanza si la orden se escribe con éxito
+//    (número y orden se confirman en la misma operación atómica).
+//  - Respeta lo existente: la primera vez se siembra con el máximo consecutivo
+//    actual de la colección (ej. Wo-3865 → la siguiente será Wo-3866).
+const COUNTERS_COLLECTION = 'counters';
+const WO_COUNTER_DOC = 'work_orders';
+const CONSEC_PREFIX = 'Wo-';
+
+/** Extrae el número final de un texto ("Wo-3865" → 3865; sin número → 0). */
+function numSuffix(s: any): number {
+  const m = String(s || '').match(/(\d+)\s*$/);
+  return m ? parseInt(m[1], 10) : 0;
+}
+
+// ─── Caché de cabeceras: memoria + localStorage (persistente entre recargas) ─
+// Objetivo: que la lista de órdenes pinte AL INSTANTE incluso tras un F5.
+//  - Memoria: evita re-descargar al cambiar de vista dentro de la sesión.
+//  - localStorage: sobrevive a recargas; se sirve de inmediato ("stale") y se
+//    refresca desde Firestore EN SEGUNDO PLANO ("revalidate") si ya pasó el TTL.
+//  - Toda mutación (create/update/remove) invalida ambos niveles.
 let _headerCache: WorkOrderData[] | null = null;
 let _headerCacheAt = 0;
 const HEADER_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutos
+const LS_KEY = 'rag_wo_headers_v2';
+let _revalidating = false;
 
 function invalidateHeaderCache() {
   _headerCache = null;
   _headerCacheAt = 0;
+  try { localStorage.removeItem(LS_KEY); } catch { /* modo privado/quota: ignorar */ }
+}
+
+function readLocalCache(): { at: number; list: WorkOrderData[] } | null {
+  try {
+    const raw = localStorage.getItem(LS_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed || !Array.isArray(parsed.list) || parsed.list.length === 0) return null; // nunca servir un snapshot vacío
+    return parsed;
+  } catch { return null; }
+}
+
+function writeLocalCache(list: WorkOrderData[]) {
+  try {
+    localStorage.setItem(LS_KEY, JSON.stringify({ at: Date.now(), list }));
+  } catch { /* si excede la cuota de localStorage, seguimos solo con memoria */ }
+}
+
+async function fetchHeadersFromServer(): Promise<WorkOrderData[]> {
+  // Con persistentLocalCache activo, getDocs puede resolver desde una caché local
+  // VACÍA si el canal de red falla. Por eso: primero lectura FORZADA al servidor;
+  // solo si no hay red (offline real) se usa la caché local de Firestore.
+  let headerSnap;
+  try {
+    headerSnap = await getDocsFromServer(collection(db, HEADER_COLLECTION));
+  } catch (err) {
+    console.warn('[workOrderService] sin servidor, usando caché local de Firestore:', err);
+    headerSnap = await getDocs(collection(db, HEADER_COLLECTION));
+  }
+  const list = headerSnap.docs.map(
+    (d) => ({ ...(d.data() as WorkOrderData), id: d.id, parts: [] } as WorkOrderData)
+  );
+  console.log('[workOrderService] work_orders leídas:', list.length);
+  _headerCache = list;
+  _headerCacheAt = Date.now();
+  if (list.length > 0) writeLocalCache(list); // nunca persistir una lista vacía
+  return list;
+}
+
+function revalidateInBackground() {
+  if (_revalidating) return;
+  _revalidating = true;
+  fetchHeadersFromServer()
+    .catch(() => { /* sin conexión: se mantiene lo local */ })
+    .finally(() => { _revalidating = false; });
 }
 
 // Tipo auxiliar: una parte/servicio individual del array `parts`.
@@ -58,7 +129,7 @@ function stripUndefined<T extends Record<string, any>>(obj: T): T {
  * Cada parte se guarda con su `workOrderId` (clave foránea) y un `lineOrder` (para ordenar).
  */
 function writeDetails(
-  batch: ReturnType<typeof writeBatch>,
+  batch: { set: (ref: any, data: any) => any },
   workOrderId: string,
   parts: WorkOrderPart[]
 ) {
@@ -98,17 +169,33 @@ export const workOrderService = {
    * o editar una orden.
    */
   async getAll(force = false): Promise<WorkOrderData[]> {
-    // Si hay caché reciente y no se fuerza, devuelve al instante (cambio de vista rápido).
+    // 1. Memoria fresca → instantáneo (cambio de vista dentro de la sesión).
     if (!force && _headerCache && (Date.now() - _headerCacheAt) < HEADER_CACHE_TTL_MS) {
       return _headerCache;
     }
-    const headerSnap = await getDocs(collection(db, HEADER_COLLECTION));
-    const list = headerSnap.docs.map(
-      (d) => ({ ...(d.data() as WorkOrderData), id: d.id, parts: [] } as WorkOrderData)
-    );
-    _headerCache = list;
-    _headerCacheAt = Date.now();
-    return list;
+
+    // 2. localStorage → instantáneo tras una recarga (F5). Si el snapshot ya
+    //    pasó el TTL, se devuelve igual (mejor algo YA que esperar la red) y se
+    //    dispara una revalidación en segundo plano para la próxima lectura.
+    if (!force) {
+      const local = readLocalCache();
+      if (local) {
+        _headerCache = local.list;
+        _headerCacheAt = local.at;
+        if ((Date.now() - local.at) >= HEADER_CACHE_TTL_MS) revalidateInBackground();
+        return local.list;
+      }
+    }
+
+    // 3. Red (primera vez en este navegador, o force=true). Si falla por completo
+    //    y existe un snapshot local (aunque esté viejo), se sirve como respaldo.
+    try {
+      return await fetchHeadersFromServer();
+    } catch (err) {
+      const local = readLocalCache();
+      if (local) return local.list;
+      throw err;
+    }
   },
 
   /** Invalida el caché manualmente (por si se necesita forzar un refresco). */
@@ -155,32 +242,62 @@ export const workOrderService = {
   },
 
   /**
-   * Crea una nueva Work Order: cabecera (sin `parts`) en `work_orders`
-   * y cada parte como documento aparte en `work_order_details`.
-   * Usa `data.id` (el código "WO-001" que arma la página) como ID del documento.
+   * Crea una nueva Work Order asignando el consecutivo `Wo-XXXX` de forma
+   * TRANSACCIONAL (ver nota junto a COUNTERS_COLLECTION): el número y la orden
+   * se escriben en una sola operación atómica → sin duplicados ni saltos.
+   * Si `data.consecutivo` ya viene definido (importaciones/casos especiales),
+   * se respeta tal cual y el contador solo se ajusta hacia arriba.
+   * Devuelve el ID del documento creado.
    */
   async create(data: WorkOrderData): Promise<string> {
     const { parts, id, ...header } = data;
-    const batch = writeBatch(db);
 
-    const headerRef = id
-      ? doc(db, HEADER_COLLECTION, id)
-      : doc(collection(db, HEADER_COLLECTION));
-    const workOrderId = headerRef.id;
+    // Semilla del contador (solo se usa si `counters/work_orders` aún no existe):
+    // el máximo consecutivo real de la colección, para continuar la secuencia.
+    let seedMax = 0;
+    const counterRef = doc(db, COUNTERS_COLLECTION, WO_COUNTER_DOC);
+    const counterSnap = await getDoc(counterRef);
+    if (!counterSnap.exists()) {
+      const all = await workOrderService.getAll();
+      all.forEach((o: any) => {
+        seedMax = Math.max(seedMax, numSuffix(o.consecutivo), numSuffix(o.id));
+      });
+    }
 
-    batch.set(
-      headerRef,
-      stripUndefined({
-        ...header,
-        id: workOrderId,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      })
-    );
+    const workOrderId = await runTransaction(db, async (tx) => {
+      // 1. Leer el contador (todas las lecturas van antes de las escrituras).
+      const snap = await tx.get(counterRef);
+      const last = snap.exists() ? (Number((snap.data() as any).last) || 0) : seedMax;
 
-    writeDetails(batch, workOrderId, parts || []);
+      // 2. Determinar el consecutivo.
+      const presetNum = numSuffix((header as any).consecutivo);
+      const consecutivo = presetNum > 0
+        ? String((header as any).consecutivo).trim() // respeta el que ya viene
+        : `${CONSEC_PREFIX}${last + 1}`;
+      const newLast = Math.max(last, presetNum > 0 ? presetNum : last + 1);
 
-    await batch.commit();
+      // 3. Escribir contador + cabecera + partes en la MISMA transacción.
+      const headerRef = id && String(id).trim()
+        ? doc(db, HEADER_COLLECTION, String(id).trim())
+        : doc(db, HEADER_COLLECTION, consecutivo); // sin id explícito: el consecutivo es el ID
+      const newId = headerRef.id;
+
+      tx.set(counterRef, { last: newLast, updatedAt: new Date().toISOString() });
+      tx.set(
+        headerRef,
+        stripUndefined({
+          ...header,
+          id: newId,
+          consecutivo,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        })
+      );
+      writeDetails(tx, newId, parts || []);
+
+      return newId;
+    });
+
     invalidateHeaderCache();
     return workOrderId;
   },

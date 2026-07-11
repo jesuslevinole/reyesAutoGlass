@@ -1,6 +1,7 @@
 import React, { useState, useRef, useCallback } from 'react';
 import { UploadCloud, Download, Loader2, CheckCircle2, AlertTriangle, Play, RotateCcw, Wallet } from 'lucide-react';
 import { db } from '../../firebase';
+import { agentCommissionService } from '../../services/agentCommissionService';
 import { collection, doc, writeBatch, getDocs } from 'firebase/firestore';
 
 const COLLECTION = 'agent_commissions';
@@ -266,6 +267,7 @@ export const CommissionsImportView: React.FC = () => {
         setProgress({ current: Math.min(i + BATCH, rows.length), total: rows.length, ok, errors: [...errors] });
       }
       setProgress(p => ({ ...p, current: rows.length, ok, errors }));
+      agentCommissionService.invalidateCache(); // los listados leerán datos frescos
       setStep('done');
     } catch (err: any) {
       alert('Error al importar: ' + (err?.message || err));

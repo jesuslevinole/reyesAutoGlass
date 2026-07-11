@@ -24,7 +24,7 @@ export const WorkOrderMap: React.FC<Props> = ({ data, onNew, onEdit }) => {
   return (
     <div className="animate-in fade-in" style={{ padding: '2rem 2.5rem', flex: 1, display: 'flex', flexDirection: 'column', width: '100%', boxSizing: 'border-box' }}>
       
-      {/* HEADER TIPO GOOGLE MAPS */}
+      {/* HEADER TIPO GOOGLE MAPS */}aaa
       <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', flexWrap: 'wrap', gap: '16px', width: '100%' }}>
         <div>
           <h1 style={{ margin: 0, fontSize: '1.75rem', color: '#0F172A', fontWeight: 800 }}>Mapa de Servicios</h1>

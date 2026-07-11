@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ChevronLeft, ChevronRight, X, Edit2, Trash2, Plus, Menu, Eye } from 'lucide-react';
+import { ChevronLeft, ChevronRight, X, Edit2, Trash2, Plus, Menu, Eye, Clock } from 'lucide-react';
 import type { WorkOrderData } from '../../types/workOrder';
 
 interface Props {
@@ -10,6 +10,7 @@ interface Props {
 
 // --- TIME CALCULATION HELPERS ---
 const START_HOUR = 6; // El calendario empieza a las 6 AM
+const MAX_MONTH_EVENTS = 5; // Máximo de eventos visibles por celda en la vista de mes (igual que Precise)
 const PIXELS_PER_HOUR = 60; // 1 hora = 60px de alto
 
 const parseTimeToMinutes = (timeStr: string) => {
@@ -37,6 +38,7 @@ export const WorkOrderCalendar: React.FC<Props> = ({ data, onNew, onEdit }) => {
   // --- MODAL STATES ---
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<WorkOrderData | null>(null);
+  const [dayDetailDate, setDayDetailDate] = useState<Date | null>(null); // Modal "todos los trabajos del día"
 
   // --- CALENDAR LOGIC ---
   const prevTime = () => {
@@ -105,7 +107,11 @@ export const WorkOrderCalendar: React.FC<Props> = ({ data, onNew, onEdit }) => {
     const dailyOrders = data.filter(order => order.appointmentDate === dateString);
 
     if (viewMode === 'month') {
-      return dailyOrders.map(order => {
+      const visibleOrders = dailyOrders.slice(0, MAX_MONTH_EVENTS);
+      const hiddenCount = dailyOrders.length - visibleOrders.length;
+      return (
+        <>
+        {visibleOrders.map(order => {
         const statusColor = getStatusColor(order.status);
         const displayName = order.customerType === 'Existing' ? order.customer : `${order.firstName || ''} ${order.lastName || ''}`.trim();
         const displayVehicle = `${order.year || ''} ${order.mark || ''} ${order.model || ''}`;
@@ -121,7 +127,18 @@ export const WorkOrderCalendar: React.FC<Props> = ({ data, onNew, onEdit }) => {
             <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{displayName || displayVehicle}</span>
           </div>
         );
-      });
+      })}
+        {hiddenCount > 0 && (
+          <button
+            type="button"
+            className="cv-show-more-btn"
+            onClick={(e) => { e.stopPropagation(); setDayDetailDate(date); }}
+          >
+            Ver más (+{hiddenCount})
+          </button>
+        )}
+        </>
+      );
     }
 
     // ESTILO SEMANA / DÍA: Posicionamiento Absoluto
@@ -182,6 +199,8 @@ export const WorkOrderCalendar: React.FC<Props> = ({ data, onNew, onEdit }) => {
         
         .calendar-event-month { padding: 4px 8px; border-radius: 4px; font-size: 0.75rem; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: all 0.2s; border: 1px solid transparent; }
         .calendar-event-month:hover { transform: translateY(-1px); box-shadow: 0 2px 4px rgba(0,0,0,0.05); filter: brightness(0.95); border-color: rgba(0,0,0,0.1); }
+        .cv-show-more-btn { margin-top: 2px; padding: 3px 8px; border: none; background: transparent; color: #2563eb; font-size: 0.72rem; font-weight: 700; text-align: left; cursor: pointer; border-radius: 4px; }
+        .cv-show-more-btn:hover { background-color: #EFF6FF; }
 
         .week-scroll-container { display: flex; flex-direction: column; flex: 1; overflow-x: auto; overflow-y: hidden; width: 100%; }
         .week-grid-inner { display: flex; flex-direction: column; flex: 1; min-height: 0; width: 100%; }
@@ -313,6 +332,65 @@ export const WorkOrderCalendar: React.FC<Props> = ({ data, onNew, onEdit }) => {
       </div>
 
       {/* --- DETAIL MODAL REESTRUCTURADO --- */}
+      {/* --- MODAL: TODOS LOS TRABAJOS DEL DÍA (igual que Precise) --- */}
+      {dayDetailDate && (() => {
+        const offset = dayDetailDate.getTimezoneOffset();
+        const localDate = new Date(dayDetailDate.getTime() - (offset * 60 * 1000));
+        const dateString = localDate.toISOString().split('T')[0];
+        const dayOrders = data
+          .filter(order => order.appointmentDate === dateString)
+          .sort((a, b) => String(a.timeStart || '99:99').localeCompare(String(b.timeStart || '99:99')));
+        const rawTitle = dayDetailDate.toLocaleString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+        const dayTitle = rawTitle.charAt(0).toUpperCase() + rawTitle.slice(1);
+        return (
+          <div onClick={() => setDayDetailDate(null)} style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(15,23,42,0.55)', zIndex: 900, display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(3px)', padding: '1rem' }}>
+            <div onClick={(e) => e.stopPropagation()} style={{ backgroundColor: 'white', borderRadius: '14px', width: '100%', maxWidth: '640px', maxHeight: '85vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)' }}>
+              <header style={{ padding: '1.15rem 1.5rem', borderBottom: '1px solid #E2E8F0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#F8FAFC', flexShrink: 0 }}>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 800, color: '#0F172A' }}>{dayTitle}</h3>
+                  <span style={{ fontSize: '0.8rem', color: '#64748B' }}>{dayOrders.length} {dayOrders.length === 1 ? 'trabajo' : 'trabajos'}</span>
+                </div>
+                <button onClick={() => setDayDetailDate(null)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#94A3B8', padding: '0.3rem' }}><X size={22} /></button>
+              </header>
+
+              <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '0.9rem 1.25rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                {dayOrders.map(order => {
+                  const statusColor = getStatusColor(order.status);
+                  const displayName = order.customerType === 'Existing' ? order.customer : `${order.firstName || ''} ${order.lastName || ''}`.trim();
+                  const displayVehicle = `${order.year || ''} ${order.mark || ''} ${order.model || ''}`.trim();
+                  return (
+                    <div
+                      key={order.id}
+                      onClick={() => { setSelectedOrder(order); setIsDetailModalOpen(true); }}
+                      style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '0.75rem 0.9rem', border: '1px solid #E2E8F0', borderLeft: `4px solid ${statusColor}`, borderRadius: '10px', cursor: 'pointer', transition: 'background-color 0.15s' }}
+                      onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#F8FAFC'; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '5px', flexShrink: 0, width: '112px', fontSize: '0.8rem', fontWeight: 700, color: '#334155' }}>
+                        <Clock size={14} color="#64748B" />
+                        {order.timeStart || '--:--'}{order.timeEnd ? ` - ${order.timeEnd}` : ''}
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontWeight: 700, fontSize: '0.88rem', color: '#0F172A', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{displayName || 'Sin nombre'}</div>
+                        {displayVehicle && <div style={{ fontSize: '0.78rem', color: '#64748B', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{displayVehicle}</div>}
+                      </div>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', flexShrink: 0, fontSize: '0.75rem', fontWeight: 600, color: '#475569' }}>
+                        <span style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: statusColor, display: 'inline-block' }}></span>
+                        {order.status || '—'}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <footer style={{ padding: '0.9rem 1.5rem', borderTop: '1px solid #E2E8F0', display: 'flex', justifyContent: 'flex-end', backgroundColor: '#F8FAFC', flexShrink: 0 }}>
+                <button className="btn btn-secondary" style={{ backgroundColor: 'white' }} onClick={() => setDayDetailDate(null)}>Cerrar</button>
+              </footer>
+            </div>
+          </div>
+        );
+      })()}
+
       {isDetailModalOpen && selectedOrder && (
         <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(15, 23, 42, 0.6)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: '20px' }} onClick={() => setIsDetailModalOpen(false)}>
           <div className="card animate-in zoom-in-95" style={{ backgroundColor: '#ffffff', width: '100%', maxWidth: '850px', borderRadius: '12px', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)', display: 'flex', flexDirection: 'column', maxHeight: '90vh', padding: 0, overflow: 'hidden' }} onClick={e => e.stopPropagation()}>
