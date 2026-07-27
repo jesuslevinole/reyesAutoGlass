@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { FormEvent } from 'react';
-import { GlassWater, KeyRound, LogIn, Mail, ShieldAlert } from 'lucide-react';
+import { GlassWater, KeyRound, ShieldAlert, UserRound } from 'lucide-react';
 import { BYPASS_ENABLED } from '../config/auth';
 import type { Session } from '../config/auth';
 import './LoginView.css';
@@ -23,69 +23,72 @@ export default function LoginView({ onEnter }: Props) {
   return (
     <div className="login-page">
       <div className="login-card">
-        <aside className="login-hero">
-          <span className="login-glyph"><GlassWater size={26} /></span>
-          <h1>Reyes Auto Glass</h1>
-          <p>Gestión de work orders, catálogos y finanzas del taller.</p>
-          <ul className="login-points">
-            <li>Datos en tiempo real con Firebase</li>
-            <li>Caminos Personal e Insurance</li>
-            <li>Exportación Excel e importación CSV</li>
-          </ul>
-        </aside>
+        <div className="login-body">
+          {/* ============ Panel de arte geométrico ============ */}
+          <aside className="login-art" aria-hidden="true">
+            <span className="art-layer art-l1" />
+            <span className="art-layer art-l2" />
+            <span className="art-layer art-l3" />
+            <span className="login-tab">LOGIN</span>
+          </aside>
 
-        <section className="login-form-side">
-          <h2>Iniciar sesión</h2>
-          <p className="login-sub">Ingresa con tu cuenta para continuar</p>
+          {/* ============ Formulario ============ */}
+          <section className="login-main">
+            <span className="login-diamond">
+              <GlassWater size={30} />
+            </span>
+            <h1 className="login-word">LOGIN</h1>
 
-          <form onSubmit={handleSubmit}>
-            <div className="field">
-              <label htmlFor="login-email">Email</label>
-              <div className="login-input-wrap">
-                <Mail size={15} />
+            <form onSubmit={handleSubmit}>
+              <div className="u-field">
+                <UserRound size={17} />
                 <input
-                  id="login-email"
                   type="email"
                   value={email}
-                  placeholder="tu@correo.com"
+                  placeholder="Email"
+                  aria-label="Email"
                   onChange={(e) => setEmail(e.target.value)}
                   required
                 />
               </div>
-            </div>
-            <div className="field">
-              <label htmlFor="login-password">Contraseña</label>
-              <div className="login-input-wrap">
-                <KeyRound size={15} />
+              <div className="u-field">
+                <KeyRound size={17} />
                 <input
-                  id="login-password"
                   type="password"
                   value={password}
-                  placeholder="••••••••"
+                  placeholder="Password"
+                  aria-label="Contraseña"
                   onChange={(e) => setPassword(e.target.value)}
                   required
                 />
               </div>
-            </div>
 
-            {notice && <p className="login-notice">{notice}</p>}
+              {notice && <p className="login-notice">{notice}</p>}
 
-            <button type="submit" className="btn-primary btn-gradient login-submit">
-              <LogIn size={16} />
-              Entrar
-            </button>
-          </form>
+              <div className="login-actions">
+                <button
+                  type="button"
+                  className="login-forgot"
+                  onClick={() => setNotice('La recuperación de contraseña estará disponible al conectar la autenticación.')}
+                >
+                  ¿Olvidaste tu contraseña?
+                </button>
+                <button type="submit" className="login-pill">LOGIN</button>
+              </div>
+            </form>
+          </section>
+        </div>
 
-          {BYPASS_ENABLED && (
-            <button
-              className="login-bypass"
-              onClick={() => onEnter({ name: 'Administración' })}
-            >
+        {/* ============ Franja inferior ============ */}
+        {BYPASS_ENABLED && (
+          <footer className="login-strip">
+            <span>¿Aún sin cuenta conectada?</span>
+            <button className="login-bypass" onClick={() => onEnter({ name: 'Administración' })}>
               <ShieldAlert size={15} />
               Entrar sin login (acceso temporal)
             </button>
-          )}
-        </section>
+          </footer>
+        )}
       </div>
     </div>
   );
