@@ -85,7 +85,17 @@ export default function GenericModuleView({ module, onOpenRow }: Props) {
     return () => { cancelled = true; };
   }, [module]);
 
-  const listFields = useMemo(() => module.fields.filter((f) => f.inList), [module]);
+  const listFields = useMemo(() => {
+    const inList = module.fields.filter((f) => f.inList);
+    if (!module.columnOrder) return inList;
+    // Orden personalizado desde Configuración; columnas no listadas van al final
+    const order = module.columnOrder;
+    return [...inList].sort((a, b) => {
+      const ia = order.indexOf(a.key);
+      const ib = order.indexOf(b.key);
+      return (ia === -1 ? order.length : ia) - (ib === -1 ? order.length : ib);
+    });
+  }, [module]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();

@@ -1,0 +1,32 @@
+.catalogs-view {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.catalog-picker ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.catalog-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 15px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--paper);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-soft);
+  transition: background .15s, color .15s, border-color .15s, box-shadow .15s;
+}
+.catalog-chip:hover { border-color: var(--blue); color: var(--blue); }
+.catalog-chip.active {
+  background: var(--grad-blue);
+  border-color: transparent;
+  color: #fff;
+  box-shadow: 0 5px 14px rgba(53, 131, 246, .35);
+}

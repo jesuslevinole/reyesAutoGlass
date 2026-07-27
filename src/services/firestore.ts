@@ -5,6 +5,7 @@ import {
   doc,
   getDocs,
   onSnapshot,
+  setDoc,
   updateDoc,
   writeBatch,
 } from 'firebase/firestore';
@@ -49,4 +50,9 @@ export async function createMany(collectionName: string, rows: Record<string, un
     await batch.commit();
   }
   return rows.length;
+}
+
+/** Guarda (merge) un documento con id conocido — usado por la configuración de UI. */
+export async function setRowMerged(collectionName: string, id: string, data: Record<string, unknown>): Promise<void> {
+  await setDoc(doc(db, collectionName, id), data, { merge: true });
 }

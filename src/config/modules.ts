@@ -35,6 +35,8 @@ export interface ModuleDef {
   description: string;
   /** Pestañas del formulario modal; si se omite, una sola sección */
   sections?: { id: string; title: string }[];
+  /** Orden personalizado de las columnas del listado (keys de campos inList) — runtime, viene de config_ui */
+  columnOrder?: string[];
   fields: FieldDef[];
 }
 
@@ -366,50 +368,31 @@ export function getModule(id: string): ModuleDef {
   return mod;
 }
 
-export interface NavGroup {
+/** IDs de los módulos de catálogo — se agrupan en una sola vista "Catálogos" */
+export const CATALOG_IDS = [
+  'cat_status', 'cat_zipcode', 'cat_company', 'cat_jobtype',
+  'cat_calibrationtype', 'cat_pricetier', 'cat_partnumber', 'cat_paymentmethod',
+] as const;
+
+export interface NavItem {
+  id: string;
   label: string;
-  items: { id: string; label: string }[];
 }
 
-export const NAV_GROUPS: NavGroup[] = [
-  { label: 'General', items: [{ id: 'dashboard', label: 'Dashboard' }] },
-  {
-    label: 'Operación',
-    items: [
-      { id: 'workorders', label: 'Work Orders' },
-      { id: 'servicesdetail', label: 'Detalle de servicios' },
-    ],
-  },
-  {
-    label: 'Contactos',
-    items: [
-      { id: 'customers', label: 'Clientes' },
-      { id: 'agents', label: 'Agentes' },
-      { id: 'techs', label: 'Técnicos' },
-      { id: 'distributors', label: 'Distribuidores' },
-      { id: 'insurances', label: 'Aseguradoras' },
-    ],
-  },
-  {
-    label: 'Finanzas',
-    items: [
-      { id: 'payments', label: 'Pagos' },
-      { id: 'paymentdistributor', label: 'Pagos a distribuidores' },
-      { id: 'techpayments', label: 'Pagos a técnicos' },
-      { id: 'agentcomissions', label: 'Comisiones' },
-    ],
-  },
-  {
-    label: 'Catálogos',
-    items: [
-      { id: 'cat_status', label: 'Status' },
-      { id: 'cat_zipcode', label: 'Zipcodes' },
-      { id: 'cat_company', label: 'Compañías' },
-      { id: 'cat_jobtype', label: 'Job types' },
-      { id: 'cat_calibrationtype', label: 'Calibraciones' },
-      { id: 'cat_pricetier', label: 'Price tiers' },
-      { id: 'cat_partnumber', label: 'Part numbers' },
-      { id: 'cat_paymentmethod', label: 'Métodos de pago' },
-    ],
-  },
+/** Menú lateral plano (sin encabezados). El orden puede personalizarse en Configuración. */
+export const DEFAULT_NAV: NavItem[] = [
+  { id: 'dashboard', label: 'Dashboard' },
+  { id: 'workorders', label: 'Work Orders' },
+  { id: 'servicesdetail', label: 'Detalle de servicios' },
+  { id: 'customers', label: 'Clientes' },
+  { id: 'agents', label: 'Agentes' },
+  { id: 'techs', label: 'Técnicos' },
+  { id: 'distributors', label: 'Distribuidores' },
+  { id: 'insurances', label: 'Aseguradoras' },
+  { id: 'payments', label: 'Pagos' },
+  { id: 'paymentdistributor', label: 'Pagos a distribuidores' },
+  { id: 'techpayments', label: 'Pagos a técnicos' },
+  { id: 'agentcomissions', label: 'Comisiones' },
+  { id: 'catalogs', label: 'Catálogos' },
+  { id: 'settings', label: 'Configuración' },
 ];

@@ -2,13 +2,15 @@
 // de formularios para no duplicar la asignación módulo → ícono.
 import {
   Banknote, Briefcase, Building2, CircleDot, ClipboardList, CreditCard, Crosshair,
-  HandCoins, Hash, Layers, LayoutDashboard, ListTree, MapPin, Percent, ShieldCheck,
-  Truck, UserCog, Users, Wallet, Wrench,
+  Database, HandCoins, Hash, Layers, LayoutDashboard, ListTree, MapPin, Percent,
+  Settings, ShieldCheck, Truck, UserCog, Users, Wallet, Wrench,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
 export const MODULE_ICONS: Record<string, LucideIcon> = {
   dashboard: LayoutDashboard,
+  catalogs: Database,
+  settings: Settings,
   workorders: ClipboardList,
   servicesdetail: ListTree,
   customers: Users,
