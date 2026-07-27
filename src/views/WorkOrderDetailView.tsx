@@ -43,7 +43,7 @@ export default function WorkOrderDetailView({ workOrderId, onBack }: Props) {
 
   // Catálogos para resolver FKs: carga única, cambian poco.
   useEffect(() => {
-    const names = ['catalog_status', 'customers', 'agents', 'catalog_zipcode', 'catalog_insurance',
+    const names = ['catalog_tag', 'customers', 'agents', 'catalog_zipcode', 'catalog_insurance',
       'distributors', 'catalog_jobtype', 'catalog_part_number', 'catalog_payment_method'];
     let cancelled = false;
     void Promise.all(names.map(async (c) => [c, await fetchAll(c)] as const)).then((pairs) => {
@@ -102,9 +102,9 @@ export default function WorkOrderDetailView({ workOrderId, onBack }: Props) {
           <div className="wo-title-meta">
             <span
               className="status-chip"
-              style={{ '--chip-color': getRelationColor(order.idStatus, cat('catalog_status')) } as CSSProperties}
+              style={{ '--chip-color': getRelationColor(order.idStatus, cat('catalog_tag')) } as CSSProperties}
             >
-              {getRelationName(order.idStatus, cat('catalog_status'))}
+              {getRelationName(order.idStatus, cat('catalog_tag'))}
             </span>
             <span className={`enum-badge enum-${String(order.insuranceType).toLowerCase()}`}>
               {String(order.insuranceType)}

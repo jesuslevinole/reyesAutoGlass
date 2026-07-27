@@ -9,7 +9,7 @@ import { MODULE_ICONS } from '../config/moduleIcons';
 import type { FieldDef, ModuleDef } from '../config/modules';
 import type { Row } from '../services/firestore';
 import { createRow, deleteRow, fetchAll, subscribe, updateRow } from '../services/firestore';
-import { formatDate, getRelationColor, getRelationName, money, rowLabel } from '../utils/relations';
+import { formatDate, getFieldValue, getRelationColor, getRelationName, money, rowLabel } from '../utils/relations';
 import ImportExportBar from '../components/ImportExportBar';
 import './GenericModuleView.css';
 
@@ -108,7 +108,7 @@ export default function GenericModuleView({ module, onOpenRow }: Props) {
     if (!q) return rows;
     return rows.filter((row) =>
       module.fields.some((f) => {
-        const value = row[f.key];
+        const value = getFieldValue(row, f);
         if (f.fkCollection) {
           return getRelationName(value, fkData[f.fkCollection] ?? []).toLowerCase().includes(q);
         }
@@ -128,7 +128,8 @@ export default function GenericModuleView({ module, onOpenRow }: Props) {
     setEditing(row);
     const base = emptyForm(module);
     for (const f of module.fields) {
-      if (row[f.key] !== undefined) base[f.key] = row[f.key];
+      const value = getFieldValue(row, f);
+      if (value !== undefined) base[f.key] = value;
     }
     setForm(base);
     setActiveSection(sections[0].id);
@@ -480,7 +481,7 @@ function summaryValue(field: FieldDef, value: unknown, fkData: Record<string, Ro
 /* ==================== celdas del listado ==================== */
 
 function renderCell(field: FieldDef, row: Row, fkData: Record<string, Row[]>) {
-  const value = row[field.key];
+  const value = getFieldValue(row, field);
   switch (field.type) {
     case 'fk': {
       const catalog = fkData[field.fkCollection ?? ''] ?? [];

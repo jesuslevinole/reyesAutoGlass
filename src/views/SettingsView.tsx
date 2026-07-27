@@ -279,7 +279,7 @@ function ModuleEditor({ module, configDoc }: EditorProps) {
 const INSPECT_COLLECTIONS = [
   'work_orders', 'work_order_details', 'customers', 'team',
   'agent_commissions', 'commission_payments',
-  'catalog_status', 'catalog_tag', 'catalog_zipcode', 'catalog_company',
+  'catalog_tag', 'catalog_zipcode', 'catalog_company',
   'catalog_jobtype', 'catalog_calibration_type', 'catalog_price_tier',
   'catalog_part_number', 'catalog_payment_method', 'catalog_insurance',
   'catalog_molding', 'catalog_expenses', 'catalog_vehicle',

@@ -1,11 +1,31 @@
 import type { Row } from '../services/firestore';
 
+/** Lee el valor de un campo probando su key principal y sus altKeys (bases existentes). */
+export function getFieldValue(
+  row: Record<string, unknown>,
+  field: { key: string; altKeys?: string[] },
+): unknown {
+  if (row[field.key] !== undefined && row[field.key] !== '') return row[field.key];
+  for (const alt of field.altKeys ?? []) {
+    if (row[alt] !== undefined && row[alt] !== '') return row[alt];
+  }
+  return row[field.key];
+}
+
+/** Keys candidatos para nombrar un documento referenciado por FK. */
+const LABEL_KEYS = [
+  'name', 'tag', 'partNumber', 'priceTier', 'calibrationType', 'jobType',
+  'paymentMethod', 'company', 'molding', 'description', 'title',
+];
+
 /** Etiqueta legible de un documento referenciado por FK.
- *  Cubre catálogos con `name` y contactos con `firstName`/`lastName`. */
+ *  Cubre catálogos con `name` (o equivalentes) y contactos con `firstName`/`lastName`. */
 export function rowLabel(row: Row | undefined): string {
   if (!row) return '—';
   const r = row as Record<string, unknown>;
-  if (typeof r.name === 'string' && r.name) return r.name;
+  for (const key of LABEL_KEYS) {
+    if (typeof r[key] === 'string' && r[key]) return r[key] as string;
+  }
   const first = typeof r.firstName === 'string' ? r.firstName : '';
   const last = typeof r.lastName === 'string' ? r.lastName : '';
   const full = `${first} ${last}`.trim();

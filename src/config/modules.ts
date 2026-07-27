@@ -22,6 +22,8 @@ export interface FieldDef {
   inList?: boolean;
   /** Sección (pestaña) del formulario a la que pertenece el campo */
   section?: string;
+  /** Nombres alternativos del campo en la base existente (se lee el primero presente) */
+  altKeys?: string[];
   required?: boolean;
 }
 
@@ -66,7 +68,7 @@ export const MODULES: ModuleDef[] = [
     fields: [
       { key: 'insuranceType', label: 'Tipo', type: 'enum', options: ['PERSONAL', 'INSURANCE'], inList: true, required: true, section: 'general' },
       { key: 'dateRegister', label: 'Fecha de registro', type: 'date', inList: true, required: true, section: 'general' },
-      { key: 'idStatus', label: 'Status', type: 'fk', fkCollection: 'catalog_status', inList: true, required: true, section: 'general' },
+      { key: 'idStatus', label: 'Status', type: 'fk', fkCollection: 'catalog_tag', inList: true, required: true, section: 'general' },
       { key: 'idCompany', label: 'Compañía', type: 'fk', fkCollection: 'catalog_company', section: 'general' },
       { key: 'idAgent', label: 'Agente', type: 'fk', fkCollection: 'agents', section: 'general' },
       { key: 'idZipcode', label: 'Zipcode', type: 'fk', fkCollection: 'catalog_zipcode', section: 'general' },
@@ -270,19 +272,6 @@ export const MODULES: ModuleDef[] = [
   },
   // ==================== CATÁLOGOS ====================
   {
-    id: 'cat_status',
-    collection: 'catalog_status',
-    sqlName: 'CAT_STATUS',
-    title: 'Status',
-    singular: 'Status',
-    description: 'Estados de cotizaciones y órdenes',
-    fields: [
-      { key: 'name', label: 'Nombre', type: 'text', inList: true, required: true },
-      { key: 'type', label: 'Tipo', type: 'enum', options: ['QUOTE', 'WORK ORDER'], inList: true, required: true },
-      { key: 'color', label: 'Color', type: 'color', inList: true },
-    ],
-  },
-  {
     id: 'cat_zipcode',
     collection: 'catalog_zipcode',
     sqlName: 'CAT_ZIPCODE',
@@ -318,7 +307,7 @@ export const MODULES: ModuleDef[] = [
     singular: 'Job type',
     description: 'Tipos de trabajo por categoría',
     fields: [
-      { key: 'name', label: 'Nombre', type: 'text', inList: true, required: true },
+      { key: 'name', label: 'Nombre', type: 'text', inList: true, required: true, altKeys: ['jobType', 'description', 'title'] },
       { key: 'type', label: 'Tipo', type: 'enum', options: ['PARTS', 'SERVICES', 'MOLDING'], inList: true, required: true },
     ],
   },
@@ -330,8 +319,8 @@ export const MODULES: ModuleDef[] = [
     singular: 'Tipo de calibración',
     description: 'Calibraciones ADAS y sus montos',
     fields: [
-      { key: 'name', label: 'Nombre', type: 'text', inList: true, required: true },
-      { key: 'amount', label: 'Monto', type: 'decimal', inList: true },
+      { key: 'name', label: 'Nombre', type: 'text', inList: true, required: true, altKeys: ['calibrationType', 'calibration', 'description', 'title'] },
+      { key: 'amount', label: 'Monto', type: 'decimal', inList: true, altKeys: ['price', 'cost', 'value'] },
     ],
   },
   {
@@ -342,8 +331,8 @@ export const MODULES: ModuleDef[] = [
     singular: 'Price tier',
     description: 'Niveles de precio',
     fields: [
-      { key: 'name', label: 'Nombre', type: 'text', inList: true, required: true },
-      { key: 'amount', label: 'Monto', type: 'decimal', inList: true },
+      { key: 'name', label: 'Nombre', type: 'text', inList: true, required: true, altKeys: ['priceTier', 'tier', 'description', 'title'] },
+      { key: 'amount', label: 'Monto', type: 'decimal', inList: true, altKeys: ['price', 'cost', 'value'] },
     ],
   },
   {
@@ -354,8 +343,8 @@ export const MODULES: ModuleDef[] = [
     singular: 'Part number',
     description: 'Catálogo NAGS de números de parte',
     fields: [
-      { key: 'name', label: 'Part number', type: 'text', inList: true, required: true },
-      { key: 'nagsDescription', label: 'Descripción NAGS', type: 'longtext', inList: true },
+      { key: 'name', label: 'Part number', type: 'text', inList: true, required: true, altKeys: ['partNumber', 'number', 'part'] },
+      { key: 'nagsDescription', label: 'Descripción NAGS', type: 'longtext', inList: true, altKeys: ['description', 'nags', 'nagsDesc'] },
     ],
   },
   {
@@ -366,7 +355,7 @@ export const MODULES: ModuleDef[] = [
     singular: 'Método de pago',
     description: 'Métodos para servicios y gastos',
     fields: [
-      { key: 'name', label: 'Nombre', type: 'text', inList: true, required: true },
+      { key: 'name', label: 'Nombre', type: 'text', inList: true, required: true, altKeys: ['paymentMethod', 'method', 'description'] },
       { key: 'type', label: 'Tipo', type: 'enum', options: ['SERVICES', 'EXPENSES', 'ALL'], inList: true, required: true },
     ],
   },
@@ -379,7 +368,7 @@ export const MODULES: ModuleDef[] = [
     description: 'Catálogo de moldings',
     fields: [
       // ⭐ Campos provisionales: ajustar cuando conozcamos la estructura real (ver Inspector)
-      { key: 'name', label: 'Nombre', type: 'text', inList: true, required: true },
+      { key: 'name', label: 'Nombre', type: 'text', inList: true, required: true, altKeys: ['molding', 'description', 'title'] },
       { key: 'amount', label: 'Monto', type: 'decimal', inList: true },
     ],
   },
@@ -387,9 +376,9 @@ export const MODULES: ModuleDef[] = [
     id: 'cat_tag',
     collection: 'catalog_tag',
     sqlName: 'CAT_TAG',
-    title: 'Tags',
+    title: 'Status (Tags)',
     singular: 'Tag',
-    description: 'Etiquetas / posibles status de órdenes',
+    description: 'Status de cotizaciones y órdenes',
     fields: [
       { key: 'name', label: 'Nombre', type: 'text', inList: true, required: true },
       { key: 'color', label: 'Color', type: 'color', inList: true },
@@ -403,7 +392,7 @@ export const MODULES: ModuleDef[] = [
     singular: 'Gasto',
     description: 'Catálogo de tipos de gasto',
     fields: [
-      { key: 'name', label: 'Nombre', type: 'text', inList: true, required: true },
+      { key: 'name', label: 'Nombre', type: 'text', inList: true, required: true, altKeys: ['expense', 'description', 'title'] },
       { key: 'amount', label: 'Monto', type: 'decimal', inList: true },
     ],
   },
@@ -417,9 +406,9 @@ export function getModule(id: string): ModuleDef {
 
 /** IDs de los módulos de catálogo — se agrupan en una sola vista "Catálogos" */
 export const CATALOG_IDS = [
-  'cat_status', 'cat_zipcode', 'cat_company', 'cat_jobtype',
+  'cat_tag', 'cat_zipcode', 'cat_company', 'cat_jobtype',
   'cat_calibrationtype', 'cat_pricetier', 'cat_partnumber', 'cat_paymentmethod',
-  'cat_molding', 'cat_tag', 'cat_expenses',
+  'cat_molding', 'cat_expenses',
 ] as const;
 
 export interface NavItem {

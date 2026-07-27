@@ -31,7 +31,7 @@ export default function DashboardView() {
     () => setLoading(false),
   ), []);
   useEffect(() => subscribe('work_order_details', (r) => setDetails(r as unknown as ServicesDetail[])), []);
-  useEffect(() => subscribe('catalog_status', (r) => setStatuses(r as unknown as CatStatus[])), []);
+  useEffect(() => subscribe('catalog_tag', (r) => setStatuses(r as unknown as CatStatus[])), []);
   useEffect(() => subscribe('distributors', setDistributors), []);
 
   const kpis = useMemo(() => {
