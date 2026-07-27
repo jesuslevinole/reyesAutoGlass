@@ -195,3 +195,26 @@ ul { list-style: none; }
 
 /* Foco visible para navegación por teclado */
 :focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+
+/* ============ Skeleton de carga (shimmer) — reutilizable ============ */
+.skeleton {
+  position: relative;
+  overflow: hidden;
+  display: inline-block;
+  background: #e6ebf7;
+  border-radius: 6px;
+}
+.skeleton::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, .7), transparent);
+  animation: skel-sweep 1.3s ease-in-out infinite;
+}
+@keyframes skel-sweep {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(100%); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .skeleton::after { animation: none; }
+}

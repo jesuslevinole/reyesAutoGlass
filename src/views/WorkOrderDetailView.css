@@ -77,3 +77,16 @@
 @media (max-width: 720px) {
   .wo-grid { grid-template-columns: 1fr; }
 }
+
+/* ============ Skeleton del detalle ============ */
+.wo-skeleton { display: flex; flex-direction: column; gap: 16px; }
+.skel-title { width: 300px; max-width: 70%; height: 24px; }
+.wo-skeleton-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+.skel-panel { display: block; height: 200px; border-radius: var(--radius-md); }
+@media (max-width: 720px) {
+  .wo-skeleton-grid { grid-template-columns: 1fr; }
+}

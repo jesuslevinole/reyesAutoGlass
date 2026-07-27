@@ -23,8 +23,13 @@ export default function DashboardView() {
   const [details, setDetails] = useState<ServicesDetail[]>([]);
   const [statuses, setStatuses] = useState<CatStatus[]>([]);
   const [distributors, setDistributors] = useState<Row[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  useEffect(() => subscribe('work_orders', (r) => setOrders(r as unknown as WorkOrder[])), []);
+  useEffect(() => subscribe(
+    'work_orders',
+    (r) => { setOrders(r as unknown as WorkOrder[]); setLoading(false); },
+    () => setLoading(false),
+  ), []);
   useEffect(() => subscribe('work_order_details', (r) => setDetails(r as unknown as ServicesDetail[])), []);
   useEffect(() => subscribe('catalog_status', (r) => setStatuses(r as unknown as CatStatus[])), []);
   useEffect(() => subscribe('distributors', setDistributors), []);
@@ -116,19 +121,19 @@ export default function DashboardView() {
         <li className="hero-card hero-blue">
           <div className="hero-icon"><DollarSign size={20} /></div>
           <p className="hero-label">Facturación total</p>
-          <p className="hero-value">{money(kpis.total)}</p>
+          <p className="hero-value">{loading ? <span className="skeleton skel-hero" /> : money(kpis.total)}</p>
           <p className="hero-foot">{kpis.count} work orders registradas</p>
         </li>
         <li className="hero-card hero-sky">
           <div className="hero-icon"><Wallet size={20} /></div>
           <p className="hero-label">Cobrado</p>
-          <p className="hero-value">{money(kpis.paid)}</p>
+          <p className="hero-value">{loading ? <span className="skeleton skel-hero" /> : money(kpis.paid)}</p>
           <p className="hero-foot">Tasa de cobro {collectionRate}%</p>
         </li>
         <li className="hero-card hero-green">
           <div className="hero-icon"><ClipboardList size={20} /></div>
           <p className="hero-label">Órdenes del mes</p>
-          <p className="hero-value">{kpis.ordersThisMonth}</p>
+          <p className="hero-value">{loading ? <span className="skeleton skel-hero" /> : kpis.ordersThisMonth}</p>
           <p className="hero-foot">
             {kpis.revenueDelta === null ? 'Sin mes anterior para comparar' : (
               <span className={`delta ${kpis.revenueDelta >= 0 ? 'up' : 'down'}`}>
@@ -141,7 +146,7 @@ export default function DashboardView() {
         <li className="hero-card hero-violet">
           <div className="hero-icon"><ShieldCheck size={20} /></div>
           <p className="hero-label">Balance por cobrar</p>
-          <p className="hero-value">{money(kpis.balance)}</p>
+          <p className="hero-value">{loading ? <span className="skeleton skel-hero" /> : money(kpis.balance)}</p>
           <p className="hero-foot">{kpis.insurancePct}% de órdenes por aseguranza</p>
         </li>
       </ul>
@@ -150,7 +155,7 @@ export default function DashboardView() {
         {/* ===== Ingresos por mes ===== */}
         <article className="panel panel-chart">
           <h2>Ingresos últimos 6 meses</h2>
-          <BarChart points={monthly} />
+          {loading ? <span className="skeleton skel-chart" /> : <BarChart points={monthly} />}
           <ul className="chart-legend">
             <li><span className="legend-dot dot-total" />Facturado</li>
             <li><span className="legend-dot dot-paid" />Cobrado</li>
@@ -160,7 +165,7 @@ export default function DashboardView() {
         {/* ===== Personal vs Insurance ===== */}
         <article className="panel">
           <h2>Personal vs Insurance</h2>
-          <Donut pct={kpis.insurancePct} />
+          {loading ? <span className="skeleton skel-donut" /> : <Donut pct={kpis.insurancePct} />}
           <ul className="chart-legend">
             <li><span className="legend-dot dot-ins" />Insurance {kpis.insurancePct}%</li>
             <li><span className="legend-dot dot-per" />Personal {100 - kpis.insurancePct}%</li>
@@ -170,7 +175,9 @@ export default function DashboardView() {
         {/* ===== Distribución por status ===== */}
         <article className="panel">
           <h2>Órdenes por status</h2>
-          {statusDist.length === 0 ? (
+          {loading ? (
+            <SkeletonLines />
+          ) : statusDist.length === 0 ? (
             <p className="panel-empty">Aún no hay órdenes registradas.</p>
           ) : (
             <ul className="status-bars">
@@ -196,7 +203,9 @@ export default function DashboardView() {
         {/* ===== Top distribuidores ===== */}
         <article className="panel">
           <h2>Top distribuidores por costo de vidrio</h2>
-          {topDistributors.length === 0 ? (
+          {loading ? (
+            <SkeletonLines />
+          ) : topDistributors.length === 0 ? (
             <p className="panel-empty">Sin detalles de servicio con distribuidor todavía.</p>
           ) : (
             <ol className="top-list">
@@ -212,6 +221,17 @@ export default function DashboardView() {
         </article>
       </div>
     </section>
+  );
+}
+
+function SkeletonLines() {
+  return (
+    <ul className="skel-lines" aria-hidden="true">
+      <li><span className="skeleton skel-cell skel-w2" /></li>
+      <li><span className="skeleton skel-cell skel-w1" /></li>
+      <li><span className="skeleton skel-cell skel-w3" /></li>
+      <li><span className="skeleton skel-cell skel-w2" /></li>
+    </ul>
   );
 }
 

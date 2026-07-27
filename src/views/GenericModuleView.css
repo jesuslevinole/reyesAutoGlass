@@ -508,3 +508,15 @@
   color: #7f1d1d;
   line-height: 1.5;
 }
+
+/* ============ Skeleton de la tabla ============ */
+.skel-cell { height: 12px; }
+.skel-w1 { width: 45%; min-width: 50px; }
+.skel-w2 { width: 70%; min-width: 70px; }
+.skel-w3 { width: 55%; min-width: 60px; }
+.skel-dot {
+  width: 22px;
+  height: 22px;
+  border-radius: 7px;
+  margin-left: 6px;
+}

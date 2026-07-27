@@ -25,10 +25,12 @@ export default function WorkOrderDetailView({ workOrderId, onBack }: Props) {
   const [details, setDetails] = useState<Row[]>([]);
   const [payments, setPayments] = useState<Row[]>([]);
   const [catalogs, setCatalogs] = useState<Record<string, Row[]>>({});
+  const [loaded, setLoaded] = useState(false);
 
   // Colecciones vivas: la orden y sus hijos cambian mientras el taller trabaja.
   useEffect(() => subscribe('work_orders', (rows) => {
     setOrder(rows.find((r) => r.id === workOrderId) ?? null);
+    setLoaded(true);
   }), [workOrderId]);
 
   useEffect(() => subscribe('work_order_details', (rows) => {
@@ -70,7 +72,18 @@ export default function WorkOrderDetailView({ workOrderId, onBack }: Props) {
     return (
       <section className="wo-detail">
         <button className="btn-outline" onClick={onBack}><ArrowLeft size={15} />Volver</button>
-        <p className="wo-loading">Cargando la orden…</p>
+        {loaded ? (
+          <p className="wo-loading">No se encontró la orden — pudo haber sido eliminada.</p>
+        ) : (
+          <div className="wo-skeleton" aria-hidden="true">
+            <span className="skeleton skel-title" />
+            <div className="wo-skeleton-grid">
+              <span className="skeleton skel-panel" />
+              <span className="skeleton skel-panel" />
+              <span className="skeleton skel-panel" />
+            </div>
+          </div>
+        )}
       </section>
     );
   }

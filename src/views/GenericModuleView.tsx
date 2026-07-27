@@ -67,6 +67,7 @@ export default function GenericModuleView({ module, onOpenRow }: Props) {
   const [form, setForm] = useState<FormState>(() => emptyForm(module));
   const [saving, setSaving] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
   const sections = useMemo(() => module.sections ?? [DEFAULT_SECTION], [module]);
   const [activeSection, setActiveSection] = useState(sections[0].id);
@@ -74,8 +75,8 @@ export default function GenericModuleView({ module, onOpenRow }: Props) {
   // Colección principal en tiempo real
   useEffect(() => subscribe(
     module.collection,
-    (r) => { setRows(r); setLoadError(null); },
-    (error) => setLoadError(error.message),
+    (r) => { setRows(r); setLoadError(null); setLoading(false); },
+    (error) => { setLoadError(error.message); setLoading(false); },
   ), [module.collection]);
 
   // Catálogos referenciados por FK: carga única al montar el módulo.
@@ -181,7 +182,7 @@ export default function GenericModuleView({ module, onOpenRow }: Props) {
             placeholder={`Buscar en ${module.title.toLowerCase()}…`}
           />
         </div>
-        <span className="row-count">{filtered.length} registros</span>
+        <span className="row-count">{loading ? 'Cargando registros…' : `${filtered.length} registros`}</span>
       </div>
 
       {loadError && (
@@ -202,7 +203,21 @@ export default function GenericModuleView({ module, onOpenRow }: Props) {
             </tr>
           </thead>
           <tbody>
-            {filtered.map((row) => (
+            {loading && Array.from({ length: 6 }, (_, rowIdx) => (
+              <tr key={`skel-${rowIdx}`} aria-hidden="true">
+                {listFields.map((f, colIdx) => (
+                  <td key={f.key}>
+                    {/* anchos variados de un conjunto finito → clases modificadoras */}
+                    <span className={`skeleton skel-cell skel-w${((rowIdx + colIdx) % 3) + 1}`} />
+                  </td>
+                ))}
+                <td className="col-actions">
+                  <span className="skeleton skel-dot" />
+                  <span className="skeleton skel-dot" />
+                </td>
+              </tr>
+            ))}
+            {!loading && filtered.map((row) => (
               <tr key={row.id}>
                 {listFields.map((f) => (
                   <td key={f.key}>{renderCell(f, row, fkData)}</td>
@@ -222,7 +237,7 @@ export default function GenericModuleView({ module, onOpenRow }: Props) {
                 </td>
               </tr>
             ))}
-            {filtered.length === 0 && (
+            {!loading && filtered.length === 0 && (
               <tr>
                 <td className="empty-cell" colSpan={listFields.length + 1}>
                   {rows.length === 0
