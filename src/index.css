@@ -1,26 +1,197 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+/* ============================================================
+   GlassWorks · Tokens de diseño
+   Referencia visual: sidebar navy profundo, lienzo lavanda frío,
+   tarjetas blancas flotantes, acentos azul-cielo con gradientes.
+   Display: Sora · Cuerpo: Inter
+   ============================================================ */
 
 :root {
-  /* Paleta de Colores Base */
-  --bg-body: #f8fafc;             /* Fondo gris claro general */
-  --bg-surface: #ffffff;          /* Fondo blanco para tarjetas y menús */
-  --color-primary: #0f172a;       /* Azul marino casi negro para textos fuertes */
-  --color-accent: #3b82f6;        /* Azul brillante para elementos activos/botones */
-  --color-border: #e2e8f0;        /* Gris suave para líneas divisorias */
-  --color-text-main: #334155;     /* Gris oscuro para textos principales */
-  --color-text-muted: #64748b;    /* Gris medio para descripciones y subtítulos */
+  /* Paleta */
+  --canvas: #dfe4f3;          /* fondo exterior lavanda */
+  --surface: #f4f6fd;         /* fondo interior del panel */
+  --paper: #ffffff;
+  --navy: #232b3e;            /* sidebar */
+  --navy-deep: #1a2130;
+  --ink: #1f2937;
+  --ink-soft: #7c8598;
+  --ink-faint: #aab2c4;
+  --blue: #3583f6;
+  --blue-deep: #2568d8;
+  --blue-soft: #eaf1fe;
+  --teal: #2fc48d;
+  --amber: #f59e0b;
+  --red: #ef4444;
+  --violet: #7c5cf0;
+  --border: #e4e8f4;
+
+  /* Gradientes de tarjetas hero */
+  --grad-blue: linear-gradient(135deg, #4a7dfa 0%, #6fa5fb 100%);
+  --grad-sky: linear-gradient(135deg, #2fa4e7 0%, #6cc6f5 100%);
+  --grad-green: linear-gradient(135deg, #2cc68f 0%, #55dfb0 100%);
+  --grad-violet: linear-gradient(135deg, #7c5cf0 0%, #a58bfa 100%);
+
+  /* Tipografía */
+  --font-display: 'Sora', 'Inter', system-ui, sans-serif;
+  --font-body: 'Inter', system-ui, -apple-system, sans-serif;
+
+  /* Forma y sombra */
+  --radius-lg: 18px;
+  --radius-md: 12px;
+  --radius-sm: 8px;
+  --shadow-card: 0 10px 30px rgba(35, 43, 62, 0.08);
+  --shadow-float: 0 18px 44px rgba(35, 43, 62, 0.16);
 }
 
-/* Reseteo y configuración base */
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body, #root { height: 100%; }
+
 body {
-  margin: 0;
-  font-family: 'Inter', system-ui, -apple-system, sans-serif;
-  background-color: var(--bg-body);
-  color: var(--color-text-main);
+  font-family: var(--font-body);
+  background: var(--canvas);
+  color: var(--ink);
+  font-size: 14px;
   -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
 }
 
-*, *::before, *::after {
-  box-sizing: border-box;
+h1, h2, h3 { font-family: var(--font-display); }
+
+button {
+  font-family: inherit;
+  font-size: inherit;
+  cursor: pointer;
+  border: none;
+  background: none;
 }
+
+input, select, textarea {
+  font-family: inherit;
+  font-size: 13.5px;
+  color: var(--ink);
+}
+
+ul { list-style: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition: none !important; animation: none !important; }
+}
+
+/* ============ Botones globales ============ */
+.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  background: var(--blue);
+  color: #fff;
+  font-weight: 600;
+  font-size: 13px;
+  padding: 9px 16px;
+  border-radius: var(--radius-sm);
+  transition: background .15s, transform .12s;
+}
+.btn-primary:hover { background: var(--blue-deep); }
+.btn-primary:active { transform: scale(.97); }
+.btn-primary:disabled { opacity: .55; cursor: not-allowed; }
+
+.btn-outline {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  background: var(--paper);
+  color: var(--blue);
+  font-weight: 600;
+  font-size: 13px;
+  padding: 8px 15px;
+  border: 1px solid #bcd4fb;
+  border-radius: var(--radius-sm);
+  transition: background .15s, border-color .15s;
+}
+.btn-outline:hover { background: var(--blue-soft); border-color: var(--blue); }
+
+.btn-danger-ghost {
+  color: var(--red);
+  padding: 6px;
+  border-radius: 6px;
+  display: inline-flex;
+  transition: background .15s;
+}
+.btn-danger-ghost:hover { background: #fee2e2; }
+
+.btn-icon-ghost {
+  color: var(--ink-soft);
+  padding: 6px;
+  border-radius: 6px;
+  display: inline-flex;
+  transition: background .15s, color .15s;
+}
+.btn-icon-ghost:hover { background: var(--blue-soft); color: var(--blue); }
+
+/* ============ Formularios ============ */
+.field label {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-soft);
+  margin-bottom: 5px;
+}
+.field input,
+.field select,
+.field textarea {
+  width: 100%;
+  padding: 9px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--paper);
+  outline: none;
+  transition: border-color .15s, box-shadow .15s;
+}
+.field input:focus,
+.field select:focus,
+.field textarea:focus {
+  border-color: var(--blue);
+  box-shadow: 0 0 0 3px rgba(53, 131, 246, .14);
+}
+.field textarea { resize: vertical; min-height: 66px; }
+
+/* ============ Modal ============ */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(26, 33, 48, .45);
+  backdrop-filter: blur(2px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  z-index: 60;
+}
+.modal-card {
+  background: var(--paper);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-float);
+  width: min(860px, 100%);
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 24px;
+  border-bottom: 1px solid var(--border);
+}
+.modal-head h2 { font-size: 17px; font-weight: 700; }
+.modal-body { padding: 22px 24px; overflow-y: auto; }
+.modal-foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 16px 24px;
+  border-top: 1px solid var(--border);
+  background: #fafbff;
+}
+
+/* Foco visible para navegación por teclado */
+:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }

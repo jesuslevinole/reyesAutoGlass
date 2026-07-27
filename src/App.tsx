@@ -1,76 +1,79 @@
-import React from 'react';
-import { MemoryRouter as Router, Routes, Route, Navigate, Outlet, useLocation } from 'react-router-dom';
-// ⭐ MemoryRouter: la navegación vive EN MEMORIA, la URL del navegador nunca cambia
-//    (siempre se queda en la raíz). Esto hace que la app se comporte como aplicación
-//    y no como sitio web: los clics del menú jamás provocan cargas de página, y al
-//    desplegar en Cloudflare no hay problemas de rutas directas (/work-orders → 404).
-import { Loader2 } from 'lucide-react';
-import { MainLayout } from './components/layout/MainLayout';
-import { AuthProvider, useAuth } from './context/AuthContext';
+import { useState } from 'react';
+import { Menu } from 'lucide-react';
+import Sidebar from './components/Sidebar';
+import DashboardView from './views/DashboardView';
+import GenericModuleView from './views/GenericModuleView';
+import WorkOrderDetailView from './views/WorkOrderDetailView';
+import { getModule, NAV_GROUPS } from './config/modules';
+import './App.css';
 
-// Importación de Páginas
-import { WorkOrderPage } from './pages/WorkOrderPage';
-import { CustomersPage } from './pages/CustomersPage';
-import { EquipoTrabajo } from './pages/EquipoTrabajo';
-import { SettingsPage } from './pages/SettingsPage';
-import { CatalogView } from './pages/CatalogView';
-import { DataImportPage } from './pages/DataImportPage';
-import { CommissionsPage } from './pages/CommissionsPage';
-import { LoginPage } from './pages/LoginPage';
+function viewTitle(viewId: string): string {
+  for (const group of NAV_GROUPS) {
+    const item = group.items.find((i) => i.id === viewId);
+    if (item) return item.label;
+  }
+  return 'GlassWorks';
+}
 
-// Pantalla de carga mientras se resuelve el estado de sesión.
-const FullScreenLoader: React.FC = () => (
-  <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#F1F5F9' }}>
-    <style>{`@keyframes spin { 100% { transform: rotate(360deg); } }`}</style>
-    <Loader2 size={40} color="#2563EB" style={{ animation: 'spin 1s linear infinite' }} />
-  </div>
-);
+export default function App() {
+  const [view, setView] = useState('dashboard');
+  const [openWorkOrderId, setOpenWorkOrderId] = useState<string | null>(null);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
-// Envuelve las rutas privadas: si no hay sesión, redirige a /login.
-const RequireAuth: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { user, bypass, loading } = useAuth();
-  const location = useLocation();
-  if (loading) return <FullScreenLoader />;
-  if (!user && !bypass) return <Navigate to="/login" replace state={{ from: location.pathname }} />;
-  return <>{children}</>;
-};
+  const navigate = (viewId: string) => {
+    setView(viewId);
+    setOpenWorkOrderId(null);
+    setSidebarOpen(false);
+  };
 
-const App: React.FC = () => {
   return (
-    <Router>
-      <AuthProvider>
-        <Routes>
-          {/* RUTA PÚBLICA */}
-          <Route path="/login" element={<LoginPage />} />
+    <div className="app-frame">
+      <div className="app-shell">
+        <Sidebar
+          current={view}
+          open={sidebarOpen}
+          onNavigate={navigate}
+          onClose={() => setSidebarOpen(false)}
+        />
 
-          {/* RUTAS PROTEGIDAS */}
-          <Route
-            path="/"
-            element={
-              <RequireAuth>
-                <MainLayout><Outlet /></MainLayout>
-              </RequireAuth>
-            }
-          >
-            <Route index element={<Navigate to="/work-orders" replace />} />
+        <div className="app-main">
+          <header className="app-topbar">
+            <button
+              className="hamburger-btn"
+              onClick={() => setSidebarOpen(true)}
+              aria-label="Abrir menú"
+            >
+              <Menu size={20} />
+            </button>
+            <p className="topbar-crumb">
+              {viewTitle(view)}
+              {openWorkOrderId && ' · Detalle'}
+            </p>
+            <div className="topbar-user">
+              <span className="user-avatar">GW</span>
+              <span className="user-name">Administración</span>
+            </div>
+          </header>
 
-            {/* LAS 3 VISTAS APUNTAN AL MISMO COMPONENTE (List, Calendar, Map) */}
-            <Route path="work-orders" element={<WorkOrderPage />} />
-            <Route path="calendar" element={<WorkOrderPage />} />
-            <Route path="map" element={<WorkOrderPage />} /> {/* NUEVA RUTA PARA EL MAPA */}
-
-            <Route path="catalog" element={<CatalogView catalog={{} as any} onBack={() => window.history.back()} />} />
-            <Route path="customers" element={<CustomersPage />} />
-            <Route path="equipo" element={<EquipoTrabajo />} />
-            <Route path="data-import" element={<DataImportPage />} /> {/* IMPORTACIÓN DE DATOS */}
-            <Route path="commissions" element={<CommissionsPage />} /> {/* COMISIONES DE AGENTES */}
-            <Route path="settings" element={<SettingsPage />} />
-            <Route path="*" element={<Navigate to="/work-orders" replace />} />
-          </Route>
-        </Routes>
-      </AuthProvider>
-    </Router>
+          <main className="app-content">
+            {openWorkOrderId ? (
+              <WorkOrderDetailView
+                workOrderId={openWorkOrderId}
+                onBack={() => setOpenWorkOrderId(null)}
+              />
+            ) : view === 'dashboard' ? (
+              <DashboardView />
+            ) : (
+              /* key: fuerza remontar la vista genérica al cambiar de módulo */
+              <GenericModuleView
+                key={view}
+                module={getModule(view)}
+                onOpenRow={view === 'workorders' ? (row) => setOpenWorkOrderId(row.id) : undefined}
+              />
+            )}
+          </main>
+        </div>
+      </div>
+    </div>
   );
-};
-
-export default App;
+}

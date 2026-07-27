@@ -1,8 +1,15 @@
-import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react'
+import { fileURLToPath, URL } from 'node:url';
+import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
 
 export default defineConfig({
   plugins: [react()],
+  resolve: {
+    // Alias '@' -> 'src': evita imports relativos frágiles ('../../..').
+    alias: {
+      '@': fileURLToPath(new URL('./src', import.meta.url)),
+    },
+  },
   server: {
     proxy: {
       '/mygrant-soap': {
@@ -19,8 +26,8 @@ export default defineConfig({
             proxyReq.setHeader('User-Agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36');
           });
         },
-        rewrite: (path) => path.replace(/^\/mygrant-soap/, '')
-      }
-    }
-  }
-})
+        rewrite: (path) => path.replace(/^\/mygrant-soap/, ''),
+      },
+    },
+  },
+});

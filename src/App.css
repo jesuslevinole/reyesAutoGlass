@@ -1,0 +1,79 @@
+/* La app ocupa el 100% del viewport (sin marco flotante). */
+.app-frame {
+  height: 100vh;
+  display: flex;
+}
+
+.app-shell {
+  flex: 1;
+  display: flex;
+  background: var(--surface);
+  overflow: hidden;
+  height: 100vh;
+}
+
+.app-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+/* ============ Topbar ============ */
+.app-topbar {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px 26px;
+}
+
+.hamburger-btn {
+  display: none;
+  color: var(--ink);
+  padding: 6px;
+  border-radius: 8px;
+}
+.hamburger-btn:hover { background: #e9edf9; }
+
+.topbar-crumb {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-soft);
+}
+
+.topbar-user {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+.user-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--grad-blue);
+  color: #fff;
+  font-size: 11.5px;
+  font-weight: 700;
+}
+.user-name { font-size: 13px; font-weight: 600; }
+
+/* ============ Contenido ============ */
+.app-content {
+  flex: 1;
+  padding: 8px 26px 30px;
+  overflow-y: auto;
+}
+
+/* ============ Responsive ============ */
+@media (max-width: 960px) {
+  .hamburger-btn { display: inline-flex; }
+  .app-content { padding: 4px 16px 24px; }
+  .app-topbar { padding: 14px 16px; }
+}
+@media (max-width: 560px) {
+  .user-name { display: none; }
+}
