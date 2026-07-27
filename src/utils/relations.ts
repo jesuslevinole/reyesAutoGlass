@@ -14,8 +14,9 @@ export function getFieldValue(
 
 /** Keys candidatos para nombrar un documento referenciado por FK. */
 const LABEL_KEYS = [
-  'name', 'tag', 'partNumber', 'priceTier', 'calibrationType', 'jobType',
-  'paymentMethod', 'company', 'molding', 'description', 'title',
+  'name', 'tag', 'part_number', 'price_tier', 'calibration_type', 'job_type',
+  'payment_method', 'partNumber', 'priceTier', 'calibrationType', 'jobType',
+  'paymentMethod', 'company', 'molding', 'expense', 'description', 'title',
 ];
 
 /** Etiqueta legible de un documento referenciado por FK.

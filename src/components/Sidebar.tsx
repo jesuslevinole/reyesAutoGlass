@@ -9,15 +9,16 @@ interface Props {
   items: NavItem[];
   current: string;
   open: boolean;
+  collapsed: boolean;
   onNavigate: (viewId: string) => void;
   onClose: () => void;
 }
 
-export default function Sidebar({ appName, items, current, open, onNavigate, onClose }: Props) {
+export default function Sidebar({ appName, items, current, open, collapsed, onNavigate, onClose }: Props) {
   return (
     <>
       <div className={`sidebar-scrim${open ? ' visible' : ''}`} onClick={onClose} aria-hidden="true" />
-      <aside className={`sidebar${open ? ' open' : ''}`}>
+      <aside className={`sidebar${open ? ' open' : ''}${collapsed ? ' collapsed' : ''}`}>
         <div className="sidebar-brand">
           <span className="brand-glyph"><GlassWater size={20} /></span>
           <span className="brand-name">{appName}</span>
@@ -35,6 +36,7 @@ export default function Sidebar({ appName, items, current, open, onNavigate, onC
                   <button
                     className={`nav-item${current === item.id ? ' active' : ''}`}
                     onClick={() => onNavigate(item.id)}
+                    title={item.label}
                   >
                     <Icon size={16} />
                     <span>{item.label}</span>

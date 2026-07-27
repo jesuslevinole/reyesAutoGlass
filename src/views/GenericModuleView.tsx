@@ -11,6 +11,7 @@ import type { Row } from '../services/firestore';
 import { createRow, deleteRow, fetchAll, subscribe, updateRow } from '../services/firestore';
 import { formatDate, getFieldValue, getRelationColor, getRelationName, money, rowLabel } from '../utils/relations';
 import ImportExportBar from '../components/ImportExportBar';
+import SearchableSelect from '../components/SearchableSelect';
 import './GenericModuleView.css';
 
 interface Props {
@@ -542,14 +543,21 @@ function FieldInput({ field, value, options, onChange }: FieldInputProps) {
           onChange={(e) => onChange(e.target.value)}
         />
       ) : field.type === 'enum' ? (
-        <select id={`f-${field.key}`} value={String(value ?? '')} onChange={(e) => onChange(e.target.value)}>
-          {field.options?.map((opt) => <option key={opt} value={opt}>{opt}</option>)}
-        </select>
+        <SearchableSelect
+          inputId={`f-${field.key}`}
+          value={String(value ?? '')}
+          options={(field.options ?? []).map((opt) => ({ id: opt, label: opt }))}
+          required={field.required}
+          onChange={onChange}
+        />
       ) : field.type === 'fk' ? (
-        <select id={`f-${field.key}`} value={String(value ?? '')} required={field.required} onChange={(e) => onChange(e.target.value)}>
-          <option value="">— Seleccionar —</option>
-          {options.map((opt) => <option key={opt.id} value={opt.id}>{rowLabel(opt)}</option>)}
-        </select>
+        <SearchableSelect
+          inputId={`f-${field.key}`}
+          value={String(value ?? '')}
+          options={options.map((opt) => ({ id: opt.id, label: rowLabel(opt) }))}
+          required={field.required}
+          onChange={onChange}
+        />
       ) : field.type === 'fkList' ? (
         <FkListInput field={field} value={value} options={options} onChange={onChange} />
       ) : field.type === 'boolean' ? (

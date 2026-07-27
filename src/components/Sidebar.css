@@ -115,3 +115,20 @@
   font-family: 'Cascadia Code', Consolas, monospace;
   letter-spacing: .3px;
 }
+
+/* ============ Sidebar colapsado (solo íconos) ============ */
+.sidebar { transition: width .2s ease, min-width .2s ease; }
+
+@media (min-width: 961px) {
+  .sidebar.collapsed { width: 76px; min-width: 76px; }
+  .sidebar.collapsed .brand-name,
+  .sidebar.collapsed .nav-item span,
+  .sidebar.collapsed .sidebar-foot { display: none; }
+  .sidebar.collapsed .sidebar-brand { justify-content: center; padding: 20px 10px; }
+  .sidebar.collapsed .sidebar-nav { padding: 14px 10px; }
+  .sidebar.collapsed .nav-item {
+    justify-content: center;
+    padding: 11px;
+    border-radius: 11px;
+  }
+}

@@ -77,3 +77,23 @@
 @media (max-width: 560px) {
   .user-name { display: none; }
 }
+
+/* ============ Botón de contraer/expandir menú (solo escritorio) ============ */
+.collapse-btn {
+  display: inline-flex;
+  color: var(--ink-soft);
+  padding: 6px;
+  border-radius: 8px;
+  transition: background .15s, color .15s;
+}
+.collapse-btn:hover { background: #e9edf9; color: var(--ink); }
+@media (max-width: 960px) {
+  .collapse-btn { display: none; }
+}
+
+/* ============ Pulido visual ============ */
+.app-topbar {
+  border-bottom: 1px solid var(--border);
+  background: rgba(255, 255, 255, .65);
+  backdrop-filter: blur(8px);
+}

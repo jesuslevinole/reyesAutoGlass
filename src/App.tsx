@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Menu } from 'lucide-react';
+import { LogOut, Menu, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import Sidebar from './components/Sidebar';
 import CatalogsView from './views/CatalogsView';
+import LoginView from './views/LoginView';
+import RolesView from './views/RolesView';
 import DashboardView from './views/DashboardView';
 import GenericModuleView from './views/GenericModuleView';
 import SettingsView from './views/SettingsView';
@@ -11,12 +13,19 @@ import type { ModuleDef } from './config/modules';
 import type { Row } from './services/firestore';
 import { subscribe } from './services/firestore';
 import { applyOverrides, orderNav } from './utils/uiConfig';
+import { clearSession, loadSession, saveSession } from './config/auth';
+import type { Session } from './config/auth';
 import './App.css';
 
 export default function App() {
+  const [session, setSession] = useState<Session | null>(() => loadSession());
   const [view, setView] = useState('dashboard');
   const [openWorkOrderId, setOpenWorkOrderId] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+
+  const enter = (s: Session) => { saveSession(s); setSession(s); };
+  const logout = () => { clearSession(); setSession(null); };
 
   // Overrides de UI (nombres, orden de columnas y menú) en vivo desde Firestore
   const [uiConfig, setUiConfig] = useState<Record<string, Row>>({});
@@ -56,6 +65,8 @@ export default function App() {
 
   const viewTitle = navItems.find((i) => i.id === view)?.label ?? 'GlassWorks';
 
+  if (!session) return <LoginView onEnter={enter} />;
+
   return (
     <div className="app-frame">
       <div className="app-shell">
@@ -64,6 +75,7 @@ export default function App() {
           items={navItems}
           current={view}
           open={sidebarOpen}
+          collapsed={sidebarCollapsed}
           onNavigate={navigate}
           onClose={() => setSidebarOpen(false)}
         />
@@ -77,13 +89,24 @@ export default function App() {
             >
               <Menu size={20} />
             </button>
+            <button
+              className="collapse-btn"
+              onClick={() => setSidebarCollapsed((c) => !c)}
+              aria-label={sidebarCollapsed ? 'Expandir menú' : 'Contraer menú'}
+              title={sidebarCollapsed ? 'Expandir menú' : 'Contraer menú'}
+            >
+              {sidebarCollapsed ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}
+            </button>
             <p className="topbar-crumb">
               {viewTitle}
               {openWorkOrderId && ' · Detalle'}
             </p>
             <div className="topbar-user">
-              <span className="user-avatar">GW</span>
-              <span className="user-name">Administración</span>
+              <span className="user-avatar">{session.name.slice(0, 2).toUpperCase()}</span>
+              <span className="user-name">{session.name}</span>
+              <button className="btn-icon-ghost" onClick={logout} aria-label="Cerrar sesión" title="Cerrar sesión">
+                <LogOut size={16} />
+              </button>
             </div>
           </header>
 
@@ -97,6 +120,8 @@ export default function App() {
               <DashboardView />
             ) : view === 'catalogs' ? (
               <CatalogsView resolveModule={resolveModule} />
+            ) : view === 'roles' ? (
+              <RolesView />
             ) : view === 'settings' ? (
               <SettingsView uiConfig={uiConfig} navItems={navItems} />
             ) : (

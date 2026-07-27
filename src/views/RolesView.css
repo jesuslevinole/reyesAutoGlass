@@ -1,0 +1,45 @@
+.role-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+}
+.role-name svg { color: var(--blue); }
+
+.role-count {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 700;
+  background: var(--blue-soft);
+  color: var(--blue-deep);
+  border-radius: 999px;
+  padding: 2px 9px;
+  margin-right: 10px;
+}
+.role-modules {
+  font-size: 12.5px;
+  color: var(--ink-soft);
+  white-space: normal;
+}
+
+.modal-card.role-modal {
+  width: min(680px, 96vw);
+  padding: 0;
+  overflow: hidden;
+}
+.role-modal-body {
+  padding: 22px 26px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+.role-matrix-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.role-matrix-title { font-size: 13px; font-weight: 700; }
+.role-toggle-all { padding: 6px 12px; font-size: 12.5px; }
