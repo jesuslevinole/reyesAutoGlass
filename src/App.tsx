@@ -30,6 +30,14 @@ export default function App() {
     [uiConfig],
   );
 
+  const appName = useMemo(() => {
+    const doc = uiConfig['_app'] as Record<string, unknown> | undefined;
+    return (typeof doc?.name === 'string' && doc.name.trim()) ? doc.name.trim() : 'GlassWorks';
+  }, [uiConfig]);
+
+  // Sincronizar el título de la pestaña del navegador (sistema externo → effect válido)
+  useEffect(() => { document.title = appName; }, [appName]);
+
   const navItems = useMemo(() => {
     const withTitles = DEFAULT_NAV.map((item) => {
       const doc = uiConfig[item.id] as Record<string, unknown> | undefined;
@@ -52,6 +60,7 @@ export default function App() {
     <div className="app-frame">
       <div className="app-shell">
         <Sidebar
+          appName={appName}
           items={navItems}
           current={view}
           open={sidebarOpen}

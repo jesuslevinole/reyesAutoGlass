@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { ArrowDown, ArrowUp, Check, ListOrdered, PanelLeft, Save, Type } from 'lucide-react';
+import { ArrowDown, ArrowUp, Check, ListOrdered, PanelLeft, Save, Sparkles, Type } from 'lucide-react';
 import { MODULES } from '../config/modules';
 import type { ModuleDef, NavItem } from '../config/modules';
 import type { Row } from '../services/firestore';
@@ -31,9 +31,53 @@ export default function SettingsView({ uiConfig, navItems }: Props) {
         </div>
       </header>
 
+      <AppNameCard uiConfig={uiConfig} />
       <MenuOrderCard navItems={navItems} />
       <ModuleCustomizer uiConfig={uiConfig} />
     </section>
+  );
+}
+
+/* ==================== Nombre de la aplicación ==================== */
+
+function AppNameCard({ uiConfig }: { uiConfig: Record<string, Row> }) {
+  const appDoc = uiConfig['_app'] as Record<string, unknown> | undefined;
+  const currentName = typeof appDoc?.name === 'string' ? appDoc.name : '';
+  // key: al llegar el valor guardado desde Firestore se remonta con él
+  return <AppNameEditor key={currentName} currentName={currentName} />;
+}
+
+function AppNameEditor({ currentName }: { currentName: string }) {
+  const [name, setName] = useState(currentName);
+  const [saved, setSaved] = useState(false);
+
+  const save = async () => {
+    await setRowMerged('config_ui', '_app', { name: name.trim() });
+    setSaved(true);
+  };
+
+  return (
+    <article className="settings-card">
+      <header className="settings-card-head">
+        <span className="settings-card-icon"><Sparkles size={15} /></span>
+        <h2>Nombre de la aplicación</h2>
+        <button className="btn-primary btn-gradient" onClick={() => void save()}>
+          {saved ? <Check size={15} /> : <Save size={15} />}
+          {saved ? 'Guardado' : 'Guardar nombre'}
+        </button>
+      </header>
+      <div className="settings-toolbar">
+        <div className="field">
+          <label htmlFor="set-appname">Se muestra en el menú lateral y en la pestaña del navegador</label>
+          <input
+            id="set-appname"
+            value={name}
+            placeholder="GlassWorks"
+            onChange={(e) => { setName(e.target.value); setSaved(false); }}
+          />
+        </div>
+      </div>
+    </article>
   );
 }
 

@@ -3,7 +3,8 @@ import { FileDown, FileUp, Loader2 } from 'lucide-react';
 import type { ModuleDef } from '../config/modules';
 import type { Row } from '../services/firestore';
 import { createMany } from '../services/firestore';
-import { buildCsv, csvToObjects, downloadCsv, parseCsv } from '../utils/csv';
+import { csvToObjects, parseCsv } from '../utils/csv';
+import { downloadExcelTemplate } from '../utils/excel';
 import './ImportExportBar.css';
 
 interface Props {
@@ -32,10 +33,15 @@ export default function ImportExportBar({ module, rows }: Props) {
   const [importing, setImporting] = useState(false);
   const [message, setMessage] = useState('');
 
-  const handleExport = () => {
-    const headers = ['id', ...module.fields.map((f) => f.key)];
-    const csv = buildCsv(headers, rows);
-    downloadCsv(`${module.sqlName}_template.csv`, csv);
+  const [exporting, setExporting] = useState(false);
+
+  const handleExport = async () => {
+    setExporting(true);
+    try {
+      await downloadExcelTemplate(module, rows);
+    } finally {
+      setExporting(false);
+    }
   };
 
   const handleFile = async (file: File) => {
@@ -60,8 +66,8 @@ export default function ImportExportBar({ module, rows }: Props) {
 
   return (
     <div className="import-export-bar">
-      <button className="btn-outline" onClick={handleExport}>
-        <FileDown size={15} />
+      <button className="btn-outline" onClick={() => void handleExport()} disabled={exporting}>
+        {exporting ? <Loader2 size={15} className="spin" /> : <FileDown size={15} />}
         Exportar template Excel
       </button>
       <button className="btn-outline" onClick={() => fileRef.current?.click()} disabled={importing}>

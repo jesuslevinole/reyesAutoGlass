@@ -5,6 +5,7 @@ import type { NavItem } from '../config/modules';
 import './Sidebar.css';
 
 interface Props {
+  appName: string;
   items: NavItem[];
   current: string;
   open: boolean;
@@ -12,14 +13,14 @@ interface Props {
   onClose: () => void;
 }
 
-export default function Sidebar({ items, current, open, onNavigate, onClose }: Props) {
+export default function Sidebar({ appName, items, current, open, onNavigate, onClose }: Props) {
   return (
     <>
       <div className={`sidebar-scrim${open ? ' visible' : ''}`} onClick={onClose} aria-hidden="true" />
       <aside className={`sidebar${open ? ' open' : ''}`}>
         <div className="sidebar-brand">
           <span className="brand-glyph"><GlassWater size={20} /></span>
-          <span className="brand-name">GlassWorks</span>
+          <span className="brand-name">{appName}</span>
           <button className="sidebar-close" onClick={onClose} aria-label="Cerrar menú">
             <X size={18} />
           </button>

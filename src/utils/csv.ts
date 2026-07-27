@@ -1,35 +1,5 @@
-// Exportación de templates CSV (compatibles con Excel vía BOM UTF-8)
-// e importación de CSV para poblar Firestore desde bases SQL exportadas.
-
-function escapeCell(value: unknown): string {
-  const s = value === null || value === undefined ? '' : String(value);
-  if (/[",\n\r]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
-  return s;
-}
-
-/** Genera el contenido CSV: fila de encabezados (nombres de columna SQL) + datos actuales. */
-export function buildCsv(headers: string[], rows: Record<string, unknown>[]): string {
-  const head = headers.map(escapeCell).join(',');
-  const body = rows.map((r) =>
-    headers.map((h) => {
-      const v = r[h];
-      // Los ENUMLIST (arrays) se serializan separados por " , " estilo AppSheet
-      return escapeCell(Array.isArray(v) ? v.join(' , ') : v);
-    }).join(','),
-  );
-  return [head, ...body].join('\r\n');
-}
-
-/** Descarga el CSV con BOM para que Excel lo abra con acentos correctos. */
-export function downloadCsv(filename: string, csv: string): void {
-  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  a.click();
-  URL.revokeObjectURL(url);
-}
+// Importación de CSV para poblar Firestore desde bases SQL exportadas.
+// (La exportación del template se hace en utils/excel.ts como .xlsx real.)
 
 /** Parser CSV con soporte de comillas dobles y saltos de línea dentro de celdas. */
 export function parseCsv(text: string): string[][] {
