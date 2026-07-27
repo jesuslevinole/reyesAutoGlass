@@ -1,4 +1,5 @@
 import { CircleDot, GlassWater, X } from 'lucide-react';
+import { firebaseProjectId } from '../firebase';
 import { MODULE_ICONS } from '../config/moduleIcons';
 import type { NavItem } from '../config/modules';
 import './Sidebar.css';
@@ -45,6 +46,7 @@ export default function Sidebar({ items, current, open, onNavigate, onClose }: P
 
         <div className="sidebar-foot">
           <p>Taller de vidrios · v1.0</p>
+          <p className="sidebar-project">Firebase: {firebaseProjectId}</p>
         </div>
       </aside>
     </>

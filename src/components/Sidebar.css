@@ -108,3 +108,10 @@
   }
   .sidebar-scrim.visible { opacity: 1; pointer-events: auto; }
 }
+
+.sidebar-project {
+  margin-top: 3px;
+  font-size: 10.5px;
+  font-family: 'Cascadia Code', Consolas, monospace;
+  letter-spacing: .3px;
+}

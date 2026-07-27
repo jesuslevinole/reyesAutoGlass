@@ -13,3 +13,6 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app);
+
+/** Visible en el pie del sidebar para confirmar a qué proyecto está conectada la app. */
+export const firebaseProjectId: string = firebaseConfig.projectId ?? 'sin configurar';

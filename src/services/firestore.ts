@@ -15,10 +15,20 @@ import { db } from '../firebase';
  *  ⭐ `unknown` (no `any`): cada vista castea al tipo canónico donde lo necesita. */
 export type Row = { id: string } & Record<string, unknown>;
 
-export function subscribe(collectionName: string, cb: (rows: Row[]) => void): () => void {
-  return onSnapshot(collection(db, collectionName), (snap) => {
-    cb(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
-  });
+export function subscribe(
+  collectionName: string,
+  cb: (rows: Row[]) => void,
+  onError?: (error: Error) => void,
+): () => void {
+  return onSnapshot(
+    collection(db, collectionName),
+    (snap) => { cb(snap.docs.map((d) => ({ id: d.id, ...d.data() }))); },
+    (error) => {
+      // Sin esto, un error de permisos se ve idéntico a una colección vacía.
+      console.error(`[Firestore] Error leyendo "${collectionName}":`, error.code, error.message);
+      onError?.(error);
+    },
+  );
 }
 
 export async function fetchAll(collectionName: string): Promise<Row[]> {

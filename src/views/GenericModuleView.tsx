@@ -66,12 +66,17 @@ export default function GenericModuleView({ module, onOpenRow }: Props) {
   const [editing, setEditing] = useState<Row | null>(null);
   const [form, setForm] = useState<FormState>(() => emptyForm(module));
   const [saving, setSaving] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const sections = useMemo(() => module.sections ?? [DEFAULT_SECTION], [module]);
   const [activeSection, setActiveSection] = useState(sections[0].id);
 
   // Colección principal en tiempo real
-  useEffect(() => subscribe(module.collection, setRows), [module.collection]);
+  useEffect(() => subscribe(
+    module.collection,
+    (r) => { setRows(r); setLoadError(null); },
+    (error) => setLoadError(error.message),
+  ), [module.collection]);
 
   // Catálogos referenciados por FK: carga única al montar el módulo.
   useEffect(() => {
@@ -178,6 +183,15 @@ export default function GenericModuleView({ module, onOpenRow }: Props) {
         </div>
         <span className="row-count">{filtered.length} registros</span>
       </div>
+
+      {loadError && (
+        <div className="load-error" role="alert">
+          <strong>No se pudo leer la colección «{module.collection}».</strong> {loadError}
+          {loadError.toLowerCase().includes('permission') && (
+            <span> — Las reglas de Firestore están bloqueando la lectura. Revisa Firebase Console → Firestore → Reglas.</span>
+          )}
+        </div>
+      )}
 
       <div className="table-wrap">
         <table className="data-table">
