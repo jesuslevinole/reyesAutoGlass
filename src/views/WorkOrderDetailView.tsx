@@ -27,11 +27,11 @@ export default function WorkOrderDetailView({ workOrderId, onBack }: Props) {
   const [catalogs, setCatalogs] = useState<Record<string, Row[]>>({});
 
   // Colecciones vivas: la orden y sus hijos cambian mientras el taller trabaja.
-  useEffect(() => subscribe('workorders', (rows) => {
+  useEffect(() => subscribe('work_orders', (rows) => {
     setOrder(rows.find((r) => r.id === workOrderId) ?? null);
   }), [workOrderId]);
 
-  useEffect(() => subscribe('servicesdetail', (rows) => {
+  useEffect(() => subscribe('work_order_details', (rows) => {
     setDetails(rows.filter((r) => r.idWorkorder === workOrderId));
   }), [workOrderId]);
 
@@ -41,8 +41,8 @@ export default function WorkOrderDetailView({ workOrderId, onBack }: Props) {
 
   // Catálogos para resolver FKs: carga única, cambian poco.
   useEffect(() => {
-    const names = ['cat_status', 'customers', 'agents', 'cat_zipcode', 'insurances',
-      'distributors', 'cat_jobtype', 'cat_partnumber', 'cat_paymentmethod'];
+    const names = ['catalog_status', 'customers', 'agents', 'catalog_zipcode', 'catalog_insurance',
+      'distributors', 'catalog_jobtype', 'catalog_part_number', 'catalog_payment_method'];
     let cancelled = false;
     void Promise.all(names.map(async (c) => [c, await fetchAll(c)] as const)).then((pairs) => {
       if (!cancelled) setCatalogs(Object.fromEntries(pairs));
@@ -89,9 +89,9 @@ export default function WorkOrderDetailView({ workOrderId, onBack }: Props) {
           <div className="wo-title-meta">
             <span
               className="status-chip"
-              style={{ '--chip-color': getRelationColor(order.idStatus, cat('cat_status')) } as CSSProperties}
+              style={{ '--chip-color': getRelationColor(order.idStatus, cat('catalog_status')) } as CSSProperties}
             >
-              {getRelationName(order.idStatus, cat('cat_status'))}
+              {getRelationName(order.idStatus, cat('catalog_status'))}
             </span>
             <span className={`enum-badge enum-${String(order.insuranceType).toLowerCase()}`}>
               {String(order.insuranceType)}
@@ -121,12 +121,12 @@ export default function WorkOrderDetailView({ workOrderId, onBack }: Props) {
           <dl className="spec-list">
             <div><dt>Cliente</dt><dd>{getRelationName(order.idCustomer, cat('customers'))}</dd></div>
             <div><dt>Agente</dt><dd>{getRelationName(order.idAgent, cat('agents'))}</dd></div>
-            <div><dt>Zona</dt><dd>{getRelationName(order.idZipcode, cat('cat_zipcode'))}</dd></div>
+            <div><dt>Zona</dt><dd>{getRelationName(order.idZipcode, cat('catalog_zipcode'))}</dd></div>
             <div><dt>Fecha de cita</dt><dd>{formatDate(order.appointmentDate)}</dd></div>
             <div><dt>Entrada</dt><dd>{str(order.timeIn)}</dd></div>
             <div><dt>Salida</dt><dd>{str(order.timeOut)}</dd></div>
             {isInsurance && (
-              <div><dt>Aseguradora</dt><dd>{getRelationName(order.idInsurance, cat('insurances'))}</dd></div>
+              <div><dt>Aseguradora</dt><dd>{getRelationName(order.idInsurance, cat('catalog_insurance'))}</dd></div>
             )}
           </dl>
         </article>
@@ -180,8 +180,8 @@ export default function WorkOrderDetailView({ workOrderId, onBack }: Props) {
                   <td>
                     <span className={`enum-badge enum-${String(d.type).toLowerCase()}`}>{String(d.type)}</span>
                   </td>
-                  <td>{getRelationName(d.idJobtype, cat('cat_jobtype'))}</td>
-                  <td>{getRelationName(d.idPartnumber, cat('cat_partnumber'))}</td>
+                  <td>{getRelationName(d.idJobtype, cat('catalog_jobtype'))}</td>
+                  <td>{getRelationName(d.idPartnumber, cat('catalog_part_number'))}</td>
                   <td>{getRelationName(d.idDistributor, cat('distributors'))}</td>
                   <td className="mono">{str(d.orderNumber)}</td>
                   <td className="cell-money">{money(d.glassCost)}</td>
@@ -219,7 +219,7 @@ export default function WorkOrderDetailView({ workOrderId, onBack }: Props) {
             <tbody>
               {payments.map((p) => (
                 <tr key={p.id}>
-                  <td>{getRelationName(p.idPaymentmethod, cat('cat_paymentmethod'))}</td>
+                  <td>{getRelationName(p.idPaymentmethod, cat('catalog_payment_method'))}</td>
                   <td className="mono">
                     {p.cardLast4 ? `${str(p.cardBrand)} ····${String(p.cardLast4)}` : '—'}
                   </td>

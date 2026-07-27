@@ -24,9 +24,9 @@ export default function DashboardView() {
   const [statuses, setStatuses] = useState<CatStatus[]>([]);
   const [distributors, setDistributors] = useState<Row[]>([]);
 
-  useEffect(() => subscribe('workorders', (r) => setOrders(r as unknown as WorkOrder[])), []);
-  useEffect(() => subscribe('servicesdetail', (r) => setDetails(r as unknown as ServicesDetail[])), []);
-  useEffect(() => subscribe('cat_status', (r) => setStatuses(r as unknown as CatStatus[])), []);
+  useEffect(() => subscribe('work_orders', (r) => setOrders(r as unknown as WorkOrder[])), []);
+  useEffect(() => subscribe('work_order_details', (r) => setDetails(r as unknown as ServicesDetail[])), []);
+  useEffect(() => subscribe('catalog_status', (r) => setStatuses(r as unknown as CatStatus[])), []);
   useEffect(() => subscribe('distributors', setDistributors), []);
 
   const kpis = useMemo(() => {
