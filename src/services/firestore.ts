@@ -1,6 +1,8 @@
 import {
   addDoc,
   collection,
+  limit,
+  query,
   deleteDoc,
   doc,
   getDocs,
@@ -33,6 +35,12 @@ export function subscribe(
 
 export async function fetchAll(collectionName: string): Promise<Row[]> {
   const snap = await getDocs(collection(db, collectionName));
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+}
+
+/** Trae solo N documentos — para inspección de estructura sin descargar la colección completa. */
+export async function fetchSample(collectionName: string, count = 1): Promise<Row[]> {
+  const snap = await getDocs(query(collection(db, collectionName), limit(count)));
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
 }
 

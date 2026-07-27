@@ -370,6 +370,43 @@ export const MODULES: ModuleDef[] = [
       { key: 'type', label: 'Tipo', type: 'enum', options: ['SERVICES', 'EXPENSES', 'ALL'], inList: true, required: true },
     ],
   },
+  {
+    id: 'cat_molding',
+    collection: 'catalog_molding',
+    sqlName: 'CAT_MOLDING',
+    title: 'Moldings',
+    singular: 'Molding',
+    description: 'Catálogo de moldings',
+    fields: [
+      // ⭐ Campos provisionales: ajustar cuando conozcamos la estructura real (ver Inspector)
+      { key: 'name', label: 'Nombre', type: 'text', inList: true, required: true },
+      { key: 'amount', label: 'Monto', type: 'decimal', inList: true },
+    ],
+  },
+  {
+    id: 'cat_tag',
+    collection: 'catalog_tag',
+    sqlName: 'CAT_TAG',
+    title: 'Tags',
+    singular: 'Tag',
+    description: 'Etiquetas / posibles status de órdenes',
+    fields: [
+      { key: 'name', label: 'Nombre', type: 'text', inList: true, required: true },
+      { key: 'color', label: 'Color', type: 'color', inList: true },
+    ],
+  },
+  {
+    id: 'cat_expenses',
+    collection: 'catalog_expenses',
+    sqlName: 'CAT_EXPENSES',
+    title: 'Gastos',
+    singular: 'Gasto',
+    description: 'Catálogo de tipos de gasto',
+    fields: [
+      { key: 'name', label: 'Nombre', type: 'text', inList: true, required: true },
+      { key: 'amount', label: 'Monto', type: 'decimal', inList: true },
+    ],
+  },
 ];
 
 export function getModule(id: string): ModuleDef {
@@ -382,6 +419,7 @@ export function getModule(id: string): ModuleDef {
 export const CATALOG_IDS = [
   'cat_status', 'cat_zipcode', 'cat_company', 'cat_jobtype',
   'cat_calibrationtype', 'cat_pricetier', 'cat_partnumber', 'cat_paymentmethod',
+  'cat_molding', 'cat_tag', 'cat_expenses',
 ] as const;
 
 export interface NavItem {

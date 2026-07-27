@@ -1,9 +1,9 @@
 import { useMemo, useState } from 'react';
-import { ArrowDown, ArrowUp, Check, ListOrdered, PanelLeft, Save, Sparkles, Type } from 'lucide-react';
+import { ArrowDown, ArrowUp, Check, ListOrdered, Loader2, PanelLeft, Save, ScanSearch, Sparkles, Type } from 'lucide-react';
 import { MODULES } from '../config/modules';
 import type { ModuleDef, NavItem } from '../config/modules';
 import type { Row } from '../services/firestore';
-import { setRowMerged } from '../services/firestore';
+import { fetchSample, setRowMerged } from '../services/firestore';
 import './SettingsView.css';
 
 interface Props {
@@ -34,6 +34,7 @@ export default function SettingsView({ uiConfig, navItems }: Props) {
       <AppNameCard uiConfig={uiConfig} />
       <MenuOrderCard navItems={navItems} />
       <ModuleCustomizer uiConfig={uiConfig} />
+      <CollectionInspector />
     </section>
   );
 }
@@ -269,5 +270,88 @@ function ModuleEditor({ module, configDoc }: EditorProps) {
         </div>
       </div>
     </>
+  );
+}
+
+/* ==================== Inspector de colecciones ==================== */
+
+/** Colecciones a inspeccionar: las que usa la app + las detectadas en Firebase Console. */
+const INSPECT_COLLECTIONS = [
+  'work_orders', 'work_order_details', 'customers', 'team',
+  'agent_commissions', 'commission_payments',
+  'catalog_status', 'catalog_tag', 'catalog_zipcode', 'catalog_company',
+  'catalog_jobtype', 'catalog_calibration_type', 'catalog_price_tier',
+  'catalog_part_number', 'catalog_payment_method', 'catalog_insurance',
+  'catalog_molding', 'catalog_expenses', 'catalog_vehicle',
+];
+
+type InspectResult = Record<string, { fields: [string, string][] } | 'empty' | { error: string }>;
+
+function preview(value: unknown): string {
+  if (value === null || value === undefined) return 'null';
+  if (Array.isArray(value)) return `[${value.length} items]`;
+  const s = typeof value === 'object' ? JSON.stringify(value) : String(value);
+  return s.length > 34 ? `${s.slice(0, 34)}…` : s;
+}
+
+function CollectionInspector() {
+  const [result, setResult] = useState<InspectResult | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const run = async () => {
+    setBusy(true);
+    const out: InspectResult = {};
+    for (const name of INSPECT_COLLECTIONS) {
+      try {
+        // limit(1): seguro incluso para colecciones enormes como catalog_vehicle
+        const [doc] = await fetchSample(name, 1);
+        out[name] = doc
+          ? { fields: Object.entries(doc).filter(([k]) => k !== 'id').map(([k, val]) => [k, preview(val)] as [string, string]) }
+          : 'empty';
+      } catch (err) {
+        out[name] = { error: err instanceof Error ? err.message : 'error' };
+      }
+      setResult({ ...out });
+    }
+    setBusy(false);
+  };
+
+  return (
+    <article className="settings-card">
+      <header className="settings-card-head">
+        <span className="settings-card-icon"><ScanSearch size={15} /></span>
+        <h2>Inspector de colecciones (Firebase)</h2>
+        <button className="btn-primary btn-gradient" onClick={() => void run()} disabled={busy}>
+          {busy ? <Loader2 size={15} className="spin" /> : <ScanSearch size={15} />}
+          {busy ? 'Analizando…' : 'Analizar colecciones'}
+        </button>
+      </header>
+      <p className="settings-hint">
+        Lee 1 documento de muestra por colección y muestra sus campos reales — útil para mapear la base de datos existente.
+      </p>
+      {result && (
+        <ul className="inspector-list">
+          {INSPECT_COLLECTIONS.filter((c) => result[c] !== undefined).map((name) => {
+            const r = result[name];
+            return (
+              <li key={name}>
+                <strong className="inspector-name">{name}</strong>
+                {r === 'empty' ? (
+                  <span className="inspector-empty">(vacía o no existe)</span>
+                ) : 'error' in (r as object) ? (
+                  <span className="inspector-error">{(r as { error: string }).error}</span>
+                ) : (
+                  <ul className="inspector-fields">
+                    {(r as { fields: [string, string][] }).fields.map(([key, val]) => (
+                      <li key={key}><code>{key}</code><span>{val}</span></li>
+                    ))}
+                  </ul>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </article>
   );
 }

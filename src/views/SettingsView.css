@@ -138,3 +138,54 @@
   .settings-columns { grid-template-columns: 1fr; }
   .settings-toolbar { grid-template-columns: 1fr; }
 }
+
+/* ============ Inspector de colecciones ============ */
+.inspector-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 14px;
+}
+.inspector-list > li {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: #fbfcff;
+  padding: 12px 14px;
+}
+.inspector-name {
+  display: block;
+  font-family: 'Cascadia Code', Consolas, monospace;
+  font-size: 13px;
+  color: var(--blue-deep);
+  margin-bottom: 8px;
+}
+.inspector-empty { font-size: 12.5px; color: var(--ink-faint); font-style: italic; }
+.inspector-error { font-size: 12.5px; color: var(--red); }
+.inspector-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 4px 18px;
+}
+.inspector-fields li {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 12px;
+  padding: 2px 0;
+  border-bottom: 1px dashed #edf0fa;
+}
+.inspector-fields code {
+  font-family: 'Cascadia Code', Consolas, monospace;
+  color: var(--ink);
+  font-weight: 600;
+}
+.inspector-fields span {
+  color: var(--ink-soft);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 55%;
+}
+.spin { animation: settings-spin 1s linear infinite; }
+@keyframes settings-spin { to { transform: rotate(360deg); } }
