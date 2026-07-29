@@ -252,23 +252,27 @@ export default function WorkOrderWizard({ initialRow, onClose }: Props) {
     if (!zip) return;
     const tax = num(getFieldValue(zip, { key: 'tax' }));
     const longTrip = num(getFieldValue(zip, { key: 'longTrip', altKeys: ['long_trip'] }));
-    setForm((prev) => ({
-      ...prev,
-      idZipcode: id,
-      taxPercent: tax < 1 ? Math.round(tax * 10000) / 100 : tax,
-      longTrip,
-    }));
+    setForm((prev) => {
+      const percent = tax < 1 ? Math.round(tax * 10000) / 100 : tax;
+      return {
+        ...prev,
+        idZipcode: id,
+        taxPercent: percent,
+        taxDolar: taxFor(num(prev.subtotalPart), percent),
+        longTrip,
+      };
+    });
   };
 
-  const recomputeTax = (percent: number, base: number) =>
-    Math.round(base * percent) / 100;
+  /** Fórmula del cliente: TAX_DOLAR = SUBTOTAL_PART × TAX_PERCENT. */
+  const taxFor = (subtotalPart: number, percent: number) =>
+    Math.round(subtotalPart * percent) / 100;
 
   const onTaxPercent = (raw: string) => {
-    const pct = num(raw);
     setForm((prev) => ({
       ...prev,
       taxPercent: raw,
-      taxDolar: recomputeTax(pct, num(prev.subtotalPart) + num(prev.subtotalMolding) + num(prev.subtotalServices)),
+      taxDolar: taxFor(num(prev.subtotalPart), num(raw)),
     }));
   };
 
@@ -309,23 +313,26 @@ export default function WorkOrderWizard({ initialRow, onClose }: Props) {
   const applyDrafts = (next: DetailDraft[]) => {
     setDrafts(next);
     if (next.length === 0) return;
-    setForm((prev) => ({ ...prev, ...computeTotals(next, prev.insuranceType === 'Insurance') }));
+    setForm((prev) => {
+      const totals = computeTotals(next, prev.insuranceType === 'Insurance');
+      return { ...prev, ...totals, taxDolar: taxFor(totals.subtotalPart, num(prev.taxPercent)) };
+    });
   };
 
   /** Al editar una orden, los totales se recalculan desde sus detalles reales. */
   const applyLiveTotals = (list: Row[]) => {
     if (list.length === 0) return;
-    setForm((prev) => ({
-      ...prev,
-      ...computeTotals(list.map((r) => {
+    setForm((prev) => {
+      const totals = computeTotals(list.map((r) => {
         const d: DetailDraft = {};
         for (const f of getModule('servicesdetail').fields) {
           const v = getFieldValue(r, f);
           if (v !== undefined) d[f.key] = v;
         }
         return d;
-      }), prev.insuranceType === 'Insurance'),
-    }));
+      }), prev.insuranceType === 'Insurance');
+      return { ...prev, ...totals, taxDolar: taxFor(totals.subtotalPart, num(prev.taxPercent)) };
+    });
   };
 
   const removeDraft = (index: number) => applyDrafts(drafts.filter((_, i) => i !== index));
@@ -659,7 +666,27 @@ export default function WorkOrderWizard({ initialRow, onClose }: Props) {
           {tabName === 'Totals' && (
             <>
               <SectionCard icon={<Calculator size={15} />} title="Subtotals">
-                {moneyInput('Subtotal part', 'subtotalPart')}
+                <div className="wz-field" key="subtotalPart">
+                  <label htmlFor="wz-subtotalPart">Subtotal part <code className="wz-key">subtotalPart</code></label>
+                  <div className="wz-money">
+                    <span>$</span>
+                    <input
+                      id="wz-subtotalPart"
+                      type="number"
+                      step="0.01"
+                      value={String(form.subtotalPart ?? '')}
+                      placeholder="0.00"
+                      onChange={(e) => {
+                        const raw = e.target.value;
+                        setForm((prev) => ({
+                          ...prev,
+                          subtotalPart: raw,
+                          taxDolar: taxFor(num(raw), num(prev.taxPercent)),
+                        }));
+                      }}
+                    />
+                  </div>
+                </div>
                 {moneyInput('Subtotal molding', 'subtotalMolding')}
                 {moneyInput('Subtotal services', 'subtotalServices')}
                 {moneyInput('Total labor', 'totalLabor')}
