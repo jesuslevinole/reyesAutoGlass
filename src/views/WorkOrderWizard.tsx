@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
-  Check, ChevronLeft, ChevronRight, Minus, Plus, Trash2, X,
+  Calculator, Car, Check, ChevronLeft, ChevronRight, ClipboardList,
+  FileText, Minus, Plus, ShieldCheck, Trash2, UserRound, X,
 } from 'lucide-react';
 import SearchableSelect from '../components/SearchableSelect';
 import { getModule } from '../config/modules';
@@ -292,9 +293,9 @@ export default function WorkOrderWizard({ initialRow, onClose }: Props) {
   /** Select con búsqueda + botón de alta rápida al catálogo. */
   const catalogSelect = (
     label: string, key: string, collection: string,
-    opts?: { filtered?: { id: string; label: string }[]; onPick?: (id: string) => void },
+    opts?: { filtered?: { id: string; label: string }[]; onPick?: (id: string) => void; full?: boolean },
   ) => (
-    <div className="wz-field" key={key}>
+    <div className={`wz-field${opts?.full ? ' wz-full' : ''}`} key={key}>
       <label htmlFor={`wz-${key}`}>{label}</label>
       <div className="wz-select-row">
         <SearchableSelect
@@ -383,7 +384,7 @@ export default function WorkOrderWizard({ initialRow, onClose }: Props) {
 
           {stepName === 'Work Order' && (
             <div className="wz-fields">
-              <div className="wz-field">
+              <div className="wz-field wz-full">
                 <span className="wz-label">Insurance</span>
                 <div className="wz-toggle" role="radiogroup" aria-label="Tipo de orden">
                   {['Personal', 'Insurance'].map((opt) => (
@@ -432,7 +433,7 @@ export default function WorkOrderWizard({ initialRow, onClose }: Props) {
               </div>
 
               {!initialRow && (
-                <div className="wz-services">
+                <div className="wz-services wz-full">
                   <div className="wz-services-head">
                     <span className="wz-label">Services part</span>
                     <button type="button" className="wz-new-btn" onClick={addService}>
@@ -480,7 +481,7 @@ export default function WorkOrderWizard({ initialRow, onClose }: Props) {
 
           {stepName === 'Cliente' && (
             <div className="wz-fields">
-              {catalogSelect('Customer', 'idCustomer', 'customers')}
+              {catalogSelect('Customer', 'idCustomer', 'customers', { full: true })}
               <div className="wz-field">
                 <label htmlFor="wz-cust-address">Address</label>
                 <input id="wz-cust-address" value={String(customer?.address ?? '')} readOnly placeholder="—" />
@@ -576,57 +577,76 @@ export default function WorkOrderWizard({ initialRow, onClose }: Props) {
 
         {/* ===== Sumario en vivo ===== */}
         <aside className="wz-summary">
+          <header className="wz-sum-head">
+            <span className="wz-sum-head-icon"><ClipboardList size={15} /></span>
+            <h3>Sumario de la orden</h3>
+            <span className={`wz-type-pill ${isInsurance ? 'ins' : 'per'}`}>{String(form.insuranceType)}</span>
+          </header>
+
           <div className="wz-total-banner">
             <span>Total de la orden</span>
             <strong>{money(computedTotal)}</strong>
+            <em>Balance pendiente: {money(balance)}</em>
           </div>
 
-          <h3>Sumario</h3>
-          <dl>
-            <div><dt>Tipo</dt><dd>{String(form.insuranceType ?? '—')}</dd></div>
-            <div><dt>Fecha</dt><dd>{String(form.dateRegister ?? '—')}</dd></div>
-            <div><dt>Status</dt><dd>{form.idStatus ? rowLabel(cat('catalog_tag').find((t) => t.id === form.idStatus)) : '—'}</dd></div>
-            <div><dt>Company</dt><dd>{form.idCompany ? rowLabel(cat('catalog_company').find((c) => c.id === form.idCompany)) : '—'}</dd></div>
-            <div><dt>Zipcode</dt><dd>{form.idZipcode ? rowLabel(cat('catalog_zipcode').find((z) => z.id === form.idZipcode)) : '—'}</dd></div>
-          </dl>
+          <section className="wz-sum-section">
+            <h4><FileText size={13} />Work Order</h4>
+            <dl>
+              <div><dt>Fecha</dt><dd>{String(form.dateRegister ?? '') || '—'}</dd></div>
+              <div><dt>Status</dt><dd>{form.idStatus ? rowLabel(cat('catalog_tag').find((t) => t.id === form.idStatus)) : '—'}</dd></div>
+              <div><dt>Company</dt><dd>{form.idCompany ? rowLabel(cat('catalog_company').find((c) => c.id === form.idCompany)) : '—'}</dd></div>
+              <div><dt>Zipcode</dt><dd>{form.idZipcode ? rowLabel(cat('catalog_zipcode').find((z) => z.id === form.idZipcode)) : '—'}</dd></div>
+            </dl>
+          </section>
 
-          <h4>Vehículo</h4>
-          <dl>
-            <div><dt>Year</dt><dd>{String(form.year ?? '—')}</dd></div>
-            <div><dt>VIN</dt><dd>{String(form.vinNumber ?? '—') || '—'}</dd></div>
-            <div><dt>Plate</dt><dd>{String(form.plate ?? '—') || '—'}</dd></div>
-            {!initialRow && <div><dt>Partes</dt><dd>{services.length}</dd></div>}
-          </dl>
+          <section className="wz-sum-section">
+            <h4><Car size={13} />Vehículo</h4>
+            <dl>
+              <div><dt>Year</dt><dd>{String(form.year ?? '') || '—'}</dd></div>
+              <div><dt>VIN</dt><dd>{String(form.vinNumber ?? '') || '—'}</dd></div>
+              <div><dt>Plate</dt><dd>{String(form.plate ?? '') || '—'}</dd></div>
+              {!initialRow && <div><dt>Partes capturadas</dt><dd>{services.length}</dd></div>}
+            </dl>
+          </section>
 
-          <h4>Cliente</h4>
-          <dl>
-            <div><dt>Customer</dt><dd>{customer ? rowLabel(customer as Row) : '—'}</dd></div>
-            <div><dt>Cita</dt><dd>{String(form.appointmentDate ?? '—') || '—'}</dd></div>
-            <div><dt>Horario</dt><dd>{form.timeIn || form.timeOut ? `${form.timeIn ?? ''} – ${form.timeOut ?? ''}` : '—'}</dd></div>
-          </dl>
+          <section className="wz-sum-section">
+            <h4><UserRound size={13} />Cliente</h4>
+            <dl>
+              <div><dt>Customer</dt><dd>{customer ? rowLabel(customer as Row) : '—'}</dd></div>
+              <div><dt>Cita</dt><dd>{String(form.appointmentDate ?? '') || '—'}</dd></div>
+              <div><dt>Horario</dt><dd>{form.timeIn || form.timeOut ? `${form.timeIn ?? ''} – ${form.timeOut ?? ''}` : '—'}</dd></div>
+            </dl>
+          </section>
 
           {isInsurance && (
-            <>
-              <h4>Insurance</h4>
+            <section className="wz-sum-section">
+              <h4><ShieldCheck size={13} />Insurance</h4>
               <dl>
                 <div><dt>Aseguradora</dt><dd>{form.idInsurance ? rowLabel(cat('catalog_insurance').find((i) => i.id === form.idInsurance)) : '—'}</dd></div>
                 <div><dt>Deducible</dt><dd>{money(num(form.deductible))}</dd></div>
+                <div><dt>ID Autorization</dt><dd>{String(form.idAutorization ?? '') || '—'}</dd></div>
               </dl>
-            </>
+            </section>
           )}
 
-          <h4>Totales</h4>
-          <dl>
-            <div><dt>Parts</dt><dd>{money(num(form.subtotalPart))}</dd></div>
-            <div><dt>Molding</dt><dd>{money(num(form.subtotalMolding))}</dd></div>
-            <div><dt>Services</dt><dd>{money(num(form.subtotalServices))}</dd></div>
-            <div><dt>Labor</dt><dd>{money(num(form.totalLabor))}</dd></div>
-            <div><dt>Tax</dt><dd>{money(num(form.taxDolar))}</dd></div>
-            <div><dt>Long trip</dt><dd>{money(num(form.longTrip))}</dd></div>
-            <div><dt>Upsell</dt><dd>{money(num(form.upsell))}</dd></div>
-            <div><dt>Paid</dt><dd>{money(num(form.paid))}</dd></div>
-            <div className="wz-sum-balance"><dt>Balance</dt><dd>{money(balance)}</dd></div>
-          </dl>
+          <section className="wz-sum-section">
+            <h4><Calculator size={13} />Totales</h4>
+            <div className="wz-sum-money">
+              <dl>
+                <div><dt>Subtotal parts</dt><dd>{money(num(form.subtotalPart))}</dd></div>
+                <div><dt>Subtotal molding</dt><dd>{money(num(form.subtotalMolding))}</dd></div>
+                <div><dt>Subtotal services</dt><dd>{money(num(form.subtotalServices))}</dd></div>
+                <div><dt>Labor</dt><dd>{money(num(form.totalLabor))}</dd></div>
+                <div><dt>Tax ({String(form.taxPercent ?? 0) || 0}%)</dt><dd>{money(num(form.taxDolar))}</dd></div>
+                <div><dt>Long trip</dt><dd>{money(num(form.longTrip))}</dd></div>
+                <div><dt>Upsell</dt><dd>{money(num(form.upsell))}</dd></div>
+                {num(form.discount) > 0 && <div className="negative"><dt>Descuento</dt><dd>−{money(num(form.discount))}</dd></div>}
+                <div className="wz-sum-grand"><dt>Total</dt><dd>{money(computedTotal)}</dd></div>
+                <div><dt>Pagado</dt><dd>{money(num(form.paid))}</dd></div>
+                <div className="wz-sum-balance"><dt>Balance</dt><dd>{money(balance)}</dd></div>
+              </dl>
+            </div>
+          </section>
         </aside>
       </div>
 
