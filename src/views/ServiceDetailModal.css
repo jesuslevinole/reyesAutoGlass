@@ -1,0 +1,122 @@
+/* Formulario "New Glass" — estructura del cliente: filas con label a la
+   izquierda, toggles de botones y bloques condicionales indentados. */
+
+.modal-card.sd-card {
+  width: min(680px, 96vw);
+  max-height: 92vh;
+  padding: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.sd-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 13px 18px;
+  border-bottom: 1px solid var(--border);
+  background: var(--paper);
+}
+.sd-head h2 { font-size: 16px; font-weight: 700; flex: 1; }
+.sd-head-actions { display: flex; gap: 9px; }
+
+.sd-body {
+  padding: 20px 26px 26px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+/* Fila: label izquierda (140px) + control */
+.sd-row {
+  display: grid;
+  grid-template-columns: 150px 1fr;
+  align-items: center;
+  gap: 16px;
+}
+.sd-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-soft);
+}
+
+/* Bloques condicionales (Description/Amount) ligeramente indentados */
+.sd-sub { padding-left: 18px; }
+.sd-sub .sd-label { color: #97a1b8; }
+
+.sd-input {
+  padding: 10px 13px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  outline: none;
+  transition: border-color .15s, box-shadow .15s;
+}
+.sd-input:focus {
+  border-color: var(--blue);
+  box-shadow: 0 0 0 3px rgba(53, 131, 246, .13);
+}
+
+/* Toggle de botones (Parts/Services/Molding, Yes/No, tiers, calibraciones) */
+.sd-toggle { display: flex; gap: 8px; flex-wrap: wrap; }
+.sd-toggle-btn {
+  flex: 1;
+  min-width: 84px;
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--paper);
+  font-weight: 600;
+  font-size: 13.5px;
+  color: var(--ink-soft);
+  transition: background .15s, color .15s, border-color .15s, box-shadow .15s;
+}
+.sd-toggle-btn:hover { border-color: var(--blue); color: var(--blue-deep); }
+.sd-toggle-btn.active {
+  background: var(--blue);
+  border-color: var(--blue);
+  color: #fff;
+  box-shadow: 0 4px 12px rgba(53, 131, 246, .3);
+}
+
+/* Money input */
+.sd-money {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  padding: 0 12px;
+  transition: border-color .15s, box-shadow .15s;
+}
+.sd-money:focus-within {
+  border-color: var(--blue);
+  box-shadow: 0 0 0 3px rgba(53, 131, 246, .13);
+}
+.sd-money > span { color: var(--ink-faint); font-weight: 600; }
+.sd-money input {
+  flex: 1;
+  border: none;
+  outline: none;
+  padding: 10px 0;
+  background: transparent;
+}
+
+/* Total labor destacado */
+.sd-total {
+  border-top: 1px solid var(--border);
+  padding-top: 15px;
+}
+.sd-total .sd-label { color: var(--ink); font-weight: 700; }
+.sd-total .sd-money { background: #f6f9ff; border-color: #bcd4fb; }
+.sd-total .sd-money input { font-weight: 700; }
+
+@media (max-width: 560px) {
+  .sd-row { grid-template-columns: 1fr; gap: 6px; }
+  .sd-sub { padding-left: 10px; }
+}
+
+/* Inputs calculados (grises, solo lectura) */
+.sd-money.readonly { background: #f6f8fc; }
+.sd-money.readonly input { color: var(--ink-soft); font-weight: 600; }

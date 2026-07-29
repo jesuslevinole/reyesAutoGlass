@@ -1,0 +1,487 @@
+import { useEffect, useMemo, useState } from 'react';
+import { X } from 'lucide-react';
+import SearchableSelect from '../components/SearchableSelect';
+import type { Row } from '../services/firestore';
+import { createRow, fetchAll, updateRow } from '../services/firestore';
+import { getModule } from '../config/modules';
+import { getFieldValue, rowLabel } from '../utils/relations';
+import './ServiceDetailModal.css';
+
+interface Props {
+  initialRow: Row | null;
+  onClose: () => void;
+}
+
+type Form = Record<string, unknown>;
+
+const CATALOGS = [
+  'work_orders', 'catalog_jobtype', 'catalog_part_number',
+  'catalog_company', 'catalog_price_tier', 'catalog_calibration_type',
+] as const;
+
+function num(v: unknown): number {
+  const n = typeof v === 'number' ? v : parseFloat(String(v ?? ''));
+  return Number.isFinite(n) ? n : 0;
+}
+
+/** Etiqueta legible de una work order para el select (número, vehículo o id). */
+function woLabel(wo: Row): string {
+  const r = wo as Record<string, unknown>;
+  const number = getFieldValue(r, { key: 'workOrderNumber', altKeys: ['work_order_number', 'wo_number', 'work_order'] });
+  if (typeof number === 'string' && number) return number;
+  const mark = getFieldValue(r, { key: 'mark', altKeys: ['make'] });
+  const model = getFieldValue(r, { key: 'model' });
+  const vehicle = [mark, model].filter(Boolean).join(' ');
+  return vehicle || `WO ${wo.id.slice(0, 6)}`;
+}
+
+/** Formulario "New Glass" del cliente: detalle de servicio con toggles condicionales. */
+export default function ServiceDetailModal({ initialRow, onClose }: Props) {
+  const module = useMemo(() => getModule('servicesdetail'), []);
+
+  const [form, setForm] = useState<Form>(() => {
+    const base: Form = { type: 'Parts', insurance: 'Personal', pricetier: false, calibrationType: false };
+    if (initialRow) {
+      for (const f of module.fields) {
+        const v = getFieldValue(initialRow, f);
+        if (v !== undefined) base[f.key] = v;
+      }
+      base.pricetier = Boolean(base.pricetier);
+      base.calibrationType = Boolean(base.calibrationType);
+    }
+    return base;
+  });
+  const [saving, setSaving] = useState(false);
+  const [catalogs, setCatalogs] = useState<Record<string, Row[]>>({});
+
+  useEffect(() => {
+    let alive = true;
+    void Promise.all(CATALOGS.map((c) => fetchAll(c))).then((results) => {
+      if (!alive) return;
+      setCatalogs(Object.fromEntries(CATALOGS.map((c, i) => [c, results[i]])));
+    });
+    return () => { alive = false; };
+  }, []);
+
+  const cat = (name: string) => catalogs[name] ?? [];
+  const set = (key: string, value: unknown) => setForm((prev) => ({ ...prev, [key]: value }));
+
+  /** Total Labor = price tier amount + calibration amount (editable después). */
+  const syncLabor = (patch: Form) => {
+    setForm((prev) => {
+      const next = { ...prev, ...patch };
+      next.totalLabor = num(next.pricetier ? next.amountPricetier : 0)
+        + num(next.calibrationType ? next.amountCalibrationtype : 0);
+      return next;
+    });
+  };
+
+  /** Cálculos NAGS (camino Insurance): precio con descuento y labor por hora. */
+  const round2 = (v: number) => Math.round(v * 100) / 100;
+  const syncNags = (patch: Form) => {
+    setForm((prev) => {
+      const next = { ...prev, ...patch };
+      const listPrice = num(next.listPrice);
+      const discountRate = num(next.nagsDiscountRate);
+      next.pricePartInsurance = round2(listPrice * (1 - discountRate / 100));
+      next.totalLaborHour = round2(num(next.nagsLaborHour) * num(next.priceForHour));
+      return next;
+    });
+  };
+
+  /** Elegir tier/calibración autollena su Amount desde el catálogo. */
+  const pickTier = (id: string) => {
+    const tier = cat('catalog_price_tier').find((t) => t.id === id) as Record<string, unknown> | undefined;
+    syncLabor({ idPricetier: id, amountPricetier: num(getFieldValue(tier ?? {}, { key: 'amount', altKeys: ['price'] })) });
+  };
+  const pickCalibration = (id: string) => {
+    const cal = cat('catalog_calibration_type').find((c) => c.id === id) as Record<string, unknown> | undefined;
+    syncLabor({ idCalibrationType: id, amountCalibrationtype: num(getFieldValue(cal ?? {}, { key: 'amount', altKeys: ['price'] })) });
+  };
+
+  // Jobtype filtrado por el Type elegido (Parts/Services); Molding muestra todos
+  const jobtypeOptions = useMemo(() => {
+    const all = catalogs['catalog_jobtype'] ?? [];
+    const type = String(form.type ?? '');
+    const filtered = (type === 'Parts' || type === 'Services')
+      ? all.filter((j) => String((j as Record<string, unknown>).type ?? '').includes(type))
+      : all;
+    return (filtered.length > 0 ? filtered : all).map((r) => ({ id: r.id, label: rowLabel(r) }));
+  }, [catalogs, form.type]);
+
+  const distributorOptions = useMemo(() =>
+    (catalogs['catalog_company'] ?? [])
+      .filter((c) => String((c as Record<string, unknown>).type ?? '').includes('Distributor'))
+      .map((r) => ({ id: r.id, label: rowLabel(r) })),
+  [catalogs]);
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      const data: Form = {};
+      for (const f of module.fields) {
+        if (form[f.key] !== undefined) data[f.key] = form[f.key];
+      }
+      // Sin el toggle activo, no se persisten selección ni monto
+      if (!form.pricetier) { data.idPricetier = ''; data.amountPricetier = 0; }
+      if (!form.calibrationType) { data.idCalibrationType = ''; data.amountCalibrationtype = 0; }
+      if (initialRow) await updateRow('work_order_details', initialRow.id, data);
+      else await createRow('work_order_details', data);
+      onClose();
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const yesNo = (key: string, onChange?: (value: boolean) => void) => (
+    <div className="sd-toggle" role="radiogroup">
+      {[false, true].map((value) => (
+        <button
+          key={String(value)}
+          type="button"
+          role="radio"
+          aria-checked={Boolean(form[key]) === value}
+          className={`sd-toggle-btn${Boolean(form[key]) === value ? ' active' : ''}`}
+          onClick={() => (onChange ? onChange(value) : set(key, value))}
+        >
+          {value ? 'Yes' : 'No'}
+        </button>
+      ))}
+    </div>
+  );
+
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="modal-card sd-card" onClick={(e) => e.stopPropagation()}>
+        <header className="sd-head">
+          <button type="button" className="btn-icon-ghost" onClick={onClose} aria-label="Close">
+            <X size={18} />
+          </button>
+          <h2>{initialRow ? 'Edit Glass' : 'New Glass'}</h2>
+          <div className="sd-head-actions">
+            <button type="button" className="btn-outline" onClick={onClose}>Cancel</button>
+            <button type="button" className="btn-primary" onClick={() => void save()} disabled={saving}>
+              {saving ? 'Saving…' : 'Save'}
+            </button>
+          </div>
+        </header>
+
+        <div className="sd-body">
+          <div className="sd-row">
+            <span className="sd-label">Work Order *</span>
+            <SearchableSelect
+              value={String(form.idWorkorder ?? '')}
+              options={cat('work_orders').map((wo) => ({ id: wo.id, label: woLabel(wo) }))}
+              required
+              onChange={(id) => set('idWorkorder', id)}
+            />
+          </div>
+
+          <div className="sd-row">
+            <span className="sd-label">Type</span>
+            <div className="sd-toggle" role="radiogroup" aria-label="Detail type">
+              {['Parts', 'Services', 'Molding'].map((opt) => (
+                <button
+                  key={opt}
+                  type="button"
+                  role="radio"
+                  aria-checked={form.type === opt}
+                  className={`sd-toggle-btn${form.type === opt ? ' active' : ''}`}
+                  onClick={() => set('type', opt)}
+                >
+                  {opt}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="sd-row">
+            <span className="sd-label">Jobtype</span>
+            <SearchableSelect
+              value={String(form.idJobtype ?? '')}
+              options={jobtypeOptions}
+              onChange={(id) => set('idJobtype', id)}
+            />
+          </div>
+
+          {form.type === 'Services' && (
+            <>
+              <div className="sd-row">
+                <span className="sd-label">Description</span>
+                <input
+                  className="sd-input"
+                  value={String(form.description ?? '')}
+                  aria-label="Service description"
+                  onChange={(e) => set('description', e.target.value)}
+                />
+              </div>
+              <div className="sd-row">
+                <span className="sd-label">Amount</span>
+                <div className="sd-money">
+                  <span>$</span>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={String(form.amount ?? '')}
+                    placeholder="0.00"
+                    aria-label="Service amount"
+                    onChange={(e) => set('amount', e.target.value)}
+                  />
+                </div>
+              </div>
+              <div className="sd-row">
+                <span className="sd-label">Note</span>
+                <input
+                  className="sd-input"
+                  value={String(form.note ?? '')}
+                  aria-label="Service note"
+                  onChange={(e) => set('note', e.target.value)}
+                />
+              </div>
+            </>
+          )}
+
+          <div className="sd-row">
+            <span className="sd-label">Part Number</span>
+            <SearchableSelect
+              value={String(form.idPartnumber ?? '')}
+              options={cat('catalog_part_number').map((r) => ({ id: r.id, label: rowLabel(r) }))}
+              onChange={(id) => set('idPartnumber', id)}
+            />
+          </div>
+
+          <div className="sd-row">
+            <span className="sd-label">Glass Cost</span>
+            <div className="sd-money">
+              <span>$</span>
+              <input
+                type="number"
+                step="0.01"
+                value={String(form.glassCost ?? '')}
+                placeholder="0.00"
+                aria-label="Glass cost"
+                onChange={(e) => set('glassCost', e.target.value)}
+              />
+            </div>
+          </div>
+
+          <div className="sd-row">
+            <span className="sd-label">Distributor</span>
+            <SearchableSelect
+              value={String(form.idDistributor ?? '')}
+              options={distributorOptions}
+              onChange={(id) => set('idDistributor', id)}
+            />
+          </div>
+
+          <div className="sd-row">
+            <span className="sd-label">Order number</span>
+            <input
+              className="sd-input"
+              value={String(form.orderNumber ?? '')}
+              aria-label="Order number"
+              onChange={(e) => set('orderNumber', e.target.value)}
+            />
+          </div>
+
+          <div className="sd-row">
+            <span className="sd-label">Insurance *</span>
+            <div className="sd-toggle" role="radiogroup" aria-label="Insurance type">
+              {['Personal', 'Insurance'].map((opt) => (
+                <button
+                  key={opt}
+                  type="button"
+                  role="radio"
+                  aria-checked={form.insurance === opt}
+                  className={`sd-toggle-btn${form.insurance === opt ? ' active' : ''}`}
+                  onClick={() => set('insurance', opt)}
+                >
+                  {opt}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* ===== NAGS (Parts + Insurance): precio con descuento y labor por hora ===== */}
+          {form.type === 'Parts' && form.insurance === 'Insurance' && (
+            <>
+              <div className="sd-row">
+                <span className="sd-label">List Price</span>
+                <div className="sd-money">
+                  <span>$</span>
+                  <input
+                    type="number"
+                    step="0.0001"
+                    value={String(form.listPrice ?? '')}
+                    placeholder="0.0000"
+                    aria-label="List price"
+                    onChange={(e) => syncNags({ listPrice: e.target.value })}
+                  />
+                </div>
+              </div>
+              <div className="sd-row">
+                <span className="sd-label">Nags Discount Rate</span>
+                <div className="sd-money">
+                  <span>%</span>
+                  <input
+                    type="number"
+                    step="0.0001"
+                    value={String(form.nagsDiscountRate ?? '')}
+                    placeholder="0.0000"
+                    aria-label="NAGS discount rate"
+                    onChange={(e) => syncNags({ nagsDiscountRate: e.target.value })}
+                  />
+                </div>
+              </div>
+              <div className="sd-row">
+                <span className="sd-label">Price Part Insurance</span>
+                <div className="sd-money readonly">
+                  <span>$</span>
+                  <input
+                    value={String(form.pricePartInsurance ?? '0.00')}
+                    readOnly
+                    aria-label="Price part insurance (computed)"
+                  />
+                </div>
+              </div>
+              <div className="sd-row">
+                <span className="sd-label">Nags Labor Hour</span>
+                <input
+                  className="sd-input"
+                  type="number"
+                  step="0.0001"
+                  value={String(form.nagsLaborHour ?? '')}
+                  placeholder="0.0000"
+                  aria-label="NAGS labor hours"
+                  onChange={(e) => syncNags({ nagsLaborHour: e.target.value })}
+                />
+              </div>
+              <div className="sd-row">
+                <span className="sd-label">Price For Hour</span>
+                <div className="sd-money">
+                  <span>$</span>
+                  <input
+                    type="number"
+                    step="0.0001"
+                    value={String(form.priceForHour ?? '')}
+                    placeholder="0.0000"
+                    aria-label="Price per hour"
+                    onChange={(e) => syncNags({ priceForHour: e.target.value })}
+                  />
+                </div>
+              </div>
+              <div className="sd-row">
+                <span className="sd-label">Total Labor Hour</span>
+                <div className="sd-money readonly">
+                  <span>$</span>
+                  <input
+                    value={String(form.totalLaborHour ?? '0.00')}
+                    readOnly
+                    aria-label="Total labor hour (computed)"
+                  />
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* ===== Price tier: No/Yes → descripción del catálogo + monto autollenado ===== */}
+          <div className="sd-row">
+            <span className="sd-label">Price tier</span>
+            {yesNo('pricetier', (value) => syncLabor({ pricetier: value }))}
+          </div>
+          {Boolean(form.pricetier) && (
+            <>
+              <div className="sd-row sd-sub">
+                <span className="sd-label">Description</span>
+                <div className="sd-toggle" role="radiogroup" aria-label="Price tier">
+                  {cat('catalog_price_tier').map((tier) => (
+                    <button
+                      key={tier.id}
+                      type="button"
+                      role="radio"
+                      aria-checked={form.idPricetier === tier.id}
+                      className={`sd-toggle-btn${form.idPricetier === tier.id ? ' active' : ''}`}
+                      onClick={() => pickTier(tier.id)}
+                    >
+                      {rowLabel(tier)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="sd-row sd-sub">
+                <span className="sd-label">Amount</span>
+                <div className="sd-money">
+                  <span>$</span>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={String(form.amountPricetier ?? '')}
+                    placeholder="0.00"
+                    aria-label="Price tier amount"
+                    onChange={(e) => syncLabor({ amountPricetier: e.target.value })}
+                  />
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* ===== Calibration: No/Yes → descripción + monto autollenado ===== */}
+          <div className="sd-row">
+            <span className="sd-label">Calibration type</span>
+            {yesNo('calibrationType', (value) => syncLabor({ calibrationType: value }))}
+          </div>
+          {Boolean(form.calibrationType) && (
+            <>
+              <div className="sd-row sd-sub">
+                <span className="sd-label">Description</span>
+                <div className="sd-toggle" role="radiogroup" aria-label="Calibration type">
+                  {cat('catalog_calibration_type').map((cal) => (
+                    <button
+                      key={cal.id}
+                      type="button"
+                      role="radio"
+                      aria-checked={form.idCalibrationType === cal.id}
+                      className={`sd-toggle-btn${form.idCalibrationType === cal.id ? ' active' : ''}`}
+                      onClick={() => pickCalibration(cal.id)}
+                    >
+                      {rowLabel(cal)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="sd-row sd-sub">
+                <span className="sd-label">Amount</span>
+                <div className="sd-money">
+                  <span>$</span>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={String(form.amountCalibrationtype ?? '')}
+                    placeholder="0.00"
+                    aria-label="Calibration amount"
+                    onChange={(e) => syncLabor({ amountCalibrationtype: e.target.value })}
+                  />
+                </div>
+              </div>
+            </>
+          )}
+
+          <div className="sd-row sd-total">
+            <span className="sd-label">Total Labor</span>
+            <div className="sd-money">
+              <span>$</span>
+              <input
+                type="number"
+                step="0.01"
+                value={String(form.totalLabor ?? '')}
+                placeholder="0"
+                aria-label="Total labor"
+                onChange={(e) => set('totalLabor', e.target.value)}
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
