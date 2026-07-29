@@ -36,48 +36,48 @@ interface QuickSpec { title: string; collection: string; fields: QuickField[]; d
 
 const QUICK_SPECS: Record<string, QuickSpec> = {
   catalog_tag: {
-    title: 'Nuevo status',
+    title: 'New status',
     collection: 'catalog_tag',
-    fields: [{ key: 'name', label: 'Nombre' }, { key: 'color', label: 'Color (Green, Red, Blue…)' }],
+    fields: [{ key: 'name', label: 'Name' }, { key: 'color', label: 'Color (Green, Red, Blue…)' }],
     defaults: { type: 'Work Order' },
   },
   catalog_company: {
-    title: 'Nueva company',
+    title: 'New company',
     collection: 'catalog_company',
-    fields: [{ key: 'name', label: 'Nombre' }, { key: 'type', label: 'Tipo (Distributor / Agent)' }],
+    fields: [{ key: 'name', label: 'Name' }, { key: 'type', label: 'Type (Distributor / Agent)' }],
   },
   catalog_zipcode: {
-    title: 'Nuevo zipcode',
+    title: 'New zipcode',
     collection: 'catalog_zipcode',
     fields: [
-      { key: 'zipcode', label: 'Zipcode' }, { key: 'city', label: 'Ciudad' },
-      { key: 'state', label: 'Estado' }, { key: 'tax', label: 'Tax (ej. 0.0725)', type: 'number' },
+      { key: 'zipcode', label: 'Zipcode' }, { key: 'city', label: 'City' },
+      { key: 'state', label: 'State' }, { key: 'tax', label: 'Tax (ej. 0.0725)', type: 'number' },
       { key: 'long_trip', label: 'Long trip $', type: 'number' },
     ],
   },
   customers: {
-    title: 'Nuevo cliente',
+    title: 'New customer',
     collection: 'customers',
     fields: [
-      { key: 'first_name', label: 'Nombre' }, { key: 'last_name', label: 'Apellido' },
-      { key: 'phone', label: 'Teléfono' }, { key: 'email', label: 'Email' },
-      { key: 'address', label: 'Dirección' },
+      { key: 'first_name', label: 'Name' }, { key: 'last_name', label: 'Last name' },
+      { key: 'phone', label: 'Phone' }, { key: 'email', label: 'Email' },
+      { key: 'address', label: 'Address' },
     ],
   },
   catalog_insurance: {
-    title: 'Nueva aseguradora',
+    title: 'New insurance company',
     collection: 'catalog_insurance',
-    fields: [{ key: 'name', label: 'Nombre' }],
+    fields: [{ key: 'name', label: 'Name' }],
   },
   catalog_jobtype: {
-    title: 'Nuevo job type',
+    title: 'New job type',
     collection: 'catalog_jobtype',
-    fields: [{ key: 'name', label: 'Nombre' }, { key: 'type', label: 'Tipo (Parts / Services)' }],
+    fields: [{ key: 'name', label: 'Name' }, { key: 'type', label: 'Type (Parts / Services)' }],
   },
   catalog_part_number: {
-    title: 'Nuevo part number',
+    title: 'New part number',
     collection: 'catalog_part_number',
-    fields: [{ key: 'part_number', label: 'Part number' }, { key: 'nags_description', label: 'Descripción NAGS' }],
+    fields: [{ key: 'part_number', label: 'Part number' }, { key: 'nags_description', label: 'NAGS description' }],
   },
 };
 
@@ -109,7 +109,7 @@ function QuickAdd({ spec, onCreated, onClose }: {
       <div className="qa-card" onClick={(e) => e.stopPropagation()}>
         <header className="qa-head">
           <h3>{spec.title}</h3>
-          <button type="button" className="btn-icon-ghost" onClick={onClose} aria-label="Cerrar">
+          <button type="button" className="btn-icon-ghost" onClick={onClose} aria-label="Close">
             <X size={16} />
           </button>
         </header>
@@ -131,9 +131,9 @@ function QuickAdd({ spec, onCreated, onClose }: {
           ))}
         </div>
         <footer className="qa-foot">
-          <button type="button" className="btn-outline" onClick={onClose}>Cancelar</button>
+          <button type="button" className="btn-outline" onClick={onClose}>Cancel</button>
           <button type="button" className="btn-dark" onClick={() => void save()} disabled={saving}>
-            {saving ? 'Guardando…' : 'Crear y usar'}
+            {saving ? 'Saving…' : 'Create & use'}
           </button>
         </footer>
       </div>
@@ -199,7 +199,7 @@ export default function WorkOrderWizard({ initialRow, onClose }: Props) {
 
   const isInsurance = form.insuranceType === 'Insurance';
   const tabs = useMemo(
-    () => ['Work Order', 'Vehículo', 'Cliente', ...(isInsurance ? ['Insurance'] : []), 'Totales'],
+    () => ['Work Order', 'Vehicle', 'Customer', ...(isInsurance ? ['Insurance'] : []), 'Totals'],
     [isInsurance],
   );
   const tabName = tabs[Math.min(tab, tabs.length - 1)];
@@ -327,8 +327,8 @@ export default function WorkOrderWizard({ initialRow, onClose }: Props) {
           type="button"
           className="wz-quick-btn"
           onClick={() => openQuick(collection, key)}
-          title="Crear nuevo en el catálogo"
-          aria-label={`Agregar a ${label}`}
+          title="Create a new catalog entry"
+          aria-label={`Add to ${label}`}
         >
           <Plus size={15} />
         </button>
@@ -354,12 +354,12 @@ export default function WorkOrderWizard({ initialRow, onClose }: Props) {
     </div>
   );
 
-  const TAB_ICONS: Record<string, typeof Briefcase> = { 'Work Order': Briefcase, 'Vehículo': Car, 'Cliente': UserRound, 'Insurance': ShieldCheck, 'Totales': Calculator };
+  const TAB_ICONS: Record<string, typeof Briefcase> = { 'Work Order': Briefcase, 'Vehicle': Car, 'Customer': UserRound, 'Insurance': ShieldCheck, 'Totals': Calculator };
 
   const statusRow = form.idStatus ? cat('catalog_tag').find((t) => t.id === form.idStatus) : undefined;
   const missing: string[] = [];
   if (!form.idStatus) missing.push('Status');
-  if (!form.idCustomer) missing.push('Cliente');
+  if (!form.idCustomer) missing.push('Customer');
   if (isInsurance && !form.idInsurance) missing.push('Insurance Carrier');
 
   return (
@@ -367,16 +367,16 @@ export default function WorkOrderWizard({ initialRow, onClose }: Props) {
       {/* ===== Header ===== */}
       <header className="wz-head">
         <div className="wz-head-text">
-          <h1>{initialRow ? 'Editar Work Order' : 'Nueva Work Order'}</h1>
-          <p>Completa el formulario para registrar la orden</p>
+          <h1>{initialRow ? 'Edit Work Order' : 'New Work Order'}</h1>
+          <p>Fill out the form to register the order</p>
         </div>
-        <button type="button" className="btn-icon-ghost" onClick={onClose} aria-label="Cerrar">
+        <button type="button" className="btn-icon-ghost" onClick={onClose} aria-label="Close">
           <X size={19} />
         </button>
       </header>
 
       {/* ===== Tabs con íconos ===== */}
-      <nav className="wz-tabs" aria-label="Secciones del formulario">
+      <nav className="wz-tabs" aria-label="Form sections">
         <ul>
           {tabs.map((name, i) => {
             const Icon = TAB_ICONS[name] ?? Briefcase;
@@ -401,10 +401,10 @@ export default function WorkOrderWizard({ initialRow, onClose }: Props) {
         <div className="wz-main">
           {tabName === 'Work Order' && (
             <>
-              <SectionCard icon={<Briefcase size={15} />} title="Tipo de Orden y Fechas">
+              <SectionCard icon={<Briefcase size={15} />} title="Order Type & Dates">
                 <div className="wz-field wz-full">
                   <span className="wz-label">Insurance <code className="wz-key">insuranceType</code></span>
-                  <div className="wz-toggle" role="radiogroup" aria-label="Tipo de orden">
+                  <div className="wz-toggle" role="radiogroup" aria-label="Order type">
                     {['Personal', 'Insurance'].map((opt) => (
                       <button
                         key={opt}
@@ -426,7 +426,7 @@ export default function WorkOrderWizard({ initialRow, onClose }: Props) {
                 {catalogSelect('Status', 'idStatus', 'catalog_tag', { filtered: tagOptions, required: true })}
               </SectionCard>
 
-              <SectionCard icon={<MapPin size={15} />} title="Compañía y Zona">
+              <SectionCard icon={<MapPin size={15} />} title="Company & Area">
                 {catalogSelect('Company', 'idCompany', 'catalog_company')}
                 {catalogSelect('Zipcode', 'idZipcode', 'catalog_zipcode', { onPick: onZipcode })}
                 {moneyInput('Long trip', 'longTrip')}
@@ -434,9 +434,9 @@ export default function WorkOrderWizard({ initialRow, onClose }: Props) {
             </>
           )}
 
-          {tabName === 'Vehículo' && (
+          {tabName === 'Vehicle' && (
             <>
-              <SectionCard icon={<Car size={15} />} title="Datos del Vehículo">
+              <SectionCard icon={<Car size={15} />} title="Vehicle Information">
                 <div className="wz-field">
                   <label htmlFor="wz-year">Year <code className="wz-key">year</code></label>
                   <input id="wz-year" type="number" value={String(form.year ?? '')} onChange={(e) => set('year', e.target.value)} />
@@ -455,7 +455,7 @@ export default function WorkOrderWizard({ initialRow, onClose }: Props) {
                 <SectionCard icon={<Wrench size={15} />} title="Services part">
                   <div className="wz-services wz-full">
                     <div className="wz-services-head">
-                      <span className="wz-label">Partes y servicios de la orden</span>
+                      <span className="wz-label">Parts and services for this order</span>
                       <button type="button" className="wz-new-btn" onClick={addService}>
                         <Plus size={14} />
                         New
@@ -483,16 +483,16 @@ export default function WorkOrderWizard({ initialRow, onClose }: Props) {
                               step="0.01"
                               value={String(s.price || '')}
                               placeholder="0.00"
-                              aria-label="Precio"
+                              aria-label="Price"
                               onChange={(e) => updateService(index, { price: num(e.target.value) })}
                             />
                           </div>
-                          <button type="button" className="btn-danger-ghost" onClick={() => removeService(index)} aria-label="Quitar">
+                          <button type="button" className="btn-danger-ghost" onClick={() => removeService(index)} aria-label="Remove">
                             <Trash2 size={15} />
                           </button>
                         </li>
                       ))}
-                      {services.length === 0 && <li className="wz-service-empty">Sin partes agregadas todavía.</li>}
+                      {services.length === 0 && <li className="wz-service-empty">No parts added yet.</li>}
                     </ul>
                   </div>
                 </SectionCard>
@@ -500,25 +500,25 @@ export default function WorkOrderWizard({ initialRow, onClose }: Props) {
             </>
           )}
 
-          {tabName === 'Cliente' && (
+          {tabName === 'Customer' && (
             <>
-              <SectionCard icon={<UserRound size={15} />} title="Cliente">
+              <SectionCard icon={<UserRound size={15} />} title="Customer">
                 {catalogSelect('Customer', 'idCustomer', 'customers', { required: true })}
                 <div className="wz-field">
                   <label htmlFor="wz-cust-address">Address</label>
-                  <input id="wz-cust-address" value={String(customer?.address ?? '')} readOnly placeholder="Se llena con el cliente" />
+                  <input id="wz-cust-address" value={String(customer?.address ?? '')} readOnly placeholder="Filled from the customer" />
                 </div>
                 <div className="wz-field">
                   <label htmlFor="wz-cust-phone">Phone</label>
-                  <input id="wz-cust-phone" value={String(customer?.phone ?? '')} readOnly placeholder="Se llena con el cliente" />
+                  <input id="wz-cust-phone" value={String(customer?.phone ?? '')} readOnly placeholder="Filled from the customer" />
                 </div>
                 <div className="wz-field">
                   <label htmlFor="wz-cust-email">Email</label>
-                  <input id="wz-cust-email" value={String(customer?.email ?? '')} readOnly placeholder="Se llena con el cliente" />
+                  <input id="wz-cust-email" value={String(customer?.email ?? '')} readOnly placeholder="Filled from the customer" />
                 </div>
               </SectionCard>
 
-              <SectionCard icon={<CalendarDays size={15} />} title="Cita">
+              <SectionCard icon={<CalendarDays size={15} />} title="Schedule">
                 <div className="wz-field">
                   <label htmlFor="wz-appt">Appoiment date <code className="wz-key">appointmentDate</code></label>
                   <input id="wz-appt" type="date" value={String(form.appointmentDate ?? '')} onChange={(e) => set('appointmentDate', e.target.value)} />
@@ -547,16 +547,16 @@ export default function WorkOrderWizard({ initialRow, onClose }: Props) {
             </SectionCard>
           )}
 
-          {tabName === 'Totales' && (
+          {tabName === 'Totals' && (
             <>
-              <SectionCard icon={<Calculator size={15} />} title="Subtotales">
+              <SectionCard icon={<Calculator size={15} />} title="Subtotals">
                 {moneyInput('Subtotal part', 'subtotalPart')}
                 {moneyInput('Subtotal molding', 'subtotalMolding')}
                 {moneyInput('Subtotal services', 'subtotalServices')}
                 {moneyInput('Total labor', 'totalLabor')}
               </SectionCard>
 
-              <SectionCard icon={<Percent size={15} />} title="Impuestos y Ajustes">
+              <SectionCard icon={<Percent size={15} />} title="Taxes & Adjustments">
                 <div className="wz-field">
                   <span className="wz-label">Upsell <code className="wz-key">upsell</code></span>
                   <div className="wz-stepper">
@@ -569,10 +569,10 @@ export default function WorkOrderWizard({ initialRow, onClose }: Props) {
                       aria-label="Upsell"
                       onChange={(e) => set('upsell', e.target.value)}
                     />
-                    <button type="button" onClick={() => set('upsell', num(form.upsell) - 1)} aria-label="Restar">
+                    <button type="button" onClick={() => set('upsell', num(form.upsell) - 1)} aria-label="Decrease">
                       <Minus size={14} />
                     </button>
-                    <button type="button" onClick={() => set('upsell', num(form.upsell) + 1)} aria-label="Sumar">
+                    <button type="button" onClick={() => set('upsell', num(form.upsell) + 1)} aria-label="Increase">
                       <Plus size={14} />
                     </button>
                   </div>
@@ -603,34 +603,34 @@ export default function WorkOrderWizard({ initialRow, onClose }: Props) {
         {/* ===== Sidebar de sumario (tarjetas apiladas) ===== */}
         <aside className="wz-summary">
           <div className={`wz-sum-card wz-alert${missing.length === 0 ? ' ok' : ''}`}>
-            <p className="wz-sum-card-title"><ClipboardList size={13} />Estatus</p>
+            <p className="wz-sum-card-title"><ClipboardList size={13} />Status</p>
             {missing.length > 0 ? (
               <p className="wz-alert-text">
-                Para completar la orden falta seleccionar: <strong>{missing.join(' y ')}</strong>.
+                To complete this order, please select: <strong>{missing.join(' and ')}</strong>.
               </p>
             ) : (
               <p className="wz-alert-text ok">
-                Orden lista para guardar — status: <strong>{rowLabel(statusRow)}</strong>
+                Order ready to save — status: <strong>{rowLabel(statusRow)}</strong>
               </p>
             )}
           </div>
 
           <div className="wz-sum-card">
-            <p className="wz-sum-card-title"><UserRound size={13} />Cliente y Cita</p>
+            <p className="wz-sum-card-title"><UserRound size={13} />Customer & Schedule</p>
             <dl>
-              <div><dt>Customer</dt><dd>{customer ? rowLabel(customer as Row) : 'Sin cliente'}</dd></div>
-              <div><dt>Cita</dt><dd>{String(form.appointmentDate ?? '') || '—'}</dd></div>
-              <div><dt>Horario</dt><dd>{form.timeIn || form.timeOut ? `${form.timeIn ?? ''} – ${form.timeOut ?? ''}` : '—'}</dd></div>
+              <div><dt>Customer</dt><dd>{customer ? rowLabel(customer as Row) : 'No customer'}</dd></div>
+              <div><dt>Appointment</dt><dd>{String(form.appointmentDate ?? '') || '—'}</dd></div>
+              <div><dt>Time</dt><dd>{form.timeIn || form.timeOut ? `${form.timeIn ?? ''} – ${form.timeOut ?? ''}` : '—'}</dd></div>
             </dl>
           </div>
 
           <div className="wz-sum-card">
-            <p className="wz-sum-card-title"><Car size={13} />Vehículo y Zona</p>
+            <p className="wz-sum-card-title"><Car size={13} />Vehicle & Area</p>
             <dl>
               <div><dt>Year / Plate</dt><dd>{[form.year, form.plate].filter(Boolean).join(' · ') || '—'}</dd></div>
               <div><dt>VIN</dt><dd>{String(form.vinNumber ?? '') || '—'}</dd></div>
               <div><dt>Zipcode</dt><dd>{form.idZipcode ? rowLabel(cat('catalog_zipcode').find((z) => z.id === form.idZipcode)) : '—'}</dd></div>
-              {!initialRow && <div><dt>Partes</dt><dd>{services.length}</dd></div>}
+              {!initialRow && <div><dt>Parts</dt><dd>{services.length}</dd></div>}
             </dl>
           </div>
 
@@ -646,7 +646,7 @@ export default function WorkOrderWizard({ initialRow, onClose }: Props) {
           )}
 
           <div className="wz-sum-card">
-            <p className="wz-sum-card-title"><Calculator size={13} />Financiero</p>
+            <p className="wz-sum-card-title"><Calculator size={13} />Financial</p>
             <dl>
               <div><dt>Subtotal parts</dt><dd>{money(num(form.subtotalPart))}</dd></div>
               <div><dt>Molding</dt><dd>{money(num(form.subtotalMolding))}</dd></div>
@@ -658,7 +658,7 @@ export default function WorkOrderWizard({ initialRow, onClose }: Props) {
               <div><dt>Paid</dt><dd>{money(num(form.paid))}</dd></div>
             </dl>
             <div className="wz-total-box">
-              <span>Total de la orden</span>
+              <span>Order total</span>
               <strong>{money(computedTotal)}</strong>
               <em>Balance: {money(balance)}</em>
             </div>
@@ -667,7 +667,7 @@ export default function WorkOrderWizard({ initialRow, onClose }: Props) {
           <div className="wz-sum-actions">
             <button type="button" className="btn-dark wz-save" onClick={() => void save()} disabled={saving}>
               <Save size={16} />
-              {saving ? 'Guardando…' : 'Guardar Work Order'}
+              {saving ? 'Saving…' : 'Save Work Order'}
             </button>
             <button type="button" className="btn-outline wz-cancel" onClick={onClose}>
               <X size={15} />

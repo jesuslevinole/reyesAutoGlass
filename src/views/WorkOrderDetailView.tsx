@@ -105,9 +105,9 @@ export default function WorkOrderDetailView({ workOrderId, onBack }: Props) {
   if (!order) {
     return (
       <section className="wo-detail">
-        <button className="btn-outline" onClick={onBack}><ArrowLeft size={15} />Volver</button>
+        <button className="btn-outline" onClick={onBack}><ArrowLeft size={15} />Back</button>
         {loaded ? (
-          <p className="wo-loading">No se encontró la orden — pudo haber sido eliminada.</p>
+          <p className="wo-loading">Order not found — it may have been deleted.</p>
         ) : (
           <div className="wo-skeleton" aria-hidden="true">
             <span className="skeleton skel-title" />
@@ -149,7 +149,7 @@ export default function WorkOrderDetailView({ workOrderId, onBack }: Props) {
       </header>
 
       {/* ===== Status tracker (pipeline del cliente) ===== */}
-      <ol className="wo-stepper" aria-label="Progreso de la orden">
+      <ol className="wo-stepper" aria-label="Order progress">
         {PIPELINE.map((stage, i) => {
           const done = pipelineIndex >= 0 && i <= pipelineIndex;
           return (
@@ -175,29 +175,29 @@ export default function WorkOrderDetailView({ workOrderId, onBack }: Props) {
       <div className="wo-grid">
         {/* ===== Ficha del vehículo ===== */}
         <article className="panel">
-          <h2><Car size={15} />Vehículo</h2>
+          <h2><Car size={15} />Vehicle</h2>
           <dl className="spec-list">
-            <div><dt>Marca</dt><dd>{str(order.mark)}</dd></div>
-            <div><dt>Modelo</dt><dd>{str(order.model)}</dd></div>
-            <div><dt>Año</dt><dd>{order.year ? String(order.year) : '—'}</dd></div>
+            <div><dt>Make</dt><dd>{str(order.mark)}</dd></div>
+            <div><dt>Model</dt><dd>{str(order.model)}</dd></div>
+            <div><dt>Year</dt><dd>{order.year ? String(order.year) : '—'}</dd></div>
             <div><dt>Body</dt><dd>{str(order.body)}</dd></div>
             <div><dt>VIN</dt><dd className="mono">{str(order.vinNumber)}</dd></div>
-            <div><dt>Placa</dt><dd className="mono">{str(order.plate)}</dd></div>
+            <div><dt>Plate</dt><dd className="mono">{str(order.plate)}</dd></div>
           </dl>
         </article>
 
         {/* ===== Cliente y cita ===== */}
         <article className="panel">
-          <h2><User size={15} />Cliente y cita</h2>
+          <h2><User size={15} />Customer & schedule</h2>
           <dl className="spec-list">
-            <div><dt>Cliente</dt><dd>{getRelationName(order.idCustomer, cat('customers'))}</dd></div>
-            <div><dt>Agente</dt><dd>{getRelationName(order.idAgent, cat('team'))}</dd></div>
+            <div><dt>Customer</dt><dd>{getRelationName(order.idCustomer, cat('customers'))}</dd></div>
+            <div><dt>Agent</dt><dd>{getRelationName(order.idAgent, cat('team'))}</dd></div>
             <div><dt>Zona</dt><dd>{getRelationName(order.idZipcode, cat('catalog_zipcode'))}</dd></div>
             <div><dt>Fecha de cita</dt><dd>{formatDate(order.appointmentDate)}</dd></div>
             <div><dt>Entrada</dt><dd>{str(order.timeIn)}</dd></div>
             <div><dt>Salida</dt><dd>{str(order.timeOut)}</dd></div>
             {isInsurance && (
-              <div><dt>Aseguradora</dt><dd>{getRelationName(order.idInsurance, cat('catalog_insurance'))}</dd></div>
+              <div><dt>Insurance carrier</dt><dd>{getRelationName(order.idInsurance, cat('catalog_insurance'))}</dd></div>
             )}
           </dl>
         </article>
@@ -212,7 +212,7 @@ export default function WorkOrderDetailView({ workOrderId, onBack }: Props) {
             <div><dt>Labor</dt><dd>{money(totals.labor)}</dd></div>
             {isInsurance && (
               <>
-                <div><dt>Deducible</dt><dd>{money(order.deductible)}</dd></div>
+                <div><dt>Deductible</dt><dd>{money(order.deductible)}</dd></div>
                 <div><dt>Kit flat rate</dt><dd>{money(order.kitFlatRate)}</dd></div>
               </>
             )}
@@ -229,12 +229,12 @@ export default function WorkOrderDetailView({ workOrderId, onBack }: Props) {
 
       {/* ===== Líneas de servicio ===== */}
       <article className="panel">
-        <h2><Package size={15} />Líneas de servicio ({details.length})</h2>
+        <h2><Package size={15} />Service lines ({details.length})</h2>
         <div className="table-wrap flush">
           <table className="data-table">
             <thead>
               <tr>
-                <th>Tipo</th>
+                <th>Type</th>
                 <th>Job type</th>
                 <th>Part number</th>
                 <th>Distribuidor</th>
@@ -264,7 +264,7 @@ export default function WorkOrderDetailView({ workOrderId, onBack }: Props) {
               {details.length === 0 && (
                 <tr>
                   <td className="empty-cell" colSpan={isInsurance ? 9 : 7}>
-                    Esta orden todavía no tiene líneas de servicio.
+                    This order has no service lines yet.
                   </td>
                 </tr>
               )}
@@ -280,10 +280,10 @@ export default function WorkOrderDetailView({ workOrderId, onBack }: Props) {
           <table className="data-table">
             <thead>
               <tr>
-                <th>Método</th>
+                <th>Method</th>
                 <th>Tarjeta</th>
                 <th>Titular</th>
-                <th>Autorización</th>
+                <th>Authorization</th>
                 <th>Monto</th>
               </tr>
             </thead>
@@ -309,22 +309,22 @@ export default function WorkOrderDetailView({ workOrderId, onBack }: Props) {
         </div>
       </article>
         <article className="wo-panel wo-finance">
-          <h2>Finanzas y P&L</h2>
+          <h2>Finance & P&L</h2>
           <dl className="wo-fin-grid">
             <div><dt>Subtotal parts</dt><dd>{money(fin.subtotalPart)}</dd></div>
             <div><dt>Subtotal molding</dt><dd>{money(fin.subtotalMolding)}</dd></div>
             <div><dt>Subtotal services</dt><dd>{money(fin.subtotalServices)}</dd></div>
             <div><dt>Total tax</dt><dd>{money(fin.totalTax)}</dd></div>
             <div><dt>Long trip</dt><dd>{money(fin.longTrip)}</dd></div>
-            <div><dt>Descuento</dt><dd>{money(fin.discount)}</dd></div>
+            <div><dt>Discount</dt><dd>{money(fin.discount)}</dd></div>
             <div><dt>Labor</dt><dd>{money(fin.labor)}</dd></div>
             <div><dt>Upsell</dt><dd>{money(fin.upsell)}</dd></div>
             <div className="wo-fin-total"><dt>Total</dt><dd>{money(fin.total)}</dd></div>
-            <div className="wo-fin-total"><dt>Cobrado (total + upsell)</dt><dd>{money(fin.charged)}</dd></div>
+            <div className="wo-fin-total"><dt>Charged (total + upsell)</dt><dd>{money(fin.charged)}</dd></div>
           </dl>
           <p className={`wo-pl ${fin.profitLoss >= 0 ? 'positive' : 'negative'}`}>
             Profit &amp; Loss: <strong>{money(fin.profitLoss)}</strong>
-            <span className="wo-pl-note">cobrado − parte − tax − labor</span>
+            <span className="wo-pl-note">charged − part − tax − labor</span>
           </p>
         </article>
 

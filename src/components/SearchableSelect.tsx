@@ -56,14 +56,14 @@ export default function SearchableSelect({ inputId, value, options, placeholder,
           type="text"
           className="sselect-input"
           value={open ? search : selected?.label ?? ''}
-          placeholder={selected ? selected.label : placeholder ?? 'Escribe para buscar…'}
+          placeholder={selected ? selected.label : placeholder ?? 'Type to search…'}
           onFocus={openDropdown}
           onBlur={scheduleClose}
           onChange={(e) => { setSearch(e.target.value); setOpen(true); }}
           autoComplete="off"
         />
         {value ? (
-          <button type="button" className="sselect-clear" onClick={() => onChange('')} aria-label="Limpiar selección" tabIndex={-1}>
+          <button type="button" className="sselect-clear" onClick={() => onChange('')} aria-label="Clear selection" tabIndex={-1}>
             <X size={14} />
           </button>
         ) : (
@@ -97,9 +97,9 @@ export default function SearchableSelect({ inputId, value, options, placeholder,
               </button>
             </li>
           ))}
-          {filtered.total === 0 && <li className="sselect-empty">Sin resultados para «{search}»</li>}
+          {filtered.total === 0 && <li className="sselect-empty">No results for "{search}"</li>}
           {filtered.total > MAX_VISIBLE && (
-            <li className="sselect-more">Mostrando {MAX_VISIBLE} de {filtered.total} — escribe para afinar</li>
+            <li className="sselect-more">Showing {MAX_VISIBLE} of {filtered.total} — type to narrow down</li>
           )}
         </ul>
       )}

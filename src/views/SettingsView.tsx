@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
-import { ArrowDown, ArrowUp, Check, ListOrdered, Loader2, PanelLeft, Save, ScanSearch, Sparkles, Type } from 'lucide-react';
+import type { CSSProperties } from 'react';
+import { ArrowDown, ArrowUp, Check, ListOrdered, Loader2, Palette, PanelLeft, Save, ScanSearch, Sparkles, Type } from 'lucide-react';
 import { MODULES } from '../config/modules';
 import type { ModuleDef, NavItem } from '../config/modules';
 import type { Row } from '../services/firestore';
@@ -24,14 +25,15 @@ export default function SettingsView({ uiConfig, navItems }: Props) {
     <section className="settings-view">
       <header className="module-head">
         <div>
-          <h1>Configuración</h1>
+          <h1>Settings</h1>
           <p className="module-desc">
-            Personaliza nombres, orden de columnas y menú. Los cambios se guardan en Firestore y aplican para todos los usuarios.
+            Customize names, ordering, branding and colors. Changes are saved to Firestore and apply to everyone.
           </p>
         </div>
       </header>
 
       <AppNameCard uiConfig={uiConfig} />
+      <AppearanceCard uiConfig={uiConfig} />
       <MenuOrderCard navItems={navItems} />
       <ModuleCustomizer uiConfig={uiConfig} />
       <CollectionInspector />
@@ -44,16 +46,32 @@ export default function SettingsView({ uiConfig, navItems }: Props) {
 function AppNameCard({ uiConfig }: { uiConfig: Record<string, Row> }) {
   const appDoc = uiConfig['_app'] as Record<string, unknown> | undefined;
   const currentName = typeof appDoc?.name === 'string' ? appDoc.name : '';
+  const currentLogo = typeof appDoc?.logo === 'string' ? appDoc.logo : '';
   // key: al llegar el valor guardado desde Firestore se remonta con él
-  return <AppNameEditor key={currentName} currentName={currentName} />;
+  return <AppNameEditor key={`${currentName}|${currentLogo.length}`} currentName={currentName} currentLogo={currentLogo} />;
 }
 
-function AppNameEditor({ currentName }: { currentName: string }) {
+function AppNameEditor({ currentName, currentLogo }: { currentName: string; currentLogo: string }) {
   const [name, setName] = useState(currentName);
+  const [logo, setLogo] = useState(currentLogo);
   const [saved, setSaved] = useState(false);
 
+  const onLogoFile = (file: File | undefined) => {
+    if (!file) return;
+    if (file.size > 300 * 1024) {
+      window.alert('Logo must be under 300 KB (it is stored in Firestore). Please use a smaller image.');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      setLogo(String(reader.result ?? ''));
+      setSaved(false);
+    };
+    reader.readAsDataURL(file);
+  };
+
   const save = async () => {
-    await setRowMerged('config_ui', '_app', { name: name.trim() });
+    await setRowMerged('config_ui', '_app', { name: name.trim(), logo });
     setSaved(true);
   };
 
@@ -61,20 +79,120 @@ function AppNameEditor({ currentName }: { currentName: string }) {
     <article className="settings-card">
       <header className="settings-card-head">
         <span className="settings-card-icon"><Sparkles size={15} /></span>
-        <h2>Nombre de la aplicación</h2>
+        <h2>Application identity</h2>
         <button className="btn-primary btn-gradient" onClick={() => void save()}>
           {saved ? <Check size={15} /> : <Save size={15} />}
-          {saved ? 'Guardado' : 'Guardar nombre'}
+          {saved ? 'Saved' : 'Save identity'}
         </button>
       </header>
-      <div className="settings-toolbar">
+      <div className="settings-toolbar identity-grid">
         <div className="field">
-          <label htmlFor="set-appname">Se muestra en el menú lateral y en la pestaña del navegador</label>
+          <label htmlFor="set-appname">App name — shown in the sidebar and the browser tab</label>
           <input
             id="set-appname"
             value={name}
             placeholder="GlassWorks"
             onChange={(e) => { setName(e.target.value); setSaved(false); }}
+          />
+        </div>
+        <div className="field">
+          <label htmlFor="set-logo">Logo (PNG/SVG, max 300 KB)</label>
+          <div className="logo-row">
+            {logo ? <img className="logo-preview" src={logo} alt="App logo" /> : <span className="logo-empty">No logo</span>}
+            <input
+              id="set-logo"
+              type="file"
+              accept="image/*"
+              onChange={(e) => onLogoFile(e.target.files?.[0])}
+            />
+            {logo && (
+              <button type="button" className="btn-outline" onClick={() => { setLogo(''); setSaved(false); }}>
+                Remove
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    </article>
+  );
+}
+
+/* ==================== Appearance (color palette) ==================== */
+
+const THEME_PRESETS = [
+  { name: 'Blue', primary: '#3583f6', deep: '#2568d8' },
+  { name: 'Green', primary: '#16a34a', deep: '#15803d' },
+  { name: 'Purple', primary: '#7c3aed', deep: '#6d28d9' },
+  { name: 'Orange', primary: '#ea580c', deep: '#c2410c' },
+  { name: 'Teal', primary: '#0d9488', deep: '#0f766e' },
+  { name: 'Slate', primary: '#475569', deep: '#334155' },
+];
+
+function AppearanceCard({ uiConfig }: { uiConfig: Record<string, Row> }) {
+  const themeDoc = uiConfig['_theme'] as Record<string, unknown> | undefined;
+  const cur = {
+    primary: typeof themeDoc?.primary === 'string' ? themeDoc.primary : '#3583f6',
+    deep: typeof themeDoc?.deep === 'string' ? themeDoc.deep : '#2568d8',
+  };
+  return <AppearanceEditor key={`${cur.primary}|${cur.deep}`} current={cur} />;
+}
+
+function AppearanceEditor({ current }: { current: { primary: string; deep: string } }) {
+  const [primary, setPrimary] = useState(current.primary);
+  const [deep, setDeep] = useState(current.deep);
+  const [saved, setSaved] = useState(false);
+
+  const save = async () => {
+    await setRowMerged('config_ui', '_theme', { primary, deep });
+    setSaved(true);
+  };
+
+  return (
+    <article className="settings-card">
+      <header className="settings-card-head">
+        <span className="settings-card-icon"><Palette size={15} /></span>
+        <h2>Appearance — color palette</h2>
+        <button className="btn-primary btn-gradient" onClick={() => void save()}>
+          {saved ? <Check size={15} /> : <Save size={15} />}
+          {saved ? 'Saved' : 'Save palette'}
+        </button>
+      </header>
+      <p className="settings-hint">
+        The primary color drives buttons, links, active menu items and highlights across the whole app, for every user.
+      </p>
+      <ul className="theme-presets">
+        {THEME_PRESETS.map((p) => (
+          <li key={p.name}>
+            <button
+              type="button"
+              className={`theme-preset${primary === p.primary ? ' active' : ''}`}
+              /* color del preset como variable CSS en runtime */
+              style={{ '--preset': p.primary } as CSSProperties}
+              onClick={() => { setPrimary(p.primary); setDeep(p.deep); setSaved(false); }}
+            >
+              <span className="theme-swatch" />
+              {p.name}
+            </button>
+          </li>
+        ))}
+      </ul>
+      <div className="settings-toolbar identity-grid">
+        <div className="field">
+          <label htmlFor="set-color-primary">Primary color</label>
+          <input
+            id="set-color-primary"
+            type="color"
+            value={primary}
+            onChange={(e) => { setPrimary(e.target.value); setSaved(false); }}
+          />
+        </div>
+        <div className="field">
+          <label htmlFor="set-color-deep">Primary dark (hover / emphasis)</label>
+          <input
+            id="set-color-deep"
+            type="color"
+            value={deep}
+            onChange={(e) => { setDeep(e.target.value); setSaved(false); }}
           />
         </div>
       </div>
@@ -110,10 +228,10 @@ function MenuOrderCard({ navItems }: { navItems: NavItem[] }) {
     <article className="settings-card">
       <header className="settings-card-head">
         <span className="settings-card-icon"><PanelLeft size={15} /></span>
-        <h2>Orden del menú lateral</h2>
+        <h2>Sidebar menu order</h2>
         <button className="btn-primary btn-gradient" onClick={() => void save()}>
           {saved ? <Check size={15} /> : <Save size={15} />}
-          {saved ? 'Guardado' : 'Guardar orden'}
+          {saved ? 'Saved' : 'Save order'}
         </button>
       </header>
       <ol className="order-list">
@@ -122,10 +240,10 @@ function MenuOrderCard({ navItems }: { navItems: NavItem[] }) {
             <span className="order-num">{index + 1}</span>
             <span className="order-label">{labelOf(id)}</span>
             <span className="order-arrows">
-              <button className="btn-icon-ghost" onClick={() => move(index, -1)} disabled={index === 0} aria-label="Subir">
+              <button className="btn-icon-ghost" onClick={() => move(index, -1)} disabled={index === 0} aria-label="Move up">
                 <ArrowUp size={15} />
               </button>
-              <button className="btn-icon-ghost" onClick={() => move(index, 1)} disabled={index === order.length - 1} aria-label="Bajar">
+              <button className="btn-icon-ghost" onClick={() => move(index, 1)} disabled={index === order.length - 1} aria-label="Move down">
                 <ArrowDown size={15} />
               </button>
             </span>
@@ -147,7 +265,7 @@ function ModuleCustomizer({ uiConfig }: { uiConfig: Record<string, Row> }) {
     <article className="settings-card">
       <div className="settings-toolbar">
         <div className="field">
-          <label htmlFor="set-module">Módulo a personalizar</label>
+          <label htmlFor="set-module">Module to customize</label>
           <select id="set-module" value={moduleId} onChange={(e) => setModuleId(e.target.value)}>
             {MODULES.map((m) => <option key={m.id} value={m.id}>{m.title}</option>)}
           </select>
@@ -178,12 +296,26 @@ function ModuleEditor({ module, configDoc }: EditorProps) {
       ? [...savedOrder.filter((k) => defaultCols.includes(k)), ...defaultCols.filter((k) => !savedOrder.includes(k))]
       : defaultCols;
   });
+  const [formOrder, setFormOrder] = useState<string[]>(() => {
+    const allKeys = module.fields.map((f) => f.key);
+    const savedOrder = Array.isArray(configDoc?.formOrder) ? configDoc.formOrder as string[] : null;
+    return savedOrder && savedOrder.length > 0
+      ? [...savedOrder.filter((k) => allKeys.includes(k)), ...allKeys.filter((k) => !savedOrder.includes(k))]
+      : allKeys;
+  });
   const [saved, setSaved] = useState(false);
 
   const moveColumn = (index: number, dir: -1 | 1) => {
     const j = index + dir;
     if (j < 0 || j >= columnOrder.length) return;
     setColumnOrder((prev) => swap(prev, index, j));
+    setSaved(false);
+  };
+
+  const moveFormField = (index: number, dir: -1 | 1) => {
+    const j = index + dir;
+    if (j < 0 || j >= formOrder.length) return;
+    setFormOrder((prev) => swap(prev, index, j));
     setSaved(false);
   };
 
@@ -197,6 +329,7 @@ function ModuleEditor({ module, configDoc }: EditorProps) {
       title: title.trim(),
       labels: cleanLabels,
       columnOrder,
+      formOrder,
     });
     setSaved(true);
   };
@@ -207,16 +340,16 @@ function ModuleEditor({ module, configDoc }: EditorProps) {
     <>
       <header className="settings-card-head">
         <span className="settings-card-icon"><Type size={15} /></span>
-        <h2>Nombres y columnas · {module.title}</h2>
+        <h2>Names & ordering · {module.title}</h2>
         <button className="btn-primary btn-gradient" onClick={() => void save()}>
           {saved ? <Check size={15} /> : <Save size={15} />}
-          {saved ? 'Guardado' : 'Guardar módulo'}
+          {saved ? 'Saved' : 'Save module'}
         </button>
       </header>
 
       <div className="settings-toolbar">
         <div className="field">
-          <label htmlFor="set-title">Nombre del módulo (menú y encabezado)</label>
+          <label htmlFor="set-title">Module name (menu & header)</label>
           <input
             id="set-title"
             value={title}
@@ -228,8 +361,8 @@ function ModuleEditor({ module, configDoc }: EditorProps) {
 
       <div className="settings-columns">
         <div className="settings-block">
-          <h3><Type size={13} />Nombres de los campos</h3>
-          <p className="settings-hint">Deja un campo vacío para usar el nombre original.</p>
+          <h3><Type size={13} />Field names</h3>
+          <p className="settings-hint">Leave a field empty to use the original name.</p>
           <ul className="label-list">
             {module.fields.map((f) => (
               <li key={f.key}>
@@ -249,18 +382,39 @@ function ModuleEditor({ module, configDoc }: EditorProps) {
         </div>
 
         <div className="settings-block">
-          <h3><ListOrdered size={13} />Orden de columnas de la tabla</h3>
-          <p className="settings-hint">Define en qué orden aparecen las columnas del listado.</p>
+          <h3><ListOrdered size={13} />Table column order</h3>
+          <p className="settings-hint">Set the order of the list columns.</p>
           <ol className="order-list compact">
             {columnOrder.map((key, index) => (
               <li key={key}>
                 <span className="order-num">{index + 1}</span>
                 <span className="order-label">{labels[key]?.trim() || fieldLabel(key)}</span>
                 <span className="order-arrows">
-                  <button className="btn-icon-ghost" onClick={() => moveColumn(index, -1)} disabled={index === 0} aria-label="Subir">
+                  <button className="btn-icon-ghost" onClick={() => moveColumn(index, -1)} disabled={index === 0} aria-label="Move up">
                     <ArrowUp size={15} />
                   </button>
-                  <button className="btn-icon-ghost" onClick={() => moveColumn(index, 1)} disabled={index === columnOrder.length - 1} aria-label="Bajar">
+                  <button className="btn-icon-ghost" onClick={() => moveColumn(index, 1)} disabled={index === columnOrder.length - 1} aria-label="Move down">
+                    <ArrowDown size={15} />
+                  </button>
+                </span>
+              </li>
+            ))}
+          </ol>
+        </div>
+
+        <div className="settings-block">
+          <h3><ListOrdered size={13} />Form field order</h3>
+          <p className="settings-hint">Set the order of the fields inside the form.</p>
+          <ol className="order-list compact">
+            {formOrder.map((key, index) => (
+              <li key={key}>
+                <span className="order-num">{index + 1}</span>
+                <span className="order-label">{labels[key]?.trim() || fieldLabel(key)}</span>
+                <span className="order-arrows">
+                  <button className="btn-icon-ghost" onClick={() => moveFormField(index, -1)} disabled={index === 0} aria-label="Move up">
+                    <ArrowUp size={15} />
+                  </button>
+                  <button className="btn-icon-ghost" onClick={() => moveFormField(index, 1)} disabled={index === formOrder.length - 1} aria-label="Move down">
                     <ArrowDown size={15} />
                   </button>
                 </span>
@@ -320,14 +474,14 @@ function CollectionInspector() {
     <article className="settings-card">
       <header className="settings-card-head">
         <span className="settings-card-icon"><ScanSearch size={15} /></span>
-        <h2>Inspector de colecciones (Firebase)</h2>
+        <h2>Collection inspector (Firebase)</h2>
         <button className="btn-primary btn-gradient" onClick={() => void run()} disabled={busy}>
           {busy ? <Loader2 size={15} className="spin" /> : <ScanSearch size={15} />}
-          {busy ? 'Analizando…' : 'Analizar colecciones'}
+          {busy ? 'Analyzing…' : 'Analyze collections'}
         </button>
       </header>
       <p className="settings-hint">
-        Lee 1 documento de muestra por colección y muestra sus campos reales — útil para mapear la base de datos existente.
+        Reads 1 sample document per collection and shows its real fields — useful to map the existing database.
       </p>
       {result && (
         <ul className="inspector-list">
@@ -337,7 +491,7 @@ function CollectionInspector() {
               <li key={name}>
                 <strong className="inspector-name">{name}</strong>
                 {r === 'empty' ? (
-                  <span className="inspector-empty">(vacía o no existe)</span>
+                  <span className="inspector-empty">(empty or missing)</span>
                 ) : 'error' in (r as object) ? (
                   <span className="inspector-error">{(r as { error: string }).error}</span>
                 ) : (

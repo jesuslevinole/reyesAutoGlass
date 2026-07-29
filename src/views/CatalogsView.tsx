@@ -3,20 +3,23 @@ import { CircleDot } from 'lucide-react';
 import { MODULE_ICONS } from '../config/moduleIcons';
 import { CATALOG_IDS } from '../config/modules';
 import type { ModuleDef } from '../config/modules';
+import type { ModulePerm } from '../utils/uiConfig';
 import GenericModuleView from './GenericModuleView';
 import './CatalogsView.css';
 
 interface Props {
   /** Resuelve un módulo con sus overrides de configuración ya aplicados */
   resolveModule: (id: string) => ModuleDef;
+  /** Permisos del rol sobre el módulo Catálogos */
+  perms?: ModulePerm;
 }
 
-export default function CatalogsView({ resolveModule }: Props) {
+export default function CatalogsView({ resolveModule, perms }: Props) {
   const [activeId, setActiveId] = useState<string>(CATALOG_IDS[0]);
 
   return (
     <div className="catalogs-view">
-      <nav className="catalog-picker" aria-label="Catálogos">
+      <nav className="catalog-picker" aria-label="Catalogs">
         <ul>
           {CATALOG_IDS.map((id) => {
             const mod = resolveModule(id);
@@ -37,7 +40,7 @@ export default function CatalogsView({ resolveModule }: Props) {
       </nav>
 
       {/* key: remonta la vista al cambiar de catálogo */}
-      <GenericModuleView key={activeId} module={resolveModule(activeId)} />
+      <GenericModuleView key={activeId} module={resolveModule(activeId)} perms={perms} />
     </div>
   );
 }

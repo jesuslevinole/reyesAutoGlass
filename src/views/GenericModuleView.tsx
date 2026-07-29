@@ -9,6 +9,8 @@ import {
 import type { LucideIcon } from 'lucide-react';
 import { MODULE_ICONS } from '../config/moduleIcons';
 import type { FieldDef, ModuleDef } from '../config/modules';
+import { FULL_PERM } from '../utils/uiConfig';
+import type { ModulePerm } from '../utils/uiConfig';
 import type { Row } from '../services/firestore';
 import { createRow, deleteRow, fetchAll, subscribe, updateRow } from '../services/firestore';
 import { formatDate, getFieldValue, getRelationColor, getRelationName, money, rowLabel, tagColorToHex } from '../utils/relations';
@@ -20,6 +22,8 @@ import './GenericModuleView.css';
 
 interface Props {
   module: ModuleDef;
+  /** Permisos del rol del usuario sobre este módulo (default: acceso total) */
+  perms?: ModulePerm;
   /** Término inicial de búsqueda (viene del buscador global del topbar) */
   initialSearch?: string;
   /** Si se pasa, cada fila muestra un botón para abrir su vista de detalle. */
@@ -65,7 +69,7 @@ function isFilled(field: FieldDef, value: unknown): boolean {
   return value !== '' && value !== null && value !== undefined;
 }
 
-export default function GenericModuleView({ module, initialSearch, onOpenRow }: Props) {
+export default function GenericModuleView({ module, perms = FULL_PERM, initialSearch, onOpenRow }: Props) {
   const [rows, setRows] = useState<Row[]>([]);
   const [fkData, setFkData] = useState<Record<string, Row[]>>({});
   const [search, setSearch] = useState(initialSearch ?? '');
@@ -157,7 +161,7 @@ export default function GenericModuleView({ module, initialSearch, onOpenRow }: 
 
   /** Idea del cliente: convertir una Quote aceptada en Work Order con un clic. */
   const convertQuote = async (quote: Row) => {
-    if (!window.confirm('¿Convertir esta quote en Work Order?')) return;
+    if (!window.confirm('Convert this quote into a Work Order?')) return;
     const src = quote as Record<string, unknown>;
     const tags = fkData['catalog_tag'] ?? [];
     // Status inicial de la orden: tag "Accepted" de tipo Work Order (si existe)
@@ -205,7 +209,7 @@ export default function GenericModuleView({ module, initialSearch, onOpenRow }: 
   };
 
   const handleDelete = async (row: Row) => {
-    if (!window.confirm(`¿Eliminar este ${module.singular.toLowerCase()}? Esta acción no se puede deshacer.`)) return;
+    if (!window.confirm(`Delete this ${module.singular.toLowerCase()}? This action cannot be undone.`)) return;
     await deleteRow(module.collection, row.id);
   };
 
@@ -244,14 +248,14 @@ export default function GenericModuleView({ module, initialSearch, onOpenRow }: 
               }}
             >
               <FileSpreadsheet size={15} />
-              {reporting ? 'Generando…' : 'Reporte Excel'}
+              {reporting ? 'Generating…' : 'Excel report'}
             </button>
           )}
           <ImportExportBar module={module} rows={rows} />
-          <button className="btn-primary" onClick={openNew}>
+          {perms.add && (<button className="btn-primary" onClick={openNew}>
             <Plus size={16} />
-            Nuevo {module.singular.toLowerCase()}
-          </button>
+            New {module.singular.toLowerCase()}
+          </button>)}
         </div>
       </header>
 
@@ -261,14 +265,14 @@ export default function GenericModuleView({ module, initialSearch, onOpenRow }: 
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder={`Buscar en ${module.title.toLowerCase()}…`}
+            placeholder={`Search ${module.title.toLowerCase()}…`}
           />
         </div>
-        <span className="row-count">{loading ? 'Cargando registros…' : `${filtered.length} registros`}</span>
+        <span className="row-count">{loading ? 'Loading records…' : `${filtered.length} records`}</span>
       </div>
 
       {statusField && statusTags.length > 0 && (
-        <nav className="status-bar" aria-label="Filtrar por status">
+        <nav className="status-bar" aria-label="Filter by status">
           <ul>
             <li>
               <button
@@ -303,9 +307,9 @@ export default function GenericModuleView({ module, initialSearch, onOpenRow }: 
 
       {loadError && (
         <div className="load-error" role="alert">
-          <strong>No se pudo leer la colección «{module.collection}».</strong> {loadError}
+          <strong>Could not read collection "{module.collection}".</strong> {loadError}
           {loadError.toLowerCase().includes('permission') && (
-            <span> — Las reglas de Firestore están bloqueando la lectura. Revisa Firebase Console → Firestore → Reglas.</span>
+            <span> — Firestore rules are blocking reads. Check Firebase Console → Firestore → Rules.</span>
           )}
         </div>
       )}
@@ -315,7 +319,7 @@ export default function GenericModuleView({ module, initialSearch, onOpenRow }: 
           <thead>
             <tr>
               {listFields.map((f) => <th key={f.key}>{f.label}</th>)}
-              <th className="col-actions">Acciones</th>
+              <th className="col-actions">Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -339,27 +343,31 @@ export default function GenericModuleView({ module, initialSearch, onOpenRow }: 
                   <td key={f.key}>{renderCell(f, row, fkData)}</td>
                 ))}
                 <td className="col-actions">
-                  {module.id === 'quotes' && !(row as Record<string, unknown>).convertedWorkOrderId && (
+                  {perms.add && module.id === 'quotes' && !(row as Record<string, unknown>).convertedWorkOrderId && (
                     <button
                       className="btn-icon-ghost convert-btn"
                       onClick={() => void convertQuote(row)}
-                      aria-label="Convertir a Work Order"
-                      title="Convertir a Work Order"
+                      aria-label="Convert to Work Order"
+                      title="Convert to Work Order"
                     >
                       <ArrowRightCircle size={15} />
                     </button>
                   )}
                   {onOpenRow && (
-                    <button className="btn-icon-ghost" onClick={() => onOpenRow(row)} aria-label="Ver detalle">
+                    <button className="btn-icon-ghost" onClick={() => onOpenRow(row)} aria-label="View detail">
                       <Eye size={15} />
                     </button>
                   )}
-                  <button className="btn-icon-ghost" onClick={() => openEdit(row)} aria-label="Editar">
-                    <Pencil size={15} />
-                  </button>
-                  <button className="btn-danger-ghost" onClick={() => void handleDelete(row)} aria-label="Eliminar">
-                    <Trash2 size={15} />
-                  </button>
+                  {perms.edit && (
+                    <button className="btn-icon-ghost" onClick={() => openEdit(row)} aria-label="Edit">
+                      <Pencil size={15} />
+                    </button>
+                  )}
+                  {perms.delete && (
+                    <button className="btn-danger-ghost" onClick={() => void handleDelete(row)} aria-label="Delete">
+                      <Trash2 size={15} />
+                    </button>
+                  )}
                 </td>
               </tr>
             ))}
@@ -367,8 +375,8 @@ export default function GenericModuleView({ module, initialSearch, onOpenRow }: 
               <tr>
                 <td className="empty-cell" colSpan={listFields.length + 1}>
                   {rows.length === 0
-                    ? `Sin registros todavía. Crea el primer ${module.singular.toLowerCase()} o importa un CSV.`
-                    : 'Ningún registro coincide con la búsqueda.'}
+                    ? `No records yet. Create the first ${module.singular.toLowerCase()} or import a CSV.`
+                    : 'No records match your search.'}
                 </td>
               </tr>
             )}
@@ -458,10 +466,10 @@ function FormModal({
             <header className="form-header">
               <span className="form-header-icon"><ModuleIcon size={21} /></span>
               <div className="form-header-text">
-                <h2>{editing ? `Editar ${module.singular.toLowerCase()}` : `Nuevo ${module.singular.toLowerCase()}`}</h2>
+                <h2>{editing ? `Edit ${module.singular.toLowerCase()}` : `New ${module.singular.toLowerCase()}`}</h2>
                 <p>{module.description}</p>
               </div>
-              <button type="button" className="window-btn" onClick={onClose} aria-label="Cerrar">
+              <button type="button" className="window-btn" onClick={onClose} aria-label="Close">
                 <X size={17} />
               </button>
             </header>
@@ -513,9 +521,9 @@ function FormModal({
             </div>
 
             <footer className="form-foot">
-              <button type="button" className="btn-outline" onClick={onClose}>Cancelar</button>
+              <button type="button" className="btn-outline" onClick={onClose}>Cancel</button>
               <button type="submit" className="btn-dark" disabled={saving}>
-                {saving ? 'Guardando…' : editing ? 'Guardar cambios' : `Crear ${module.singular.toLowerCase()}`}
+                {saving ? 'Saving…' : editing ? 'Save changes' : `Create ${module.singular.toLowerCase()}`}
               </button>
             </footer>
           </div>
@@ -526,7 +534,7 @@ function FormModal({
               <div className="summary-block progress-block">
                 <p className="summary-title"><ClipboardCheck size={13} />Campos requeridos</p>
                 {requiredFields.length === 0 ? (
-                  <p className="summary-empty">Este módulo no tiene campos obligatorios.</p>
+                  <p className="summary-empty">This module has no required fields.</p>
                 ) : (
                   <>
                     <p className="progress-count">
@@ -555,7 +563,7 @@ function FormModal({
 
               {isWorkOrder && (
                 <div className="summary-block totals-block">
-                  <p className="summary-title"><Calculator size={13} />Totales</p>
+                  <p className="summary-title"><Calculator size={13} />Totals</p>
                   <dl className="sum-list">
                     <div><dt>Parts</dt><dd>{money(numVal('subtotalPart'))}</dd></div>
                     <div><dt>Molding</dt><dd>{money(numVal('subtotalMolding'))}</dd></div>
@@ -572,9 +580,9 @@ function FormModal({
               )}
 
               <div className="summary-block">
-                <p className="summary-title"><Eye size={13} />Resumen capturado</p>
+                <p className="summary-title"><Eye size={13} />Summary capturado</p>
                 {summaryFields.length === 0 ? (
-                  <p className="summary-empty">Los datos que captures aparecerán aquí.</p>
+                  <p className="summary-empty">The data you enter will appear here.</p>
                 ) : (
                   <dl className="sum-list">
                     {summaryFields.map((f) => (
@@ -605,7 +613,7 @@ function summaryValue(field: FieldDef, value: unknown, fkData: Record<string, Ro
     case 'decimal': return money(value);
     case 'percent': return `${value}%`;
     case 'date': return formatDate(value);
-    case 'boolean': return value ? 'Sí' : 'No';
+    case 'boolean': return value ? 'Yes' : 'No';
     default: return String(value ?? '—');
   }
 }
@@ -636,7 +644,7 @@ function renderCell(field: FieldDef, row: Row, fkData: Record<string, Row[]>) {
     case 'decimal': return <span className="cell-money">{money(value)}</span>;
     case 'percent': return value === '' || value === null || value === undefined ? '—' : `${value}%`;
     case 'date': return formatDate(value);
-    case 'boolean': return value ? 'Sí' : 'No';
+    case 'boolean': return value ? 'Yes' : 'No';
     case 'color':
       return <span className="color-dot" style={{ '--dot-color': String(value || '#94a3b8') } as CSSProperties} />;
     case 'enum': return <span className={`enum-badge enum-${String(value).toLowerCase().replace(/\s/g, '-')}`}>{String(value || '—')}</span>;
@@ -698,7 +706,7 @@ function FieldInput({ field, value, options, onChange }: FieldInputProps) {
             checked={Boolean(value)}
             onChange={(e) => onChange(e.target.checked)}
           />
-          <span>{value ? 'Sí' : 'No'}</span>
+          <span>{value ? 'Yes' : 'No'}</span>
         </label>
       ) : (
         <input
@@ -747,7 +755,7 @@ function FkListInput({ field, value, options, onChange }: FieldInputProps) {
           </button>
         </li>
       ))}
-      {options.length === 0 && <li className="fklist-empty">Sin registros en el catálogo referenciado.</li>}
+      {options.length === 0 && <li className="fklist-empty">No records in the referenced catalog.</li>}
     </ul>
   );
 }

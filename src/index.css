@@ -17,7 +17,7 @@
   --ink-faint: #aab2c4;
   --blue: #3583f6;
   --blue-deep: #2568d8;
-  --blue-soft: #eaf1fe;
+  --blue-soft: color-mix(in srgb, var(--blue) 11%, white);
   --teal: #2fc48d;
   --amber: #f59e0b;
   --red: #ef4444;
@@ -25,7 +25,7 @@
   --border: #e4e8f4;
 
   /* Gradientes de tarjetas hero */
-  --grad-blue: linear-gradient(135deg, #4a7dfa 0%, #6fa5fb 100%);
+  --grad-blue: linear-gradient(135deg, var(--blue-deep) 0%, var(--blue) 100%);
   --grad-sky: linear-gradient(135deg, #2fa4e7 0%, #6cc6f5 100%);
   --grad-green: linear-gradient(135deg, #2cc68f 0%, #55dfb0 100%);
   --grad-violet: linear-gradient(135deg, #7c5cf0 0%, #a58bfa 100%);

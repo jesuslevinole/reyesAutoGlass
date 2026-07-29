@@ -17,7 +17,7 @@ export default function LoginView({ onEnter }: Props) {
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
     // Firebase Auth aún no está conectado — el acceso real se habilitará después.
-    setNotice('La autenticación con Firebase aún no está conectada. Usa el acceso temporal.');
+    setNotice('Firebase authentication is not connected yet. Use the temporary access.');
   };
 
   return (
@@ -57,7 +57,7 @@ export default function LoginView({ onEnter }: Props) {
                   type="password"
                   value={password}
                   placeholder="Password"
-                  aria-label="Contraseña"
+                  aria-label="Password"
                   onChange={(e) => setPassword(e.target.value)}
                   required
                 />
@@ -69,9 +69,9 @@ export default function LoginView({ onEnter }: Props) {
                 <button
                   type="button"
                   className="login-forgot"
-                  onClick={() => setNotice('La recuperación de contraseña estará disponible al conectar la autenticación.')}
+                  onClick={() => setNotice('Password recovery will be available once authentication is connected.')}
                 >
-                  ¿Olvidaste tu contraseña?
+                  Forgot your password?
                 </button>
                 <button type="submit" className="login-pill">LOGIN</button>
               </div>
@@ -82,10 +82,10 @@ export default function LoginView({ onEnter }: Props) {
         {/* ============ Franja inferior ============ */}
         {BYPASS_ENABLED && (
           <footer className="login-strip">
-            <span>¿Aún sin cuenta conectada?</span>
-            <button className="login-bypass" onClick={() => onEnter({ name: 'Administración' })}>
+            <span>No account connected yet?</span>
+            <button className="login-bypass" onClick={() => onEnter({ name: 'Administration' })}>
               <ShieldAlert size={15} />
-              Entrar sin login (acceso temporal)
+              Enter without login (temporary access)
             </button>
           </footer>
         )}

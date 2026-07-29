@@ -68,11 +68,11 @@ export default function ImportExportBar({ module, rows }: Props) {
     <div className="import-export-bar">
       <button className="btn-outline" onClick={() => void handleExport()} disabled={exporting}>
         {exporting ? <Loader2 size={15} className="spin" /> : <FileDown size={15} />}
-        Exportar template Excel
+        Export Excel template
       </button>
       <button className="btn-outline" onClick={() => fileRef.current?.click()} disabled={importing}>
         {importing ? <Loader2 size={15} className="spin" /> : <FileUp size={15} />}
-        Importar CSV
+        Import CSV
       </button>
       <input
         ref={fileRef}

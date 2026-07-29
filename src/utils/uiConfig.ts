@@ -12,7 +12,19 @@ export interface ModuleOverride {
   labels?: Record<string, string>;
   /** Orden de las columnas del listado (keys inList) */
   columnOrder?: string[];
+  /** Orden de los campos del formulario */
+  formOrder?: string[];
 }
+
+/** Permisos por acción de un rol sobre un módulo. */
+export interface ModulePerm {
+  view: boolean;
+  add: boolean;
+  edit: boolean;
+  delete: boolean;
+}
+
+export const FULL_PERM: ModulePerm = { view: true, add: true, edit: true, delete: true };
 
 function asOverride(doc: Row | undefined): ModuleOverride {
   if (!doc) return {};
@@ -21,21 +33,31 @@ function asOverride(doc: Row | undefined): ModuleOverride {
     title: typeof d.title === 'string' && d.title ? d.title : undefined,
     labels: (d.labels && typeof d.labels === 'object') ? d.labels as Record<string, string> : undefined,
     columnOrder: Array.isArray(d.columnOrder) ? d.columnOrder as string[] : undefined,
+    formOrder: Array.isArray(d.formOrder) ? d.formOrder as string[] : undefined,
   };
 }
 
 /** Aplica los overrides de un módulo: título, etiquetas de campos y orden de columnas. */
 export function applyOverrides(module: ModuleDef, configDoc: Row | undefined): ModuleDef {
   const ov = asOverride(configDoc);
-  if (!ov.title && !ov.labels && !ov.columnOrder) return module;
+  if (!ov.title && !ov.labels && !ov.columnOrder && !ov.formOrder) return module;
+  let fields = module.fields.map((f) => {
+    const custom = ov.labels?.[f.key];
+    return custom ? { ...f, label: custom } : f;
+  });
+  if (ov.formOrder && ov.formOrder.length > 0) {
+    const order = ov.formOrder;
+    fields = [...fields].sort((a, b) => {
+      const ia = order.indexOf(a.key);
+      const ib = order.indexOf(b.key);
+      return (ia === -1 ? order.length : ia) - (ib === -1 ? order.length : ib);
+    });
+  }
   return {
     ...module,
     title: ov.title ?? module.title,
     columnOrder: ov.columnOrder,
-    fields: module.fields.map((f) => {
-      const custom = ov.labels?.[f.key];
-      return custom ? { ...f, label: custom } : f;
-    }),
+    fields,
   };
 }
 

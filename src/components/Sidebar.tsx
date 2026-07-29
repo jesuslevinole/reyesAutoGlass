@@ -6,6 +6,7 @@ import './Sidebar.css';
 
 interface Props {
   appName: string;
+  appLogo?: string;
   items: NavItem[];
   current: string;
   open: boolean;
@@ -14,15 +15,19 @@ interface Props {
   onClose: () => void;
 }
 
-export default function Sidebar({ appName, items, current, open, collapsed, onNavigate, onClose }: Props) {
+export default function Sidebar({ appName, appLogo, items, current, open, collapsed, onNavigate, onClose }: Props) {
   return (
     <>
       <div className={`sidebar-scrim${open ? ' visible' : ''}`} onClick={onClose} aria-hidden="true" />
       <aside className={`sidebar${open ? ' open' : ''}${collapsed ? ' collapsed' : ''}`}>
         <div className="sidebar-brand">
-          <span className="brand-glyph"><GlassWater size={20} /></span>
+          {appLogo ? (
+            <img className="brand-logo" src={appLogo} alt="" />
+          ) : (
+            <span className="brand-glyph"><GlassWater size={20} /></span>
+          )}
           <span className="brand-name">{appName}</span>
-          <button className="sidebar-close" onClick={onClose} aria-label="Cerrar menú">
+          <button className="sidebar-close" onClick={onClose} aria-label="Close menu">
             <X size={18} />
           </button>
         </div>

@@ -127,7 +127,7 @@ export default function DashboardView() {
     return [...counts.entries()]
       .map(([id, count]) => {
         const st = statuses.find((s) => s.id === id);
-        return { id, name: st?.name ?? 'Sin status', color: tagColorToHex(st?.color), count };
+        return { id, name: st?.name ?? 'No status', color: tagColorToHex(st?.color), count };
       })
       .sort((a, b) => b.count - a.count)
       .slice(0, 6);
@@ -153,8 +153,8 @@ export default function DashboardView() {
     <section className="dashboard">
       <header className="dash-head">
         <div>
-          <h1>Dashboard gerencial</h1>
-          <p className="dash-sub">Resumen ejecutivo del taller — datos en tiempo real</p>
+          <h1>Executive Dashboard</h1>
+          <p className="dash-sub">Shop overview — real-time data</p>
         </div>
       </header>
 
@@ -162,19 +162,19 @@ export default function DashboardView() {
       <p className="dash-section-label">Jobs &amp; Status</p>
       <ul className="jobs-row">
         <li>
-          <p className="jobs-label">Jobs hoy</p>
+          <p className="jobs-label">Jobs today</p>
           <p className="jobs-value">{loading ? <span className="skeleton skel-cell skel-w3" /> : kpis.jobsToday}</p>
         </li>
         <li>
-          <p className="jobs-label">Jobs mañana</p>
+          <p className="jobs-label">Jobs tomorrow</p>
           <p className="jobs-value">{loading ? <span className="skeleton skel-cell skel-w3" /> : kpis.jobsTomorrow}</p>
         </li>
         <li>
-          <p className="jobs-label">Jobs próximos 7 días</p>
+          <p className="jobs-label">Jobs next 7 days</p>
           <p className="jobs-value">{loading ? <span className="skeleton skel-cell skel-w3" /> : kpis.jobsWeek}</p>
         </li>
         <li>
-          <p className="jobs-label">Balance por cobrar</p>
+          <p className="jobs-label">Outstanding balance</p>
           <p className="jobs-value">{loading ? <span className="skeleton skel-cell skel-w3" /> : money(kpis.balance)}</p>
         </li>
       </ul>
@@ -183,45 +183,45 @@ export default function DashboardView() {
       <ul className="hero-cards">
         <li className="hero-card hero-blue">
           <div className="hero-icon"><DollarSign size={20} /></div>
-          <p className="hero-label">Facturación total</p>
+          <p className="hero-label">Total revenue</p>
           <p className="hero-value">{loading ? <span className="skeleton skel-hero" /> : money(kpis.total)}</p>
-          <p className="hero-foot">{kpis.count} work orders registradas</p>
+          <p className="hero-foot">{kpis.count} work orders registered</p>
         </li>
         <li className="hero-card hero-sky">
           <div className="hero-icon"><Wallet size={20} /></div>
-          <p className="hero-label">Cobrado</p>
+          <p className="hero-label">Collected</p>
           <p className="hero-value">{loading ? <span className="skeleton skel-hero" /> : money(kpis.paid)}</p>
-          <p className="hero-foot">Tasa de cobro {collectionRate}%</p>
+          <p className="hero-foot">Collection rate {collectionRate}%</p>
         </li>
         <li className="hero-card hero-green">
           <div className="hero-icon"><ClipboardList size={20} /></div>
-          <p className="hero-label">Órdenes del mes</p>
+          <p className="hero-label">Orders this month</p>
           <p className="hero-value">{loading ? <span className="skeleton skel-hero" /> : kpis.ordersThisMonth}</p>
           <p className="hero-foot">
-            {kpis.revenueDelta === null ? 'Sin mes anterior para comparar' : (
+            {kpis.revenueDelta === null ? 'No previous month to compare' : (
               <span className={`delta ${kpis.revenueDelta >= 0 ? 'up' : 'down'}`}>
                 {kpis.revenueDelta >= 0 ? <ArrowUpRight size={13} /> : <ArrowDownRight size={13} />}
-                {Math.abs(kpis.revenueDelta).toFixed(1)}% vs mes anterior
+                {Math.abs(kpis.revenueDelta).toFixed(1)}% vs previous month
               </span>
             )}
           </p>
         </li>
         <li className="hero-card hero-violet">
           <div className="hero-icon"><ShieldCheck size={20} /></div>
-          <p className="hero-label">Balance por cobrar</p>
+          <p className="hero-label">Outstanding balance</p>
           <p className="hero-value">{loading ? <span className="skeleton skel-hero" /> : money(kpis.balance)}</p>
-          <p className="hero-foot">{kpis.insurancePct}% de órdenes por aseguranza</p>
+          <p className="hero-foot">{kpis.insurancePct}% insurance orders</p>
         </li>
       </ul>
 
       <div className="dash-grid">
         {/* ===== Ingresos por mes ===== */}
         <article className="panel panel-chart">
-          <h2>Ingresos últimos 6 meses</h2>
+          <h2>Revenue — last 6 months</h2>
           {loading ? <span className="skeleton skel-chart" /> : <BarChart points={monthly} />}
           <ul className="chart-legend">
-            <li><span className="legend-dot dot-total" />Facturado</li>
-            <li><span className="legend-dot dot-paid" />Cobrado</li>
+            <li><span className="legend-dot dot-total" />Billed</li>
+            <li><span className="legend-dot dot-paid" />Collected</li>
           </ul>
         </article>
 
@@ -237,11 +237,11 @@ export default function DashboardView() {
 
         {/* ===== Distribución por status ===== */}
         <article className="panel">
-          <h2>Órdenes por status</h2>
+          <h2>Orders by status</h2>
           {loading ? (
             <SkeletonLines />
           ) : statusDist.length === 0 ? (
-            <p className="panel-empty">Aún no hay órdenes registradas.</p>
+            <p className="panel-empty">No orders registered yet.</p>
           ) : (
             <ul className="status-bars">
               {statusDist.map((s) => {
@@ -265,11 +265,11 @@ export default function DashboardView() {
 
         {/* ===== Top distribuidores ===== */}
         <article className="panel">
-          <h2>Top distribuidores por costo de vidrio</h2>
+          <h2>Top distributors by glass cost</h2>
           {loading ? (
             <SkeletonLines />
           ) : topDistributors.length === 0 ? (
-            <p className="panel-empty">Sin detalles de servicio con distribuidor todavía.</p>
+            <p className="panel-empty">No service details with a distributor yet.</p>
           ) : (
             <ol className="top-list">
               {topDistributors.map((d, i) => (
