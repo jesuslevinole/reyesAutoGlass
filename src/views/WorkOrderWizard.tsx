@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
-  Calculator, Car, Check, ChevronLeft, ChevronRight, ClipboardList,
-  FileText, Minus, Plus, ShieldCheck, Trash2, UserRound, X,
+  Briefcase, Calculator, CalendarDays, Car, ClipboardList, MapPin,
+  Minus, Percent, Plus, Save, ShieldCheck, Trash2, UserRound, Wrench, X,
 } from 'lucide-react';
 import SearchableSelect from '../components/SearchableSelect';
 import { getModule } from '../config/modules';
@@ -141,6 +141,24 @@ function QuickAdd({ spec, onCreated, onClose }: {
   );
 }
 
+/* ==================== Tarjeta de sección (ícono + título + rejilla) ==================== */
+
+function SectionCard({ icon, title, children }: {
+  icon: React.ReactNode;
+  title: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="wz-section">
+      <header className="wz-section-head">
+        <span className="wz-section-icon">{icon}</span>
+        <h2>{title}</h2>
+      </header>
+      <div className="wz-fields">{children}</div>
+    </section>
+  );
+}
+
 /* ==================== Wizard ==================== */
 
 function num(v: unknown): number {
@@ -161,7 +179,7 @@ export default function WorkOrderWizard({ initialRow, onClose }: Props) {
     }
     return base;
   });
-  const [step, setStep] = useState(0);
+  const [tab, setTab] = useState(0);
   const [saving, setSaving] = useState(false);
   const [services, setServices] = useState<ServiceRow[]>([]);
   const [catalogs, setCatalogs] = useState<Record<string, Row[]>>({});
@@ -180,12 +198,11 @@ export default function WorkOrderWizard({ initialRow, onClose }: Props) {
   const set = (key: string, value: unknown) => setForm((prev) => ({ ...prev, [key]: value }));
 
   const isInsurance = form.insuranceType === 'Insurance';
-  const steps = useMemo(
+  const tabs = useMemo(
     () => ['Work Order', 'Vehículo', 'Cliente', ...(isInsurance ? ['Insurance'] : []), 'Totales'],
     [isInsurance],
   );
-  const lastStep = step === steps.length - 1;
-  const stepName = steps[step];
+  const tabName = tabs[Math.min(tab, tabs.length - 1)];
 
   /* ===== Cálculos en vivo (subtotales → tax → total) ===== */
   const subtotal = num(form.subtotalPart) + num(form.subtotalMolding) + num(form.subtotalServices);
@@ -293,10 +310,12 @@ export default function WorkOrderWizard({ initialRow, onClose }: Props) {
   /** Select con búsqueda + botón de alta rápida al catálogo. */
   const catalogSelect = (
     label: string, key: string, collection: string,
-    opts?: { filtered?: { id: string; label: string }[]; onPick?: (id: string) => void; full?: boolean },
+    opts?: { filtered?: { id: string; label: string }[]; onPick?: (id: string) => void; full?: boolean; required?: boolean },
   ) => (
     <div className={`wz-field${opts?.full ? ' wz-full' : ''}`} key={key}>
-      <label htmlFor={`wz-${key}`}>{label}</label>
+      <label htmlFor={`wz-${key}`} className={opts?.required ? 'wz-req' : undefined}>
+        {label}{opts?.required ? ' *' : ''} <code className="wz-key">{key}</code>
+      </label>
       <div className="wz-select-row">
         <SearchableSelect
           inputId={`wz-${key}`}
@@ -319,7 +338,7 @@ export default function WorkOrderWizard({ initialRow, onClose }: Props) {
 
   const moneyInput = (label: string, key: string, readonly = false) => (
     <div className="wz-field" key={key}>
-      <label htmlFor={`wz-${key}`}>{label}</label>
+      <label htmlFor={`wz-${key}`}>{label} <code className="wz-key">{key}</code></label>
       <div className={`wz-money${readonly ? ' readonly' : ''}`}>
         <span>$</span>
         <input
@@ -335,318 +354,323 @@ export default function WorkOrderWizard({ initialRow, onClose }: Props) {
     </div>
   );
 
+  const TAB_ICONS: Record<string, typeof Briefcase> = { 'Work Order': Briefcase, 'Vehículo': Car, 'Cliente': UserRound, 'Insurance': ShieldCheck, 'Totales': Calculator };
+
+  const statusRow = form.idStatus ? cat('catalog_tag').find((t) => t.id === form.idStatus) : undefined;
+  const missing: string[] = [];
+  if (!form.idStatus) missing.push('Status');
+  if (!form.idCustomer) missing.push('Cliente');
+
   return (
     <div className="wizard">
       {/* ===== Header ===== */}
       <header className="wz-head">
+        <div className="wz-head-text">
+          <h1>{initialRow ? 'Editar Work Order' : 'Nueva Work Order'}</h1>
+          <p>Completa el formulario para registrar la orden</p>
+        </div>
         <button type="button" className="btn-icon-ghost" onClick={onClose} aria-label="Cerrar">
           <X size={19} />
         </button>
-        <h1>{initialRow ? 'Editar Work Order' : 'Nueva Work Order'}</h1>
-        <div className="wz-head-actions">
-          {step > 0 && (
-            <button type="button" className="btn-outline" onClick={() => setStep((s) => s - 1)}>
-              <ChevronLeft size={15} />
-              Prev
-            </button>
-          )}
-          <button type="button" className="btn-outline" onClick={onClose}>Cancelar</button>
-          {lastStep ? (
-            <button type="button" className="btn-dark" onClick={() => void save()} disabled={saving}>
-              {saving ? 'Guardando…' : 'Confirmar y guardar'}
-            </button>
-          ) : (
-            <button type="button" className="btn-primary" onClick={() => setStep((s) => s + 1)}>
-              Next
-              <ChevronRight size={15} />
-            </button>
-          )}
-        </div>
       </header>
 
-      {/* ===== Pasos numerados ===== */}
-      <ol className="wz-steps" aria-label="Pasos del formulario">
-        {steps.map((name, i) => (
-          <li key={name} className={`wz-step${i === step ? ' current' : ''}${i < step ? ' done' : ''}`}>
-            <button type="button" className="wz-step-circle" onClick={() => setStep(i)} aria-label={`Ir al paso ${name}`}>
-              {i < step ? <Check size={14} /> : i + 1}
-            </button>
-            <span className="wz-step-name">{name}</span>
-            {i < steps.length - 1 && <span className="wz-step-connector" aria-hidden="true" />}
-          </li>
-        ))}
-      </ol>
+      {/* ===== Tabs con íconos ===== */}
+      <nav className="wz-tabs" aria-label="Secciones del formulario">
+        <ul>
+          {tabs.map((name, i) => {
+            const Icon = TAB_ICONS[name] ?? Briefcase;
+            return (
+              <li key={name}>
+                <button
+                  type="button"
+                  className={`wz-tab${i === tab ? ' active' : ''}`}
+                  onClick={() => setTab(i)}
+                >
+                  <Icon size={15} />
+                  {name}
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      </nav>
 
-      {/* ===== Cuerpo: tarjeta del paso + sumario ===== */}
+      {/* ===== Cuerpo: tarjetas de sección + sidebar de sumario ===== */}
       <div className="wz-body">
-        <section className="wz-card">
-          <h2>{stepName}</h2>
-
-          {stepName === 'Work Order' && (
-            <div className="wz-fields">
-              <div className="wz-field wz-full">
-                <span className="wz-label">Insurance</span>
-                <div className="wz-toggle" role="radiogroup" aria-label="Tipo de orden">
-                  {['Personal', 'Insurance'].map((opt) => (
-                    <button
-                      key={opt}
-                      type="button"
-                      role="radio"
-                      aria-checked={form.insuranceType === opt}
-                      className={`wz-toggle-btn${form.insuranceType === opt ? ' active' : ''}`}
-                      onClick={() => set('insuranceType', opt)}
-                    >
-                      {opt}
-                    </button>
-                  ))}
+        <div className="wz-main">
+          {tabName === 'Work Order' && (
+            <>
+              <SectionCard icon={<Briefcase size={15} />} title="Tipo de Orden y Fechas">
+                <div className="wz-field wz-full">
+                  <span className="wz-label">Insurance <code className="wz-key">insuranceType</code></span>
+                  <div className="wz-toggle" role="radiogroup" aria-label="Tipo de orden">
+                    {['Personal', 'Insurance'].map((opt) => (
+                      <button
+                        key={opt}
+                        type="button"
+                        role="radio"
+                        aria-checked={form.insuranceType === opt}
+                        className={`wz-toggle-btn${form.insuranceType === opt ? ' active' : ''}`}
+                        onClick={() => set('insuranceType', opt)}
+                      >
+                        {opt}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-              </div>
-              <div className="wz-field">
-                <label htmlFor="wz-date">Date</label>
-                <input
-                  id="wz-date"
-                  type="date"
-                  value={String(form.dateRegister ?? '')}
-                  onChange={(e) => set('dateRegister', e.target.value)}
-                />
-              </div>
-              {catalogSelect('Status', 'idStatus', 'catalog_tag', { filtered: tagOptions })}
-              {catalogSelect('Company', 'idCompany', 'catalog_company')}
-              {catalogSelect('Zipcode', 'idZipcode', 'catalog_zipcode', { onPick: onZipcode })}
-              {moneyInput('Long trip', 'longTrip')}
-            </div>
+                <div className="wz-field">
+                  <label htmlFor="wz-date">Date <code className="wz-key">dateRegister</code></label>
+                  <input id="wz-date" type="date" value={String(form.dateRegister ?? '')} onChange={(e) => set('dateRegister', e.target.value)} />
+                </div>
+                {catalogSelect('Status', 'idStatus', 'catalog_tag', { filtered: tagOptions, required: true })}
+              </SectionCard>
+
+              <SectionCard icon={<MapPin size={15} />} title="Compañía y Zona">
+                {catalogSelect('Company', 'idCompany', 'catalog_company')}
+                {catalogSelect('Zipcode', 'idZipcode', 'catalog_zipcode', { onPick: onZipcode })}
+                {moneyInput('Long trip', 'longTrip')}
+              </SectionCard>
+            </>
           )}
 
-          {stepName === 'Vehículo' && (
-            <div className="wz-fields">
-              <div className="wz-field">
-                <label htmlFor="wz-year">Year</label>
-                <input id="wz-year" type="number" value={String(form.year ?? '')} onChange={(e) => set('year', e.target.value)} />
-              </div>
-              <div className="wz-field">
-                <label htmlFor="wz-vin">Vin number</label>
-                <input id="wz-vin" value={String(form.vinNumber ?? '')} onChange={(e) => set('vinNumber', e.target.value)} />
-              </div>
-              <div className="wz-field">
-                <label htmlFor="wz-plate">Plate</label>
-                <input id="wz-plate" value={String(form.plate ?? '')} onChange={(e) => set('plate', e.target.value)} />
-              </div>
+          {tabName === 'Vehículo' && (
+            <>
+              <SectionCard icon={<Car size={15} />} title="Datos del Vehículo">
+                <div className="wz-field">
+                  <label htmlFor="wz-year">Year <code className="wz-key">year</code></label>
+                  <input id="wz-year" type="number" value={String(form.year ?? '')} onChange={(e) => set('year', e.target.value)} />
+                </div>
+                <div className="wz-field">
+                  <label htmlFor="wz-vin">Vin number <code className="wz-key">vinNumber</code></label>
+                  <input id="wz-vin" value={String(form.vinNumber ?? '')} onChange={(e) => set('vinNumber', e.target.value)} />
+                </div>
+                <div className="wz-field">
+                  <label htmlFor="wz-plate">Plate <code className="wz-key">plate</code></label>
+                  <input id="wz-plate" value={String(form.plate ?? '')} onChange={(e) => set('plate', e.target.value)} />
+                </div>
+              </SectionCard>
 
               {!initialRow && (
-                <div className="wz-services wz-full">
-                  <div className="wz-services-head">
-                    <span className="wz-label">Services part</span>
-                    <button type="button" className="wz-new-btn" onClick={addService}>
-                      <Plus size={14} />
-                      New
-                    </button>
-                  </div>
-                  <ul className="wz-service-list">
-                    {services.map((s, index) => (
-                      <li key={index} className="wz-service-row">
-                        <SearchableSelect
-                          value={s.idJobtype}
-                          options={options('catalog_jobtype')}
-                          placeholder="Job type…"
-                          onChange={(id) => updateService(index, { idJobtype: id })}
-                        />
-                        <SearchableSelect
-                          value={s.idPartnumber}
-                          options={options('catalog_part_number')}
-                          placeholder="Part number…"
-                          onChange={(id) => updateService(index, { idPartnumber: id })}
-                        />
-                        <div className="wz-money">
-                          <span>$</span>
-                          <input
-                            type="number"
-                            step="0.01"
-                            value={String(s.price || '')}
-                            placeholder="0.00"
-                            aria-label="Precio"
-                            onChange={(e) => updateService(index, { price: num(e.target.value) })}
+                <SectionCard icon={<Wrench size={15} />} title="Services part">
+                  <div className="wz-services wz-full">
+                    <div className="wz-services-head">
+                      <span className="wz-label">Partes y servicios de la orden</span>
+                      <button type="button" className="wz-new-btn" onClick={addService}>
+                        <Plus size={14} />
+                        New
+                      </button>
+                    </div>
+                    <ul className="wz-service-list">
+                      {services.map((s, index) => (
+                        <li key={index} className="wz-service-row">
+                          <SearchableSelect
+                            value={s.idJobtype}
+                            options={options('catalog_jobtype')}
+                            placeholder="Job type…"
+                            onChange={(id) => updateService(index, { idJobtype: id })}
                           />
-                        </div>
-                        <button type="button" className="btn-danger-ghost" onClick={() => removeService(index)} aria-label="Quitar">
-                          <Trash2 size={15} />
-                        </button>
-                      </li>
-                    ))}
-                    {services.length === 0 && <li className="wz-service-empty">Sin partes agregadas todavía.</li>}
-                  </ul>
-                </div>
+                          <SearchableSelect
+                            value={s.idPartnumber}
+                            options={options('catalog_part_number')}
+                            placeholder="Part number…"
+                            onChange={(id) => updateService(index, { idPartnumber: id })}
+                          />
+                          <div className="wz-money">
+                            <span>$</span>
+                            <input
+                              type="number"
+                              step="0.01"
+                              value={String(s.price || '')}
+                              placeholder="0.00"
+                              aria-label="Precio"
+                              onChange={(e) => updateService(index, { price: num(e.target.value) })}
+                            />
+                          </div>
+                          <button type="button" className="btn-danger-ghost" onClick={() => removeService(index)} aria-label="Quitar">
+                            <Trash2 size={15} />
+                          </button>
+                        </li>
+                      ))}
+                      {services.length === 0 && <li className="wz-service-empty">Sin partes agregadas todavía.</li>}
+                    </ul>
+                  </div>
+                </SectionCard>
               )}
-            </div>
+            </>
           )}
 
-          {stepName === 'Cliente' && (
-            <div className="wz-fields">
-              {catalogSelect('Customer', 'idCustomer', 'customers', { full: true })}
-              <div className="wz-field">
-                <label htmlFor="wz-cust-address">Address</label>
-                <input id="wz-cust-address" value={String(customer?.address ?? '')} readOnly placeholder="—" />
-              </div>
-              <div className="wz-field">
-                <label htmlFor="wz-cust-phone">Phone</label>
-                <input id="wz-cust-phone" value={String(customer?.phone ?? '')} readOnly placeholder="—" />
-              </div>
-              <div className="wz-field">
-                <label htmlFor="wz-cust-email">Email</label>
-                <input id="wz-cust-email" value={String(customer?.email ?? '')} readOnly placeholder="—" />
-              </div>
-              <div className="wz-field">
-                <label htmlFor="wz-appt">Appoiment date</label>
-                <input id="wz-appt" type="date" value={String(form.appointmentDate ?? '')} onChange={(e) => set('appointmentDate', e.target.value)} />
-              </div>
-              <div className="wz-field">
-                <label htmlFor="wz-time-in">Time start</label>
-                <input id="wz-time-in" type="time" value={String(form.timeIn ?? '')} onChange={(e) => set('timeIn', e.target.value)} />
-              </div>
-              <div className="wz-field">
-                <label htmlFor="wz-time-out">Time end</label>
-                <input id="wz-time-out" type="time" value={String(form.timeOut ?? '')} onChange={(e) => set('timeOut', e.target.value)} />
-              </div>
-            </div>
+          {tabName === 'Cliente' && (
+            <>
+              <SectionCard icon={<UserRound size={15} />} title="Cliente">
+                {catalogSelect('Customer', 'idCustomer', 'customers', { required: true })}
+                <div className="wz-field">
+                  <label htmlFor="wz-cust-address">Address</label>
+                  <input id="wz-cust-address" value={String(customer?.address ?? '')} readOnly placeholder="Se llena con el cliente" />
+                </div>
+                <div className="wz-field">
+                  <label htmlFor="wz-cust-phone">Phone</label>
+                  <input id="wz-cust-phone" value={String(customer?.phone ?? '')} readOnly placeholder="Se llena con el cliente" />
+                </div>
+                <div className="wz-field">
+                  <label htmlFor="wz-cust-email">Email</label>
+                  <input id="wz-cust-email" value={String(customer?.email ?? '')} readOnly placeholder="Se llena con el cliente" />
+                </div>
+              </SectionCard>
+
+              <SectionCard icon={<CalendarDays size={15} />} title="Cita">
+                <div className="wz-field">
+                  <label htmlFor="wz-appt">Appoiment date <code className="wz-key">appointmentDate</code></label>
+                  <input id="wz-appt" type="date" value={String(form.appointmentDate ?? '')} onChange={(e) => set('appointmentDate', e.target.value)} />
+                </div>
+                <div className="wz-field">
+                  <label htmlFor="wz-time-in">Time start</label>
+                  <input id="wz-time-in" type="time" value={String(form.timeIn ?? '')} onChange={(e) => set('timeIn', e.target.value)} />
+                </div>
+                <div className="wz-field">
+                  <label htmlFor="wz-time-out">Time end</label>
+                  <input id="wz-time-out" type="time" value={String(form.timeOut ?? '')} onChange={(e) => set('timeOut', e.target.value)} />
+                </div>
+              </SectionCard>
+            </>
           )}
 
-          {stepName === 'Insurance' && (
-            <div className="wz-fields">
+          {tabName === 'Insurance' && (
+            <SectionCard icon={<ShieldCheck size={15} />} title="Aseguradora">
               {catalogSelect('Aseguradora', 'idInsurance', 'catalog_insurance')}
               {moneyInput('Deducible', 'deductible')}
               <div className="wz-field">
-                <label htmlFor="wz-auth">ID Autorization</label>
+                <label htmlFor="wz-auth">ID Autorization <code className="wz-key">idAutorization</code></label>
                 <input id="wz-auth" value={String(form.idAutorization ?? '')} onChange={(e) => set('idAutorization', e.target.value)} />
               </div>
-            </div>
+            </SectionCard>
           )}
 
-          {stepName === 'Totales' && (
-            <div className="wz-fields">
-              {moneyInput('Subtotal part', 'subtotalPart')}
-              {moneyInput('Subtotal molding', 'subtotalMolding')}
-              {moneyInput('Subtotal services', 'subtotalServices')}
-              {moneyInput('Total labor', 'totalLabor')}
-              <div className="wz-field">
-                <span className="wz-label">Upsell</span>
-                <div className="wz-stepper">
-                  <span>$</span>
-                  <input
-                    type="number"
-                    step="1"
-                    value={String(form.upsell ?? '')}
-                    placeholder="0"
-                    aria-label="Upsell"
-                    onChange={(e) => set('upsell', e.target.value)}
-                  />
-                  <button type="button" onClick={() => set('upsell', num(form.upsell) - 1)} aria-label="Restar">
-                    <Minus size={14} />
-                  </button>
-                  <button type="button" onClick={() => set('upsell', num(form.upsell) + 1)} aria-label="Sumar">
-                    <Plus size={14} />
-                  </button>
-                </div>
-              </div>
-              <div className="wz-field">
-                <label htmlFor="wz-taxp">Tax Percent</label>
-                <div className="wz-money">
-                  <span>%</span>
-                  <input
-                    id="wz-taxp"
-                    type="number"
-                    step="0.0001"
-                    value={String(form.taxPercent ?? '')}
-                    placeholder="0.0000"
-                    onChange={(e) => onTaxPercent(e.target.value)}
-                  />
-                </div>
-              </div>
-              {moneyInput('Tax $', 'taxDolar')}
-              {moneyInput('Cash comeback', 'cashComeback')}
-              <div className="wz-field">
-                <span className="wz-label">Total</span>
-                <div className="wz-money readonly">
-                  <span>$</span>
-                  <input value={computedTotal.toFixed(2)} readOnly aria-label="Total calculado" />
-                </div>
-              </div>
-              {moneyInput('Upsold', 'upsold')}
-              {moneyInput('Paid', 'paid')}
-            </div>
-          )}
-        </section>
+          {tabName === 'Totales' && (
+            <>
+              <SectionCard icon={<Calculator size={15} />} title="Subtotales">
+                {moneyInput('Subtotal part', 'subtotalPart')}
+                {moneyInput('Subtotal molding', 'subtotalMolding')}
+                {moneyInput('Subtotal services', 'subtotalServices')}
+                {moneyInput('Total labor', 'totalLabor')}
+              </SectionCard>
 
-        {/* ===== Sumario en vivo ===== */}
+              <SectionCard icon={<Percent size={15} />} title="Impuestos y Ajustes">
+                <div className="wz-field">
+                  <span className="wz-label">Upsell <code className="wz-key">upsell</code></span>
+                  <div className="wz-stepper">
+                    <span>$</span>
+                    <input
+                      type="number"
+                      step="1"
+                      value={String(form.upsell ?? '')}
+                      placeholder="0"
+                      aria-label="Upsell"
+                      onChange={(e) => set('upsell', e.target.value)}
+                    />
+                    <button type="button" onClick={() => set('upsell', num(form.upsell) - 1)} aria-label="Restar">
+                      <Minus size={14} />
+                    </button>
+                    <button type="button" onClick={() => set('upsell', num(form.upsell) + 1)} aria-label="Sumar">
+                      <Plus size={14} />
+                    </button>
+                  </div>
+                </div>
+                <div className="wz-field">
+                  <label htmlFor="wz-taxp">Tax Percent <code className="wz-key">taxPercent</code></label>
+                  <div className="wz-money">
+                    <span>%</span>
+                    <input
+                      id="wz-taxp"
+                      type="number"
+                      step="0.0001"
+                      value={String(form.taxPercent ?? '')}
+                      placeholder="0.0000"
+                      onChange={(e) => onTaxPercent(e.target.value)}
+                    />
+                  </div>
+                </div>
+                {moneyInput('Tax $', 'taxDolar')}
+                {moneyInput('Cash comeback', 'cashComeback')}
+                {moneyInput('Upsold', 'upsold')}
+                {moneyInput('Paid', 'paid')}
+              </SectionCard>
+            </>
+          )}
+        </div>
+
+        {/* ===== Sidebar de sumario (tarjetas apiladas) ===== */}
         <aside className="wz-summary">
-          <header className="wz-sum-head">
-            <span className="wz-sum-head-icon"><ClipboardList size={15} /></span>
-            <h3>Sumario de la orden</h3>
-            <span className={`wz-type-pill ${isInsurance ? 'ins' : 'per'}`}>{String(form.insuranceType)}</span>
-          </header>
-
-          <div className="wz-total-banner">
-            <span>Total de la orden</span>
-            <strong>{money(computedTotal)}</strong>
-            <em>Balance pendiente: {money(balance)}</em>
+          <div className={`wz-sum-card wz-alert${missing.length === 0 ? ' ok' : ''}`}>
+            <p className="wz-sum-card-title"><ClipboardList size={13} />Estatus</p>
+            {missing.length > 0 ? (
+              <p className="wz-alert-text">
+                Para completar la orden falta seleccionar: <strong>{missing.join(' y ')}</strong>.
+              </p>
+            ) : (
+              <p className="wz-alert-text ok">
+                Orden lista para guardar — status: <strong>{rowLabel(statusRow)}</strong>
+              </p>
+            )}
           </div>
 
-          <section className="wz-sum-section">
-            <h4><FileText size={13} />Work Order</h4>
+          <div className="wz-sum-card">
+            <p className="wz-sum-card-title"><UserRound size={13} />Cliente y Cita</p>
             <dl>
-              <div><dt>Fecha</dt><dd>{String(form.dateRegister ?? '') || '—'}</dd></div>
-              <div><dt>Status</dt><dd>{form.idStatus ? rowLabel(cat('catalog_tag').find((t) => t.id === form.idStatus)) : '—'}</dd></div>
-              <div><dt>Company</dt><dd>{form.idCompany ? rowLabel(cat('catalog_company').find((c) => c.id === form.idCompany)) : '—'}</dd></div>
-              <div><dt>Zipcode</dt><dd>{form.idZipcode ? rowLabel(cat('catalog_zipcode').find((z) => z.id === form.idZipcode)) : '—'}</dd></div>
-            </dl>
-          </section>
-
-          <section className="wz-sum-section">
-            <h4><Car size={13} />Vehículo</h4>
-            <dl>
-              <div><dt>Year</dt><dd>{String(form.year ?? '') || '—'}</dd></div>
-              <div><dt>VIN</dt><dd>{String(form.vinNumber ?? '') || '—'}</dd></div>
-              <div><dt>Plate</dt><dd>{String(form.plate ?? '') || '—'}</dd></div>
-              {!initialRow && <div><dt>Partes capturadas</dt><dd>{services.length}</dd></div>}
-            </dl>
-          </section>
-
-          <section className="wz-sum-section">
-            <h4><UserRound size={13} />Cliente</h4>
-            <dl>
-              <div><dt>Customer</dt><dd>{customer ? rowLabel(customer as Row) : '—'}</dd></div>
+              <div><dt>Customer</dt><dd>{customer ? rowLabel(customer as Row) : 'Sin cliente'}</dd></div>
               <div><dt>Cita</dt><dd>{String(form.appointmentDate ?? '') || '—'}</dd></div>
               <div><dt>Horario</dt><dd>{form.timeIn || form.timeOut ? `${form.timeIn ?? ''} – ${form.timeOut ?? ''}` : '—'}</dd></div>
             </dl>
-          </section>
+          </div>
+
+          <div className="wz-sum-card">
+            <p className="wz-sum-card-title"><Car size={13} />Vehículo y Zona</p>
+            <dl>
+              <div><dt>Year / Plate</dt><dd>{[form.year, form.plate].filter(Boolean).join(' · ') || '—'}</dd></div>
+              <div><dt>VIN</dt><dd>{String(form.vinNumber ?? '') || '—'}</dd></div>
+              <div><dt>Zipcode</dt><dd>{form.idZipcode ? rowLabel(cat('catalog_zipcode').find((z) => z.id === form.idZipcode)) : '—'}</dd></div>
+              {!initialRow && <div><dt>Partes</dt><dd>{services.length}</dd></div>}
+            </dl>
+          </div>
 
           {isInsurance && (
-            <section className="wz-sum-section">
-              <h4><ShieldCheck size={13} />Insurance</h4>
+            <div className="wz-sum-card">
+              <p className="wz-sum-card-title"><ShieldCheck size={13} />Insurance</p>
               <dl>
                 <div><dt>Aseguradora</dt><dd>{form.idInsurance ? rowLabel(cat('catalog_insurance').find((i) => i.id === form.idInsurance)) : '—'}</dd></div>
                 <div><dt>Deducible</dt><dd>{money(num(form.deductible))}</dd></div>
-                <div><dt>ID Autorization</dt><dd>{String(form.idAutorization ?? '') || '—'}</dd></div>
-              </dl>
-            </section>
-          )}
-
-          <section className="wz-sum-section">
-            <h4><Calculator size={13} />Totales</h4>
-            <div className="wz-sum-money">
-              <dl>
-                <div><dt>Subtotal parts</dt><dd>{money(num(form.subtotalPart))}</dd></div>
-                <div><dt>Subtotal molding</dt><dd>{money(num(form.subtotalMolding))}</dd></div>
-                <div><dt>Subtotal services</dt><dd>{money(num(form.subtotalServices))}</dd></div>
-                <div><dt>Labor</dt><dd>{money(num(form.totalLabor))}</dd></div>
-                <div><dt>Tax ({String(form.taxPercent ?? 0) || 0}%)</dt><dd>{money(num(form.taxDolar))}</dd></div>
-                <div><dt>Long trip</dt><dd>{money(num(form.longTrip))}</dd></div>
-                <div><dt>Upsell</dt><dd>{money(num(form.upsell))}</dd></div>
-                {num(form.discount) > 0 && <div className="negative"><dt>Descuento</dt><dd>−{money(num(form.discount))}</dd></div>}
-                <div className="wz-sum-grand"><dt>Total</dt><dd>{money(computedTotal)}</dd></div>
-                <div><dt>Pagado</dt><dd>{money(num(form.paid))}</dd></div>
-                <div className="wz-sum-balance"><dt>Balance</dt><dd>{money(balance)}</dd></div>
               </dl>
             </div>
-          </section>
+          )}
+
+          <div className="wz-sum-card">
+            <p className="wz-sum-card-title"><Calculator size={13} />Financiero</p>
+            <dl>
+              <div><dt>Subtotal parts</dt><dd>{money(num(form.subtotalPart))}</dd></div>
+              <div><dt>Molding</dt><dd>{money(num(form.subtotalMolding))}</dd></div>
+              <div><dt>Services</dt><dd>{money(num(form.subtotalServices))}</dd></div>
+              <div><dt>Labor</dt><dd>{money(num(form.totalLabor))}</dd></div>
+              <div><dt>Tax ({String(form.taxPercent ?? 0) || 0}%)</dt><dd>{money(num(form.taxDolar))}</dd></div>
+              <div><dt>Long trip</dt><dd>{money(num(form.longTrip))}</dd></div>
+              <div><dt>Upsell</dt><dd>{money(num(form.upsell))}</dd></div>
+              <div><dt>Paid</dt><dd>{money(num(form.paid))}</dd></div>
+            </dl>
+            <div className="wz-total-box">
+              <span>Total de la orden</span>
+              <strong>{money(computedTotal)}</strong>
+              <em>Balance: {money(balance)}</em>
+            </div>
+          </div>
+
+          <div className="wz-sum-actions">
+            <button type="button" className="btn-dark wz-save" onClick={() => void save()} disabled={saving}>
+              <Save size={16} />
+              {saving ? 'Guardando…' : 'Guardar Work Order'}
+            </button>
+            <button type="button" className="btn-outline wz-cancel" onClick={onClose}>
+              <X size={15} />
+              Cancelar
+            </button>
+          </div>
         </aside>
       </div>
 
