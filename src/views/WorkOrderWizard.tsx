@@ -206,10 +206,12 @@ export default function WorkOrderWizard({ initialRow, onClose }: Props) {
   const loadLiveDetails = async () => {
     if (!workOrderId) return;
     const all = await fetchAll('work_order_details');
-    setLiveDetails(all.filter((d) => String(getFieldValue(d, {
+    const mine = all.filter((d) => String(getFieldValue(d, {
       key: 'idWorkorder',
       altKeys: ['work_order_id', 'id_work_order', 'workOrderId'],
-    }) ?? '') === workOrderId));
+    }) ?? '') === workOrderId);
+    setLiveDetails(mine);
+    applyLiveTotals(mine);
   };
   useEffect(() => {
     let alive = true;
@@ -235,9 +237,12 @@ export default function WorkOrderWizard({ initialRow, onClose }: Props) {
   );
   const tabName = tabs[Math.min(tab, tabs.length - 1)];
 
-  /* ===== Cálculos en vivo (subtotales → tax → total) ===== */
+  /* ===== Cálculos en vivo con las fórmulas del cliente =====
+   *  TOTAL = MOLDING + PART + SERVICES + LABOR + LONG_TRIP + TAX
+   *          (+ KIT_FLAT_RATE − DEDUCTIBLE si es Insurance) */
   const subtotal = num(form.subtotalPart) + num(form.subtotalMolding) + num(form.subtotalServices);
-  const computedTotal = subtotal + num(form.totalLabor) + num(form.taxDolar) + num(form.longTrip) + num(form.upsell) - num(form.discount);
+  const computedTotal = subtotal + num(form.totalLabor) + num(form.longTrip) + num(form.taxDolar)
+    + (form.insuranceType === 'Insurance' ? num(form.kitFlatRate) - num(form.deductible) : 0);
   const balance = computedTotal - num(form.paid);
 
   /** Zipcode del catálogo → autollenar tax % y long trip (dato del cliente). */
@@ -268,24 +273,58 @@ export default function WorkOrderWizard({ initialRow, onClose }: Props) {
   };
 
   /* ===== Servicios (solo al crear) ===== */
-  /** Precio de venta de un detalle según su camino (tier / NAGS / services). */
-  const detailPartPrice = (d: DetailDraft): number =>
-    String(d.insurance ?? '') === 'Insurance' ? num(d.pricePartInsurance) : num(d.amountPricetier);
+  /** Clasificación por el TYPE del jobtype (fórmula AppSheet), con fallback al type del detalle. */
+  const jobtypeTypeOf = (d: DetailDraft): string => {
+    const job = cat('catalog_jobtype').find((j) => j.id === d.idJobtype) as Record<string, unknown> | undefined;
+    const jobType = String(job?.type ?? '');
+    return jobType || String(d.type ?? '');
+  };
 
-  /** Al cambiar los borradores, los subtotales de la orden se derivan de ellos.
-   *  Subtotal parts = suma de los Glass Cost de las partes agregadas. */
+  /** Fórmulas del cliente (AppSheet):
+   *  SUBTOTAL_PART: Personal → Σ GLASS_COST (Parts) · Insurance → Σ price part insurance (Parts)
+   *  SUBTOTAL_MOLDING: Σ GLASS_COST (Molding)
+   *  SUBTOTAL_SERVICES: Σ AMOUNT (Services u Accesories)
+   *  TOTAL_LABOR: Personal → Σ TOTAL_LABOR · Insurance → Σ TOTAL_LABOR_HOUR */
+  const computeTotals = (list: DetailDraft[], insurance: boolean) => {
+    const ofType = (t: string) => list.filter((d) => jobtypeTypeOf(d).includes(t));
+    const parts = ofType('Parts');
+    return {
+      subtotalPart: insurance
+        ? parts.reduce((s, d) => s + num(d.pricePartInsurance), 0)
+        : parts.reduce((s, d) => s + num(d.glassCost), 0),
+      subtotalMolding: ofType('Molding').reduce((s, d) => s + num(d.glassCost), 0),
+      subtotalServices: list
+        .filter((d) => {
+          const t = jobtypeTypeOf(d);
+          return t.includes('Services') || t.includes('Accesories');
+        })
+        .reduce((s, d) => s + num(d.amount), 0),
+      totalLabor: insurance
+        ? list.reduce((s, d) => s + num(d.totalLaborHour), 0)
+        : list.reduce((s, d) => s + num(d.totalLabor), 0),
+    };
+  };
+
+  /** Al cambiar los borradores, los subtotales se derivan con las fórmulas del cliente. */
   const applyDrafts = (next: DetailDraft[]) => {
     setDrafts(next);
     if (next.length === 0) return;
-    const parts = next.filter((d) => String(d.type ?? '') === 'Parts');
-    const moldings = next.filter((d) => String(d.type ?? '') === 'Molding');
-    const services = next.filter((d) => String(d.type ?? '') === 'Services');
+    setForm((prev) => ({ ...prev, ...computeTotals(next, prev.insuranceType === 'Insurance') }));
+  };
+
+  /** Al editar una orden, los totales se recalculan desde sus detalles reales. */
+  const applyLiveTotals = (list: Row[]) => {
+    if (list.length === 0) return;
     setForm((prev) => ({
       ...prev,
-      subtotalPart: parts.reduce((s, d) => s + num(d.glassCost), 0),
-      subtotalMolding: moldings.reduce((s, d) => s + num(d.glassCost), 0),
-      subtotalServices: services.reduce((s, d) => s + num(d.amount), 0),
-      totalLabor: next.reduce((s, d) => s + num(d.totalLabor) + num(d.totalLaborHour), 0),
+      ...computeTotals(list.map((r) => {
+        const d: DetailDraft = {};
+        for (const f of getModule('servicesdetail').fields) {
+          const v = getFieldValue(r, f);
+          if (v !== undefined) d[f.key] = v;
+        }
+        return d;
+      }), prev.insuranceType === 'Insurance'),
     }));
   };
 
@@ -305,8 +344,13 @@ export default function WorkOrderWizard({ initialRow, onClose }: Props) {
     const pieces = [String(d.type ?? ''), job !== '—' ? job : '', part !== '—' ? part : ''].filter(Boolean);
     return pieces.join(' · ') || 'Detail';
   };
-  const detailAmount = (d: DetailDraft): number =>
-    String(d.type ?? '') === 'Services' ? num(d.amount) : detailPartPrice(d) + num(d.totalLabor) + num(d.totalLaborHour);
+  /** Monto mostrado por renglón: services → amount; partes → costo (o precio insurance) + labor. */
+  const detailAmount = (d: DetailDraft): number => {
+    const t = jobtypeTypeOf(d);
+    if (t.includes('Services') || t.includes('Accesories')) return num(d.amount);
+    const partValue = form.insuranceType === 'Insurance' ? num(d.pricePartInsurance) : num(d.glassCost);
+    return partValue + num(form.insuranceType === 'Insurance' ? d.totalLaborHour : d.totalLabor);
+  };
 
   const customer = cat('customers').find((c) => c.id === form.idCustomer) as Record<string, unknown> | undefined;
 
@@ -658,7 +702,28 @@ export default function WorkOrderWizard({ initialRow, onClose }: Props) {
                 </div>
                 {moneyInput('Tax $', 'taxDolar')}
                 {moneyInput('Cash comeback', 'cashComeback')}
-                {moneyInput('Upsold', 'upsold')}
+                <div className="wz-field" key="upsold">
+                  <label htmlFor="wz-upsold">Upsold <code className="wz-key">upsold</code></label>
+                  <div className="wz-money">
+                    <span>$</span>
+                    <input
+                      id="wz-upsold"
+                      type="number"
+                      step="0.01"
+                      value={String(form.upsold ?? '')}
+                      placeholder="0.00"
+                      onChange={(e) => {
+                        const raw = e.target.value;
+                        // Fórmula del cliente: UPSELL (valor inicial) = UPSOLD − TOTAL
+                        setForm((prev) => ({
+                          ...prev,
+                          upsold: raw,
+                          upsell: Math.round((num(raw) - computedTotal) * 100) / 100,
+                        }));
+                      }}
+                    />
+                  </div>
+                </div>
                 {moneyInput('Paid', 'paid')}
               </SectionCard>
             </>
@@ -720,6 +785,8 @@ export default function WorkOrderWizard({ initialRow, onClose }: Props) {
               <div><dt>Labor</dt><dd>{money(num(form.totalLabor))}</dd></div>
               <div><dt>Tax ({String(form.taxPercent ?? 0) || 0}%)</dt><dd>{money(num(form.taxDolar))}</dd></div>
               <div><dt>Long trip</dt><dd>{money(num(form.longTrip))}</dd></div>
+              {isInsurance && <div><dt>Kit flat rate</dt><dd>{money(num(form.kitFlatRate))}</dd></div>}
+              {isInsurance && <div><dt>Deductible</dt><dd>−{money(num(form.deductible))}</dd></div>}
               <div><dt>Upsell</dt><dd>{money(num(form.upsell))}</dd></div>
               <div><dt>Paid</dt><dd>{money(num(form.paid))}</dd></div>
             </dl>
