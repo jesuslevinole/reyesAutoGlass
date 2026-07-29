@@ -14,6 +14,7 @@ import { createRow, deleteRow, fetchAll, subscribe, updateRow } from '../service
 import { formatDate, getFieldValue, getRelationColor, getRelationName, money, rowLabel, tagColorToHex } from '../utils/relations';
 import ImportExportBar from '../components/ImportExportBar';
 import { generateWorkOrderReport } from '../utils/reportExcel';
+import WorkOrderWizard from './WorkOrderWizard';
 import SearchableSelect from '../components/SearchableSelect';
 import './GenericModuleView.css';
 
@@ -375,7 +376,14 @@ export default function GenericModuleView({ module, initialSearch, onOpenRow }: 
         </table>
       </div>
 
-      {modalOpen && (
+      {modalOpen && module.id === 'workorders' && (
+        <WorkOrderWizard
+          initialRow={editing}
+          onClose={() => setModalOpen(false)}
+        />
+      )}
+
+      {modalOpen && module.id !== 'workorders' && (
         <FormModal
           module={module}
           sections={sections}
