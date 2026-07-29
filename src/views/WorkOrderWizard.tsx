@@ -360,6 +360,7 @@ export default function WorkOrderWizard({ initialRow, onClose }: Props) {
   const missing: string[] = [];
   if (!form.idStatus) missing.push('Status');
   if (!form.idCustomer) missing.push('Cliente');
+  if (isInsurance && !form.idInsurance) missing.push('Insurance Carrier');
 
   return (
     <div className="wizard">
@@ -535,9 +536,10 @@ export default function WorkOrderWizard({ initialRow, onClose }: Props) {
           )}
 
           {tabName === 'Insurance' && (
-            <SectionCard icon={<ShieldCheck size={15} />} title="Aseguradora">
-              {catalogSelect('Aseguradora', 'idInsurance', 'catalog_insurance')}
-              {moneyInput('Deducible', 'deductible')}
+            <SectionCard icon={<ShieldCheck size={15} />} title="Insurance">
+              {catalogSelect('Insurance Carrier', 'idInsurance', 'catalog_insurance', { required: true })}
+              {moneyInput('Deductible', 'deductible')}
+              {moneyInput('Kit Flat Rate', 'kitFlatRate')}
               <div className="wz-field">
                 <label htmlFor="wz-auth">ID Autorization <code className="wz-key">idAutorization</code></label>
                 <input id="wz-auth" value={String(form.idAutorization ?? '')} onChange={(e) => set('idAutorization', e.target.value)} />
@@ -636,8 +638,9 @@ export default function WorkOrderWizard({ initialRow, onClose }: Props) {
             <div className="wz-sum-card">
               <p className="wz-sum-card-title"><ShieldCheck size={13} />Insurance</p>
               <dl>
-                <div><dt>Aseguradora</dt><dd>{form.idInsurance ? rowLabel(cat('catalog_insurance').find((i) => i.id === form.idInsurance)) : '—'}</dd></div>
-                <div><dt>Deducible</dt><dd>{money(num(form.deductible))}</dd></div>
+                <div><dt>Carrier</dt><dd>{form.idInsurance ? rowLabel(cat('catalog_insurance').find((i) => i.id === form.idInsurance)) : '—'}</dd></div>
+                <div><dt>Deductible</dt><dd>{money(num(form.deductible))}</dd></div>
+                <div><dt>Kit Flat Rate</dt><dd>{money(num(form.kitFlatRate))}</dd></div>
               </dl>
             </div>
           )}
