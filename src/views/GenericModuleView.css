@@ -607,3 +607,7 @@
 .btn-dark:hover { background: #1c2027; }
 .btn-dark:active { transform: translateY(1px); }
 .btn-dark:disabled { opacity: .55; cursor: not-allowed; }
+
+/* ============ Filas clicables (Work Orders → detalle) ============ */
+.row-clickable { cursor: pointer; }
+.row-clickable:hover td { background: #f6f9ff; }

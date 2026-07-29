@@ -34,7 +34,10 @@ export default function WorkOrderDetailView({ workOrderId, onBack }: Props) {
   }), [workOrderId]);
 
   useEffect(() => subscribe('work_order_details', (rows) => {
-    setDetails(rows.filter((r) => r.idWorkorder === workOrderId));
+    setDetails(rows.filter((r) => String(getFieldValue(r, {
+      key: 'idWorkorder',
+      altKeys: ['work_order_id', 'id_work_order', 'workOrderId'],
+    }) ?? '') === workOrderId));
   }), [workOrderId]);
 
   useEffect(() => subscribe('payments', (rows) => {
@@ -237,9 +240,10 @@ export default function WorkOrderDetailView({ workOrderId, onBack }: Props) {
                 <th>Type</th>
                 <th>Job type</th>
                 <th>Part number</th>
-                <th>Distribuidor</th>
+                <th>Distributor</th>
                 <th>Order #</th>
-                <th>Costo vidrio</th>
+                <th>Part price</th>
+                <th>Glass cost</th>
                 {isInsurance && <th>List price</th>}
                 {isInsurance && <th>NAGS hrs</th>}
                 <th>Total labor</th>
@@ -255,6 +259,11 @@ export default function WorkOrderDetailView({ workOrderId, onBack }: Props) {
                   <td>{getRelationName(d.idPartnumber, cat('catalog_part_number'))}</td>
                   <td>{getRelationName(d.idDistributor, cat('catalog_company'))}</td>
                   <td className="mono">{str(d.orderNumber)}</td>
+                  <td className="cell-money">
+                    {String(d.type) === 'Services'
+                      ? money(getFieldValue(d, { key: 'amount', altKeys: ['service_amount'] }))
+                      : money(getFieldValue(d, { key: 'amountPricetier', altKeys: ['amount_price_tier', 'tier_amount', 'pricePartInsurance'] }))}
+                  </td>
                   <td className="cell-money">{money(d.glassCost)}</td>
                   {isInsurance && <td className="cell-money">{money(d.listPrice)}</td>}
                   {isInsurance && <td className="cell-money">{num(d.nagsLaborHour).toFixed(4)}</td>}

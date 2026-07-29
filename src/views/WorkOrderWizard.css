@@ -399,3 +399,31 @@
   .wz-service-row { grid-template-columns: 1fr; }
   .wz-tabs { top: 66px; }
 }
+
+/* ============ Lista de detalles del wizard (New Glass) ============ */
+.wz-detail-list { display: flex; flex-direction: column; gap: 8px; }
+.wz-detail-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #fbfcff;
+  padding: 9px 13px;
+  transition: border-color .15s, box-shadow .15s;
+}
+.wz-detail-row:hover { border-color: #bcd4fb; box-shadow: 0 2px 8px rgba(53, 131, 246, .1); }
+.wz-detail-name {
+  flex: 1;
+  font-size: 13px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.wz-detail-amount {
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--blue-deep);
+}
+.wz-detail-actions { display: inline-flex; gap: 3px; }

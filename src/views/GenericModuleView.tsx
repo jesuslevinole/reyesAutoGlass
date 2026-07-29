@@ -339,11 +339,15 @@ export default function GenericModuleView({ module, perms = FULL_PERM, initialSe
               </tr>
             ))}
             {!loading && filtered.map((row) => (
-              <tr key={row.id}>
+              <tr
+                key={row.id}
+                className={onOpenRow ? 'row-clickable' : undefined}
+                onClick={onOpenRow ? () => onOpenRow(row) : undefined}
+              >
                 {listFields.map((f) => (
                   <td key={f.key}>{renderCell(f, row, fkData)}</td>
                 ))}
-                <td className="col-actions">
+                <td className="col-actions" onClick={(e) => e.stopPropagation()}>
                   {perms.add && module.id === 'quotes' && !(row as Record<string, unknown>).convertedWorkOrderId && (
                     <button
                       className="btn-icon-ghost convert-btn"

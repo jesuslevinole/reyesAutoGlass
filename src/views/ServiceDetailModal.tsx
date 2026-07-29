@@ -10,6 +10,10 @@ import './ServiceDetailModal.css';
 interface Props {
   initialRow: Row | null;
   onClose: () => void;
+  /** Orden ya existente: oculta el select de WO y guarda directo ligado a ella */
+  fixedWorkOrderId?: string;
+  /** Orden aún no creada: no toca Firestore, entrega el borrador al wizard */
+  draft?: { initial?: Record<string, unknown>; onSave: (data: Record<string, unknown>) => void };
 }
 
 type Form = Record<string, unknown>;
@@ -36,14 +40,15 @@ function woLabel(wo: Row): string {
 }
 
 /** Formulario "New Glass" del cliente: detalle de servicio con toggles condicionales. */
-export default function ServiceDetailModal({ initialRow, onClose }: Props) {
+export default function ServiceDetailModal({ initialRow, onClose, fixedWorkOrderId, draft }: Props) {
   const module = useMemo(() => getModule('servicesdetail'), []);
 
   const [form, setForm] = useState<Form>(() => {
     const base: Form = { type: 'Parts', insurance: 'Personal', pricetier: false, calibrationType: false };
-    if (initialRow) {
+    const source = draft?.initial ?? initialRow;
+    if (source) {
       for (const f of module.fields) {
-        const v = getFieldValue(initialRow, f);
+        const v = getFieldValue(source, f);
         if (v !== undefined) base[f.key] = v;
       }
       base.pricetier = Boolean(base.pricetier);
@@ -125,6 +130,15 @@ export default function ServiceDetailModal({ initialRow, onClose }: Props) {
       // Sin el toggle activo, no se persisten selección ni monto
       if (!form.pricetier) { data.idPricetier = ''; data.amountPricetier = 0; }
       if (!form.calibrationType) { data.idCalibrationType = ''; data.amountCalibrationtype = 0; }
+
+      if (draft) {
+        // Orden nueva: el detalle queda como borrador en el wizard
+        delete data.idWorkorder;
+        draft.onSave(data);
+        onClose();
+        return;
+      }
+      if (fixedWorkOrderId) data.idWorkorder = fixedWorkOrderId;
       if (initialRow) await updateRow('work_order_details', initialRow.id, data);
       else await createRow('work_order_details', data);
       onClose();
@@ -167,15 +181,17 @@ export default function ServiceDetailModal({ initialRow, onClose }: Props) {
         </header>
 
         <div className="sd-body">
-          <div className="sd-row">
-            <span className="sd-label">Work Order *</span>
-            <SearchableSelect
-              value={String(form.idWorkorder ?? '')}
-              options={cat('work_orders').map((wo) => ({ id: wo.id, label: woLabel(wo) }))}
-              required
-              onChange={(id) => set('idWorkorder', id)}
-            />
-          </div>
+          {!fixedWorkOrderId && !draft && (
+            <div className="sd-row">
+              <span className="sd-label">Work Order *</span>
+              <SearchableSelect
+                value={String(form.idWorkorder ?? '')}
+                options={cat('work_orders').map((wo) => ({ id: wo.id, label: woLabel(wo) }))}
+                required
+                onChange={(id) => set('idWorkorder', id)}
+              />
+            </div>
+          )}
 
           <div className="sd-row">
             <span className="sd-label">Type</span>

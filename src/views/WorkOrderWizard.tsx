@@ -1,9 +1,10 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   Briefcase, Calculator, CalendarDays, Car, ClipboardList, MapPin,
-  Minus, Percent, Plus, Save, ShieldCheck, Trash2, UserRound, Wrench, X,
+  Minus, Pencil, Percent, Plus, Save, ShieldCheck, Trash2, UserRound, Wrench, X,
 } from 'lucide-react';
 import SearchableSelect from '../components/SearchableSelect';
+import ServiceDetailModal from './ServiceDetailModal';
 import { getModule } from '../config/modules';
 import type { Row } from '../services/firestore';
 import { createRow, fetchAll, updateRow } from '../services/firestore';
@@ -17,11 +18,14 @@ interface Props {
 
 type Form = Record<string, unknown>;
 
-interface ServiceRow {
-  idJobtype: string;
-  idPartnumber: string;
-  price: number;
-}
+type DetailDraft = Record<string, unknown>;
+
+type DetailModalState =
+  | { mode: 'draft-new' }
+  | { mode: 'draft-edit'; index: number }
+  | { mode: 'live-new' }
+  | { mode: 'live-edit'; row: Row }
+  | null;
 
 /** Colecciones que el wizard necesita para selects y sumario. */
 const CATALOGS = [
@@ -181,7 +185,9 @@ export default function WorkOrderWizard({ initialRow, onClose }: Props) {
   });
   const [tab, setTab] = useState(0);
   const [saving, setSaving] = useState(false);
-  const [services, setServices] = useState<ServiceRow[]>([]);
+  const [drafts, setDrafts] = useState<DetailDraft[]>([]);
+  const [liveDetails, setLiveDetails] = useState<Row[]>([]);
+  const [detailModal, setDetailModal] = useState<DetailModalState>(null);
   const [catalogs, setCatalogs] = useState<Record<string, Row[]>>({});
   const [quickAdd, setQuickAdd] = useState<{ spec: QuickSpec; targetKey: string } | null>(null);
 
@@ -193,6 +199,30 @@ export default function WorkOrderWizard({ initialRow, onClose }: Props) {
     });
     return () => { alive = false; };
   }, []);
+
+  /** Al editar una orden existente, sus detalles se cargan y gestionan en vivo. */
+  const workOrderId = initialRow?.id ?? null;
+  const loadLiveDetails = async () => {
+    if (!workOrderId) return;
+    const all = await fetchAll('work_order_details');
+    setLiveDetails(all.filter((d) => String(getFieldValue(d, {
+      key: 'idWorkorder',
+      altKeys: ['work_order_id', 'id_work_order', 'workOrderId'],
+    }) ?? '') === workOrderId));
+  };
+  useEffect(() => {
+    let alive = true;
+    if (!workOrderId) return;
+    void fetchAll('work_order_details').then((all) => {
+      if (!alive) return;
+      setLiveDetails(all.filter((d) => String(getFieldValue(d, {
+        key: 'idWorkorder',
+        altKeys: ['work_order_id', 'id_work_order', 'workOrderId'],
+      }) ?? '') === workOrderId));
+    });
+    return () => { alive = false; };
+    // workOrderId es estable durante la vida del wizard
+  }, [workOrderId]);
 
   const cat = (name: string) => catalogs[name] ?? [];
   const set = (key: string, value: unknown) => setForm((prev) => ({ ...prev, [key]: value }));
@@ -237,19 +267,42 @@ export default function WorkOrderWizard({ initialRow, onClose }: Props) {
   };
 
   /* ===== Servicios (solo al crear) ===== */
-  /** Al cambiar los servicios, el subtotal de parts se sincroniza en el mismo handler. */
-  const applyServices = (next: ServiceRow[]) => {
-    setServices(next);
-    if (next.length > 0) {
-      const sum = next.reduce((s, r) => s + num(r.price), 0);
-      setForm((prev) => ({ ...prev, subtotalPart: sum }));
-    }
+  /** Precio de venta de un detalle según su camino (tier / NAGS / services). */
+  const detailPartPrice = (d: DetailDraft): number =>
+    String(d.insurance ?? '') === 'Insurance' ? num(d.pricePartInsurance) : num(d.amountPricetier);
+
+  /** Al cambiar los borradores, los subtotales de la orden se derivan de ellos. */
+  const applyDrafts = (next: DetailDraft[]) => {
+    setDrafts(next);
+    if (next.length === 0) return;
+    const parts = next.filter((d) => String(d.type ?? '') !== 'Services');
+    const services = next.filter((d) => String(d.type ?? '') === 'Services');
+    setForm((prev) => ({
+      ...prev,
+      subtotalPart: parts.reduce((s, d) => s + detailPartPrice(d), 0),
+      subtotalServices: services.reduce((s, d) => s + num(d.amount), 0),
+      totalLabor: next.reduce((s, d) => s + num(d.totalLabor) + num(d.totalLaborHour), 0),
+    }));
   };
-  const addService = () => applyServices([...services, { idJobtype: '', idPartnumber: '', price: 0 }]);
-  const updateService = (index: number, patch: Partial<ServiceRow>) => {
-    applyServices(services.map((s, i) => (i === index ? { ...s, ...patch } : s)));
+
+  const removeDraft = (index: number) => applyDrafts(drafts.filter((_, i) => i !== index));
+
+  const removeLiveDetail = async (row: Row) => {
+    if (!window.confirm('Delete this detail?')) return;
+    const { deleteRow } = await import('../services/firestore');
+    await deleteRow('work_order_details', row.id);
+    await loadLiveDetails();
   };
-  const removeService = (index: number) => applyServices(services.filter((_, i) => i !== index));
+
+  /** Etiqueta legible de un detalle para la lista del wizard. */
+  const detailLabel = (d: DetailDraft): string => {
+    const job = rowLabel(cat('catalog_jobtype').find((j) => j.id === d.idJobtype));
+    const part = rowLabel(cat('catalog_part_number').find((p) => p.id === d.idPartnumber));
+    const pieces = [String(d.type ?? ''), job !== '—' ? job : '', part !== '—' ? part : ''].filter(Boolean);
+    return pieces.join(' · ') || 'Detail';
+  };
+  const detailAmount = (d: DetailDraft): number =>
+    String(d.type ?? '') === 'Services' ? num(d.amount) : detailPartPrice(d) + num(d.totalLabor) + num(d.totalLaborHour);
 
   const customer = cat('customers').find((c) => c.id === form.idCustomer) as Record<string, unknown> | undefined;
 
@@ -269,15 +322,9 @@ export default function WorkOrderWizard({ initialRow, onClose }: Props) {
       } else {
         woId = await createRow('work_orders', data);
       }
-      // Servicios capturados en el wizard → work_order_details
-      for (const s of services) {
-        if (!s.idJobtype && !s.idPartnumber) continue;
-        await createRow('work_order_details', {
-          idWorkorder: woId,
-          idJobtype: s.idJobtype,
-          idPartnumber: s.idPartnumber,
-          price: num(s.price),
-        });
+      // Detalles capturados en el wizard (borradores) → work_order_details
+      for (const d of drafts) {
+        await createRow('work_order_details', { ...d, idWorkorder: woId });
       }
       onClose();
     } finally {
@@ -451,52 +498,52 @@ export default function WorkOrderWizard({ initialRow, onClose }: Props) {
                 </div>
               </SectionCard>
 
-              {!initialRow && (
-                <SectionCard icon={<Wrench size={15} />} title="Services part">
-                  <div className="wz-services wz-full">
-                    <div className="wz-services-head">
-                      <span className="wz-label">Parts and services for this order</span>
-                      <button type="button" className="wz-new-btn" onClick={addService}>
-                        <Plus size={14} />
-                        New
-                      </button>
-                    </div>
-                    <ul className="wz-service-list">
-                      {services.map((s, index) => (
-                        <li key={index} className="wz-service-row">
-                          <SearchableSelect
-                            value={s.idJobtype}
-                            options={options('catalog_jobtype')}
-                            placeholder="Job type…"
-                            onChange={(id) => updateService(index, { idJobtype: id })}
-                          />
-                          <SearchableSelect
-                            value={s.idPartnumber}
-                            options={options('catalog_part_number')}
-                            placeholder="Part number…"
-                            onChange={(id) => updateService(index, { idPartnumber: id })}
-                          />
-                          <div className="wz-money">
-                            <span>$</span>
-                            <input
-                              type="number"
-                              step="0.01"
-                              value={String(s.price || '')}
-                              placeholder="0.00"
-                              aria-label="Price"
-                              onChange={(e) => updateService(index, { price: num(e.target.value) })}
-                            />
-                          </div>
-                          <button type="button" className="btn-danger-ghost" onClick={() => removeService(index)} aria-label="Remove">
-                            <Trash2 size={15} />
-                          </button>
-                        </li>
-                      ))}
-                      {services.length === 0 && <li className="wz-service-empty">No parts added yet.</li>}
-                    </ul>
+              <SectionCard icon={<Wrench size={15} />} title="Services part">
+                <div className="wz-services wz-full">
+                  <div className="wz-services-head">
+                    <span className="wz-label">Parts and services for this order</span>
+                    <button
+                      type="button"
+                      className="wz-new-btn"
+                      onClick={() => setDetailModal(initialRow ? { mode: 'live-new' } : { mode: 'draft-new' })}
+                    >
+                      <Plus size={14} />
+                      New
+                    </button>
                   </div>
-                </SectionCard>
-              )}
+                  <ul className="wz-detail-list">
+                    {(initialRow ? liveDetails : drafts).map((d, index) => (
+                      <li key={initialRow ? (d as Row).id : index} className="wz-detail-row">
+                        <span className="wz-detail-name">{detailLabel(d as DetailDraft)}</span>
+                        <span className="wz-detail-amount">{money(detailAmount(d as DetailDraft))}</span>
+                        <span className="wz-detail-actions">
+                          <button
+                            type="button"
+                            className="btn-icon-ghost"
+                            aria-label="Edit detail"
+                            onClick={() => setDetailModal(initialRow
+                              ? { mode: 'live-edit', row: d as Row }
+                              : { mode: 'draft-edit', index })}
+                          >
+                            <Pencil size={14} />
+                          </button>
+                          <button
+                            type="button"
+                            className="btn-danger-ghost"
+                            aria-label="Remove detail"
+                            onClick={() => initialRow ? void removeLiveDetail(d as Row) : removeDraft(index)}
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </span>
+                      </li>
+                    ))}
+                    {(initialRow ? liveDetails : drafts).length === 0 && (
+                      <li className="wz-service-empty">No parts added yet.</li>
+                    )}
+                  </ul>
+                </div>
+              </SectionCard>
             </>
           )}
 
@@ -630,7 +677,7 @@ export default function WorkOrderWizard({ initialRow, onClose }: Props) {
               <div><dt>Year / Plate</dt><dd>{[form.year, form.plate].filter(Boolean).join(' · ') || '—'}</dd></div>
               <div><dt>VIN</dt><dd>{String(form.vinNumber ?? '') || '—'}</dd></div>
               <div><dt>Zipcode</dt><dd>{form.idZipcode ? rowLabel(cat('catalog_zipcode').find((z) => z.id === form.idZipcode)) : '—'}</dd></div>
-              {!initialRow && <div><dt>Parts</dt><dd>{services.length}</dd></div>}
+              <div><dt>Parts</dt><dd>{initialRow ? liveDetails.length : drafts.length}</dd></div>
             </dl>
           </div>
 
@@ -676,6 +723,27 @@ export default function WorkOrderWizard({ initialRow, onClose }: Props) {
           </div>
         </aside>
       </div>
+
+      {detailModal && (
+        <ServiceDetailModal
+          initialRow={detailModal.mode === 'live-edit' ? detailModal.row : null}
+          fixedWorkOrderId={initialRow && (detailModal.mode === 'live-new' || detailModal.mode === 'live-edit') ? initialRow.id : undefined}
+          draft={!initialRow ? {
+            initial: detailModal.mode === 'draft-edit' ? drafts[detailModal.index] : undefined,
+            onSave: (data) => {
+              if (detailModal.mode === 'draft-edit') {
+                applyDrafts(drafts.map((d, i) => (i === detailModal.index ? data : d)));
+              } else {
+                applyDrafts([...drafts, data]);
+              }
+            },
+          } : undefined}
+          onClose={() => {
+            setDetailModal(null);
+            if (initialRow) void loadLiveDetails();
+          }}
+        />
+      )}
 
       {quickAdd && (
         <QuickAdd
