@@ -611,3 +611,178 @@
 /* ============ Filas clicables (Work Orders → detalle) ============ */
 .row-clickable { cursor: pointer; }
 .row-clickable:hover td { background: #f6f9ff; }
+
+/* ============ Botón y drawer de filtros ============ */
+.filter-btn { position: relative; }
+.filter-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  background: var(--blue);
+  color: #fff;
+  font-size: 10.5px;
+  font-weight: 800;
+  padding: 0 5px;
+}
+
+.drawer-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 55;
+  background: rgba(15, 23, 42, .35);
+  animation: fade-in .18s ease;
+}
+.filter-drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 56;
+  width: min(360px, 92vw);
+  background: var(--paper);
+  box-shadow: -18px 0 50px rgba(15, 23, 42, .18);
+  display: flex;
+  flex-direction: column;
+  animation: drawer-in .24s cubic-bezier(.2, .9, .3, 1);
+}
+@keyframes drawer-in {
+  from { transform: translateX(60px); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.drawer-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 16px 19px;
+  border-bottom: 1px solid var(--border);
+}
+.drawer-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  background: var(--blue-soft);
+  color: var(--blue-deep);
+}
+.drawer-head h2 { font-size: 15px; font-weight: 800; flex: 1; }
+
+.drawer-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 18px 19px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+.drawer-label {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .7px;
+  text-transform: uppercase;
+  color: #8b95ac;
+  margin-bottom: 7px;
+}
+.drawer-chips { display: flex; flex-wrap: wrap; gap: 7px; }
+.drawer-chip {
+  padding: 7px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--paper);
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink-soft);
+  transition: all .16s ease;
+}
+.drawer-chip:hover { border-color: var(--blue); color: var(--blue-deep); transform: translateY(-1px); }
+.drawer-chip.active {
+  background: var(--blue);
+  border-color: var(--blue);
+  color: #fff;
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--blue) 35%, transparent);
+}
+.drawer-range {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+.drawer-range input {
+  flex: 1;
+  padding: 9px 11px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  outline: none;
+  font-size: 13px;
+  transition: border-color .15s, box-shadow .15s;
+}
+.drawer-range input:focus { border-color: var(--blue); box-shadow: 0 0 0 3px color-mix(in srgb, var(--blue) 14%, transparent); }
+.drawer-range span { color: var(--ink-faint); }
+
+.drawer-foot {
+  display: flex;
+  gap: 10px;
+  padding: 15px 19px;
+  border-top: 1px solid var(--border);
+  background: #fafbfe;
+}
+.drawer-foot .btn-outline { flex: 1; justify-content: center; }
+.drawer-foot .btn-primary { flex: 1; justify-content: center; }
+
+
+/* ==================== Tabla elegante ==================== */
+.table-wrap {
+  border-radius: 15px;
+  overflow: auto;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, .05), 0 8px 28px rgba(15, 23, 42, .05);
+}
+.data-table th {
+  font-size: 10.5px;
+  letter-spacing: .8px;
+  padding-top: 13px;
+  padding-bottom: 13px;
+}
+.data-table tbody tr {
+  transition: background .14s ease;
+}
+.data-table tbody tr:hover td { background: #f7faff; }
+/* Barra de acento al pasar sobre filas clicables */
+.row-clickable td:first-child { position: relative; }
+.row-clickable:hover td:first-child::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 15%;
+  bottom: 15%;
+  width: 3px;
+  border-radius: 3px;
+  background: var(--blue);
+}
+/* Acciones sutiles hasta el hover (solo desktop con hover real) */
+@media (hover: hover) {
+  .data-table .col-actions button { opacity: .35; transition: opacity .15s ease, background .15s, color .15s; }
+  .data-table tbody tr:hover .col-actions button { opacity: 1; }
+}
+
+/* Chips de status con vida */
+.status-chip { transition: all .16s ease; }
+.status-chip:hover { transform: translateY(-1px); }
+
+/* ==================== Responsive móvil ==================== */
+@media (max-width: 760px) {
+  .module-head { flex-direction: column; align-items: stretch; gap: 12px; }
+  .module-actions { flex-wrap: wrap; }
+  .module-actions > * { flex: 1 1 auto; justify-content: center; }
+  .status-bar ul { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 5px; }
+  .status-chip { white-space: nowrap; }
+  .data-table { font-size: 12.5px; }
+  .data-table th, .data-table td { padding-left: 10px; padding-right: 10px; }
+}

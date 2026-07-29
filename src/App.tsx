@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { LogOut, Menu, PanelLeftClose, PanelLeftOpen, Search } from 'lucide-react';
+import { LogOut, Menu, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import Sidebar from './components/Sidebar';
 import CatalogsView from './views/CatalogsView';
 import LoginView from './views/LoginView';
@@ -25,9 +25,6 @@ export default function App() {
   const [openWorkOrderId, setOpenWorkOrderId] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  // Búsqueda global del topbar: al enviar salta a Work Orders con el término aplicado
-  const [quickSearch, setQuickSearch] = useState('');
-  const [searchNonce, setSearchNonce] = useState(0);
 
   // Pre-carga de catálogos en segundo plano → los selects abren al instante
   useEffect(() => {
@@ -144,29 +141,10 @@ export default function App() {
             >
               {sidebarCollapsed ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}
             </button>
-            <form
-              className="topbar-search"
-              onSubmit={(e) => {
-                e.preventDefault();
-                setView('workorders');
-                setOpenWorkOrderId(null);
-                setSearchNonce((n) => n + 1);
-              }}
-            >
-              <Search size={15} />
-              <input
-                value={quickSearch}
-                placeholder="Search work orders…"
-                onChange={(e) => setQuickSearch(e.target.value)}
-                aria-label="Global search"
-              />
-            </form>
-            <label className="topbar-view">
-              <span className="sr-only">Switch view</span>
-              <select value={view} onChange={(e) => navigate(e.target.value)}>
-                {navItems.map((i) => <option key={i.id} value={i.id}>{i.label}</option>)}
-              </select>
-            </label>
+            <p className="topbar-crumb">
+              {navItems.find((i) => i.id === view)?.label ?? appName}
+              {openWorkOrderId && ' · Detail'}
+            </p>
             <div className="topbar-user">
               <span className="user-avatar">{session.name.slice(0, 2).toUpperCase()}</span>
               <span className="user-block">
@@ -196,10 +174,9 @@ export default function App() {
             ) : (
               /* key: fuerza remontar la vista genérica al cambiar de módulo */
               <GenericModuleView
-                key={`${view}-${searchNonce}`}
+                key={view}
                 module={resolveModule(view)}
                 perms={permsFor(view)}
-                initialSearch={view === 'workorders' && searchNonce > 0 ? quickSearch : ''}
                 onOpenRow={view === 'workorders' ? (row) => setOpenWorkOrderId(row.id) : undefined}
               />
             )}

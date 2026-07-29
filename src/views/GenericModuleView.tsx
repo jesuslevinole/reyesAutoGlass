@@ -3,6 +3,7 @@ import type { CSSProperties, FormEvent } from 'react';
 import {
   ArrowRightCircle,
   FileSpreadsheet,
+  SlidersHorizontal,
   ArrowRight, Calculator, Car, CalendarClock, Check, ClipboardCheck, ClipboardList,
   CreditCard, DollarSign, Eye, Pencil, Plus, Search, ShieldCheck, Tags, Trash2, X,
 } from 'lucide-react';
@@ -83,6 +84,9 @@ export default function GenericModuleView({ module, perms = FULL_PERM, initialSe
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<string>('');
   const [reporting, setReporting] = useState(false);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  /** Filtros del drawer: fk/enum → id/valor; boolean → 'true'/'false'; date → {from,to} */
+  const [filters, setFilters] = useState<Record<string, unknown>>({});
 
   const sections = useMemo(() => module.sections ?? [DEFAULT_SECTION], [module]);
   const [activeSection, setActiveSection] = useState(sections[0].id);
@@ -132,6 +136,41 @@ export default function GenericModuleView({ module, perms = FULL_PERM, initialSe
     return counts;
   }, [rows, statusField]);
 
+  /** Campos que alimentan el drawer de filtros (fk, enum, boolean y fechas visibles). */
+  const filterFields = useMemo(
+    () => module.fields.filter((f) =>
+      (f.type === 'fk' || f.type === 'enum' || f.type === 'boolean' || f.type === 'date')
+      && f !== statusField),
+    [module, statusField],
+  );
+  const activeFilterCount = useMemo(() => Object.values(filters).filter((v) => {
+    if (v === undefined || v === '') return false;
+    if (typeof v === 'object' && v !== null) {
+      const range = v as { from?: string; to?: string };
+      return Boolean(range.from || range.to);
+    }
+    return true;
+  }).length, [filters]);
+
+  const matchesFilters = (row: Row): boolean => {
+    for (const f of filterFields) {
+      const filter = filters[f.key];
+      if (filter === undefined || filter === '') continue;
+      const value = getFieldValue(row, f);
+      if (f.type === 'date') {
+        const range = filter as { from?: string; to?: string };
+        const day = String(value ?? '').slice(0, 10);
+        if (range.from && (!day || day < range.from)) return false;
+        if (range.to && (!day || day > range.to)) return false;
+      } else if (f.type === 'boolean') {
+        if (String(Boolean(value)) !== filter) return false;
+      } else if (String(value ?? '') !== filter) {
+        return false;
+      }
+    }
+    return true;
+  };
+
   const listFields = useMemo(() => {
     const inList = module.fields.filter((f) => f.inList);
     if (!module.columnOrder) return inList;
@@ -145,9 +184,10 @@ export default function GenericModuleView({ module, perms = FULL_PERM, initialSe
   }, [module]);
 
   const filtered = useMemo(() => {
-    const base = statusFilter && statusField
+    let base = statusFilter && statusField
       ? rows.filter((row) => String(getFieldValue(row, statusField) ?? '') === statusFilter)
       : rows;
+    if (activeFilterCount > 0) base = base.filter(matchesFilters);
     const q = search.trim().toLowerCase();
     if (!q) return base;
     return base.filter((row) =>
@@ -159,7 +199,9 @@ export default function GenericModuleView({ module, perms = FULL_PERM, initialSe
         return String(value ?? '').toLowerCase().includes(q);
       }),
     );
-  }, [rows, search, module, fkData, statusFilter, statusField]);
+  // matchesFilters depende de filters/filterFields (incluidos abajo)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rows, search, module, fkData, statusFilter, statusField, filters, filterFields, activeFilterCount]);
 
   /** Idea del cliente: convertir una Quote aceptada en Work Order con un clic. */
   const convertQuote = async (quote: Row) => {
@@ -242,6 +284,13 @@ export default function GenericModuleView({ module, perms = FULL_PERM, initialSe
           <p className="module-desc">{module.description}</p>
         </div>
         <div className="module-actions">
+          {filterFields.length > 0 && (
+            <button className="btn-outline filter-btn" onClick={() => setDrawerOpen(true)}>
+              <SlidersHorizontal size={15} />
+              Filters
+              {activeFilterCount > 0 && <span className="filter-badge">{activeFilterCount}</span>}
+            </button>
+          )}
           {module.id === 'workorders' && (
             <button
               className="btn-outline"
@@ -391,6 +440,17 @@ export default function GenericModuleView({ module, perms = FULL_PERM, initialSe
           </tbody>
         </table>
       </div>
+
+      {drawerOpen && (
+        <FilterDrawer
+          module={module}
+          fields={filterFields}
+          fkData={fkData}
+          filters={filters}
+          onChange={setFilters}
+          onClose={() => setDrawerOpen(false)}
+        />
+      )}
 
       {modalOpen && module.id === 'workorders' && (
         <WorkOrderWizard
@@ -772,5 +832,101 @@ function FkListInput({ field, value, options, onChange }: FieldInputProps) {
       ))}
       {options.length === 0 && <li className="fklist-empty">No records in the referenced catalog.</li>}
     </ul>
+  );
+}
+
+
+/* ==================== Drawer de filtros (barra lateral derecha) ==================== */
+
+interface FilterDrawerProps {
+  module: ModuleDef;
+  fields: FieldDef[];
+  fkData: Record<string, Row[]>;
+  filters: Record<string, unknown>;
+  onChange: (filters: Record<string, unknown>) => void;
+  onClose: () => void;
+}
+
+function FilterDrawer({ module, fields, fkData, filters, onChange, onClose }: FilterDrawerProps) {
+  const set = (key: string, value: unknown) => onChange({ ...filters, [key]: value });
+  const range = (key: string): { from?: string; to?: string } =>
+    (filters[key] as { from?: string; to?: string } | undefined) ?? {};
+
+  return (
+    <>
+      <div className="drawer-scrim" onClick={onClose} aria-hidden="true" />
+      <aside className="filter-drawer" role="dialog" aria-label={`Filters — ${module.title}`}>
+        <header className="drawer-head">
+          <span className="drawer-icon"><SlidersHorizontal size={15} /></span>
+          <h2>Filters</h2>
+          <button type="button" className="btn-icon-ghost" onClick={onClose} aria-label="Close filters">
+            <X size={17} />
+          </button>
+        </header>
+
+        <div className="drawer-body">
+          {fields.map((f) => (
+            <div className="drawer-field" key={f.key}>
+              <p className="drawer-label">{f.label}</p>
+              {f.type === 'fk' ? (
+                <SearchableSelect
+                  value={String(filters[f.key] ?? '')}
+                  options={(fkData[f.fkCollection ?? ''] ?? []).map((opt) => ({ id: opt.id, label: rowLabel(opt) }))}
+                  placeholder="Any"
+                  onChange={(id) => set(f.key, id)}
+                />
+              ) : f.type === 'enum' ? (
+                <div className="drawer-chips">
+                  {(f.options ?? []).map((opt) => (
+                    <button
+                      key={opt}
+                      type="button"
+                      className={`drawer-chip${filters[f.key] === opt ? ' active' : ''}`}
+                      onClick={() => set(f.key, filters[f.key] === opt ? '' : opt)}
+                    >
+                      {opt}
+                    </button>
+                  ))}
+                </div>
+              ) : f.type === 'boolean' ? (
+                <div className="drawer-chips">
+                  {[['', 'All'], ['true', 'Yes'], ['false', 'No']].map(([value, label]) => (
+                    <button
+                      key={value}
+                      type="button"
+                      className={`drawer-chip${String(filters[f.key] ?? '') === value ? ' active' : ''}`}
+                      onClick={() => set(f.key, value)}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <div className="drawer-range">
+                  <input
+                    type="date"
+                    value={range(f.key).from ?? ''}
+                    aria-label={`${f.label} from`}
+                    onChange={(e) => set(f.key, { ...range(f.key), from: e.target.value })}
+                  />
+                  <span>—</span>
+                  <input
+                    type="date"
+                    value={range(f.key).to ?? ''}
+                    aria-label={`${f.label} to`}
+                    onChange={(e) => set(f.key, { ...range(f.key), to: e.target.value })}
+                  />
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+
+        <footer className="drawer-foot">
+          <button type="button" className="btn-outline" onClick={() => onChange({})}>Clear all</button>
+          <button type="button" className="btn-primary" onClick={onClose}>Apply</button>
+        </footer>
+      </aside>
+    </>
   );
 }

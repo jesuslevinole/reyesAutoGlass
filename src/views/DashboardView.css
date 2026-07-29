@@ -247,3 +247,16 @@
   color: #939cb2;
   margin-bottom: -6px;
 }
+
+
+/* Tarjetas con elevación al pasar */
+.hero-card, .jobs-row li, .dash-panel {
+  transition: transform .18s ease, box-shadow .18s ease;
+}
+.hero-card:hover, .jobs-row li:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 26px rgba(15, 23, 42, .08);
+}
+@media (max-width: 640px) {
+  .jobs-row { grid-template-columns: 1fr 1fr; }
+}

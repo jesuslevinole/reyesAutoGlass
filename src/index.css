@@ -229,3 +229,35 @@ ul { list-style: none; }
   background-clip: padding-box;
 }
 *::-webkit-scrollbar-thumb:hover { background-color: #a4b0c9; }
+
+
+/* ==================== Pase de elegancia global ==================== */
+
+/* Entrada suave de cada vista */
+@keyframes view-in {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.app-content > * { animation: view-in .28s cubic-bezier(.2, .9, .3, 1); }
+
+/* Modales con entrada escalada */
+@keyframes modal-in {
+  from { opacity: 0; transform: translateY(14px) scale(.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.modal-backdrop { animation: fade-in-global .18s ease; }
+.modal-card { animation: modal-in .26s cubic-bezier(.2, .9, .3, 1); }
+@keyframes fade-in-global { from { opacity: 0; } to { opacity: 1; } }
+
+/* Botones con vida */
+.btn-primary, .btn-outline, .btn-dark {
+  transition: background .16s ease, color .16s ease, border-color .16s ease,
+              box-shadow .16s ease, transform .12s ease;
+}
+.btn-primary:hover, .btn-dark:hover { transform: translateY(-1px); }
+.btn-primary:active, .btn-dark:active, .btn-outline:active { transform: translateY(0); }
+.btn-primary:hover { box-shadow: 0 8px 20px color-mix(in srgb, var(--blue) 40%, transparent); }
+
+@media (prefers-reduced-motion: reduce) {
+  .app-content > *, .modal-card, .modal-backdrop { animation: none; }
+}
