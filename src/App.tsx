@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { LogOut, Menu, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
+import { LogOut, Menu, PanelLeftClose, PanelLeftOpen, Search } from 'lucide-react';
 import Sidebar from './components/Sidebar';
 import CatalogsView from './views/CatalogsView';
 import LoginView from './views/LoginView';
@@ -23,6 +23,9 @@ export default function App() {
   const [openWorkOrderId, setOpenWorkOrderId] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  // Búsqueda global del topbar: al enviar salta a Work Orders con el término aplicado
+  const [quickSearch, setQuickSearch] = useState('');
+  const [searchNonce, setSearchNonce] = useState(0);
 
   const enter = (s: Session) => { saveSession(s); setSession(s); };
   const logout = () => { clearSession(); setSession(null); };
@@ -63,8 +66,6 @@ export default function App() {
     setSidebarOpen(false);
   };
 
-  const viewTitle = navItems.find((i) => i.id === view)?.label ?? 'GlassWorks';
-
   if (!session) return <LoginView onEnter={enter} />;
 
   return (
@@ -97,13 +98,35 @@ export default function App() {
             >
               {sidebarCollapsed ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}
             </button>
-            <p className="topbar-crumb">
-              {viewTitle}
-              {openWorkOrderId && ' · Detalle'}
-            </p>
+            <form
+              className="topbar-search"
+              onSubmit={(e) => {
+                e.preventDefault();
+                setView('workorders');
+                setOpenWorkOrderId(null);
+                setSearchNonce((n) => n + 1);
+              }}
+            >
+              <Search size={15} />
+              <input
+                value={quickSearch}
+                placeholder="Buscar en work orders…"
+                onChange={(e) => setQuickSearch(e.target.value)}
+                aria-label="Búsqueda global"
+              />
+            </form>
+            <label className="topbar-view">
+              <span className="sr-only">Cambiar de vista</span>
+              <select value={view} onChange={(e) => navigate(e.target.value)}>
+                {navItems.map((i) => <option key={i.id} value={i.id}>{i.label}</option>)}
+              </select>
+            </label>
             <div className="topbar-user">
               <span className="user-avatar">{session.name.slice(0, 2).toUpperCase()}</span>
-              <span className="user-name">{session.name}</span>
+              <span className="user-block">
+                <span className="user-name">{session.name}</span>
+                <span className="user-role">ADMIN</span>
+              </span>
               <button className="btn-icon-ghost" onClick={logout} aria-label="Cerrar sesión" title="Cerrar sesión">
                 <LogOut size={16} />
               </button>
@@ -127,8 +150,9 @@ export default function App() {
             ) : (
               /* key: fuerza remontar la vista genérica al cambiar de módulo */
               <GenericModuleView
-                key={view}
+                key={`${view}-${searchNonce}`}
                 module={resolveModule(view)}
+                initialSearch={view === 'workorders' && searchNonce > 0 ? quickSearch : ''}
                 onOpenRow={view === 'workorders' ? (row) => setOpenWorkOrderId(row.id) : undefined}
               />
             )}

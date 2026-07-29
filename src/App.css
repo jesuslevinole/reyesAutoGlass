@@ -97,3 +97,60 @@
   background: rgba(255, 255, 255, .65);
   backdrop-filter: blur(8px);
 }
+
+/* ============ Buscador global del topbar (estilo del demo) ============ */
+.topbar-search {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  flex: 1;
+  max-width: 420px;
+  background: #f2f5fb;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  padding: 7px 13px;
+  color: var(--ink-faint);
+  transition: border-color .15s, background .15s, box-shadow .15s;
+}
+.topbar-search:focus-within {
+  background: var(--paper);
+  border-color: var(--blue);
+  box-shadow: 0 0 0 3px rgba(53, 131, 246, .12);
+}
+.topbar-search input {
+  flex: 1;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-size: 13px;
+  color: var(--ink);
+}
+
+.topbar-view select {
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--paper);
+  padding: 7px 11px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink);
+  outline: none;
+  cursor: pointer;
+}
+.topbar-view select:focus { border-color: var(--blue); }
+
+.user-block { display: flex; flex-direction: column; line-height: 1.15; }
+.user-role { font-size: 9.5px; font-weight: 700; letter-spacing: .8px; color: var(--ink-faint); }
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+@media (max-width: 760px) {
+  .topbar-view { display: none; }
+}

@@ -12,6 +12,20 @@ export function getFieldValue(
   return row[field.key];
 }
 
+/** Colores de tag del AppSheet (nombres) → hex de la paleta de la app. */
+const TAG_COLORS: Record<string, string> = {
+  green: '#16a34a', red: '#dc2626', black: '#334155', blue: '#3583f6',
+  yellow: '#d97706', orange: '#ea580c', purple: '#7c3aed', pink: '#db2777',
+  gray: '#64748b', grey: '#64748b', white: '#94a3b8', brown: '#92400e',
+};
+
+/** Convierte un color de tag (nombre AppSheet o hex) a hex utilizable en CSS. */
+export function tagColorToHex(color: unknown): string {
+  if (typeof color !== 'string' || !color) return '#94a3b8';
+  if (color.startsWith('#')) return color;
+  return TAG_COLORS[color.trim().toLowerCase()] ?? '#94a3b8';
+}
+
 /** Keys candidatos para nombrar un documento referenciado por FK. */
 const LABEL_KEYS = [
   'name', 'tag', 'part_number', 'price_tier', 'calibration_type', 'job_type',

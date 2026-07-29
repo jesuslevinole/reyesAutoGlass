@@ -11,26 +11,25 @@
 }
 .hero-card {
   position: relative;
-  border-radius: var(--radius-lg);
-  padding: 20px;
-  color: #fff;
-  overflow: hidden;
+  background: var(--paper);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
   box-shadow: var(--shadow-card);
+  padding: 16px 18px;
+  overflow: hidden;
 }
-.hero-card::after {
-  content: '';
-  position: absolute;
-  right: -34px;
-  top: -34px;
-  width: 130px;
-  height: 130px;
+.hero-blue .hero-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
   border-radius: 50%;
-  background: rgba(255, 255, 255, .14);
+  margin-bottom: 10px;
 }
-.hero-blue { background: var(--grad-blue); }
-.hero-sky { background: var(--grad-sky); }
-.hero-green { background: var(--grad-green); }
-.hero-violet { background: var(--grad-violet); }
+.hero-sky .hero-icon { background: #e0f2fe; color: #0284c7; }
+.hero-green .hero-icon { background: #dcfce7; color: #16a34a; }
+.hero-violet .hero-icon { background: #f3e8ff; color: #7c3aed; }
 
 .hero-icon {
   display: inline-flex;
@@ -42,16 +41,24 @@
   background: rgba(255, 255, 255, .22);
   margin-bottom: 12px;
 }
-.hero-label { font-size: 12.5px; font-weight: 600; opacity: .9; }
-.hero-value {
-  font-family: var(--font-display);
-  font-size: 25px;
-  font-weight: 800;
-  letter-spacing: .3px;
-  margin-top: 4px;
-  font-variant-numeric: tabular-nums;
+.hero-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .5px;
+  text-transform: uppercase;
+  color: var(--ink-soft);
 }
-.hero-foot { font-size: 12px; opacity: .88; margin-top: 8px; }
+.hero-value {
+  font-size: 23px;
+  font-weight: 800;
+  color: var(--ink);
+  margin-top: 2px;
+}
+.hero-foot {
+  font-size: 12px;
+  color: var(--ink-faint);
+  margin-top: 4px;
+}
 
 .delta {
   display: inline-flex;
@@ -189,10 +196,8 @@
 }
 
 /* ============ Skeletons del dashboard ============ */
-.hero-card .skeleton { background: rgba(255, 255, 255, .32); }
-.hero-card .skeleton::after {
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, .55), transparent);
-}
+.hero-card .skeleton { background: #e6ebf7; }
+
 .skel-hero { display: block; width: 120px; height: 26px; margin-top: 2px; }
 
 .skel-chart { display: block; width: 100%; height: 200px; border-radius: var(--radius-sm); }
@@ -209,3 +214,36 @@
 .skel-lines .skel-w1 { width: 55%; }
 .skel-lines .skel-w2 { width: 80%; }
 .skel-lines .skel-w3 { width: 40%; }
+
+/* ============ Fila de jobs por cita (idea del cliente) ============ */
+.jobs-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 12px;
+}
+.jobs-row li {
+  background: var(--paper);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-card);
+  padding: 13px 16px;
+}
+.jobs-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .5px;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+.jobs-value { font-size: 21px; font-weight: 800; margin-top: 3px; }
+
+
+/* ============ Etiquetas de sección (estilo demo) ============ */
+.dash-section-label {
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 1.1px;
+  text-transform: uppercase;
+  color: #939cb2;
+  margin-bottom: -6px;
+}

@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { CSSProperties, FormEvent } from 'react';
 import {
+  ArrowRightCircle,
+  FileSpreadsheet,
   ArrowRight, Calculator, Car, CalendarClock, Check, ClipboardCheck, ClipboardList,
   CreditCard, DollarSign, Eye, Pencil, Plus, Search, ShieldCheck, Tags, Trash2, X,
 } from 'lucide-react';
@@ -9,13 +11,16 @@ import { MODULE_ICONS } from '../config/moduleIcons';
 import type { FieldDef, ModuleDef } from '../config/modules';
 import type { Row } from '../services/firestore';
 import { createRow, deleteRow, fetchAll, subscribe, updateRow } from '../services/firestore';
-import { formatDate, getFieldValue, getRelationColor, getRelationName, money, rowLabel } from '../utils/relations';
+import { formatDate, getFieldValue, getRelationColor, getRelationName, money, rowLabel, tagColorToHex } from '../utils/relations';
 import ImportExportBar from '../components/ImportExportBar';
+import { generateWorkOrderReport } from '../utils/reportExcel';
 import SearchableSelect from '../components/SearchableSelect';
 import './GenericModuleView.css';
 
 interface Props {
   module: ModuleDef;
+  /** Término inicial de búsqueda (viene del buscador global del topbar) */
+  initialSearch?: string;
   /** Si se pasa, cada fila muestra un botón para abrir su vista de detalle. */
   onOpenRow?: (row: Row) => void;
 }
@@ -59,16 +64,18 @@ function isFilled(field: FieldDef, value: unknown): boolean {
   return value !== '' && value !== null && value !== undefined;
 }
 
-export default function GenericModuleView({ module, onOpenRow }: Props) {
+export default function GenericModuleView({ module, initialSearch, onOpenRow }: Props) {
   const [rows, setRows] = useState<Row[]>([]);
   const [fkData, setFkData] = useState<Record<string, Row[]>>({});
-  const [search, setSearch] = useState('');
+  const [search, setSearch] = useState(initialSearch ?? '');
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<Row | null>(null);
   const [form, setForm] = useState<FormState>(() => emptyForm(module));
   const [saving, setSaving] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [statusFilter, setStatusFilter] = useState<string>('');
+  const [reporting, setReporting] = useState(false);
 
   const sections = useMemo(() => module.sections ?? [DEFAULT_SECTION], [module]);
   const [activeSection, setActiveSection] = useState(sections[0].id);
@@ -92,6 +99,32 @@ export default function GenericModuleView({ module, onOpenRow }: Props) {
     return () => { cancelled = true; };
   }, [module]);
 
+  /** Campo de status (FK a catalog_tag), si el módulo lo tiene — habilita la barra de filtros */
+  const statusField = useMemo(
+    () => module.fields.find((f) => f.type === 'fk' && f.fkCollection === 'catalog_tag'),
+    [module],
+  );
+  const statusTags = useMemo(() => {
+    if (!statusField) return [];
+    const tags = fkData['catalog_tag'] ?? [];
+    const filter = statusField.fkFilter;
+    return filter
+      ? tags.filter((t) => {
+          const v = (t as Record<string, unknown>)[filter.key];
+          return typeof v === 'string' && v.includes(filter.equals);
+        })
+      : tags;
+  }, [statusField, fkData]);
+  const statusCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    if (!statusField) return counts;
+    for (const row of rows) {
+      const v = String(getFieldValue(row, statusField) ?? '');
+      counts[v] = (counts[v] ?? 0) + 1;
+    }
+    return counts;
+  }, [rows, statusField]);
+
   const listFields = useMemo(() => {
     const inList = module.fields.filter((f) => f.inList);
     if (!module.columnOrder) return inList;
@@ -105,9 +138,12 @@ export default function GenericModuleView({ module, onOpenRow }: Props) {
   }, [module]);
 
   const filtered = useMemo(() => {
+    const base = statusFilter && statusField
+      ? rows.filter((row) => String(getFieldValue(row, statusField) ?? '') === statusFilter)
+      : rows;
     const q = search.trim().toLowerCase();
-    if (!q) return rows;
-    return rows.filter((row) =>
+    if (!q) return base;
+    return base.filter((row) =>
       module.fields.some((f) => {
         const value = getFieldValue(row, f);
         if (f.fkCollection) {
@@ -116,7 +152,37 @@ export default function GenericModuleView({ module, onOpenRow }: Props) {
         return String(value ?? '').toLowerCase().includes(q);
       }),
     );
-  }, [rows, search, module, fkData]);
+  }, [rows, search, module, fkData, statusFilter, statusField]);
+
+  /** Idea del cliente: convertir una Quote aceptada en Work Order con un clic. */
+  const convertQuote = async (quote: Row) => {
+    if (!window.confirm('¿Convertir esta quote en Work Order?')) return;
+    const src = quote as Record<string, unknown>;
+    const tags = fkData['catalog_tag'] ?? [];
+    // Status inicial de la orden: tag "Accepted" de tipo Work Order (si existe)
+    const accepted = tags.find((t) => {
+      const r = t as Record<string, unknown>;
+      return String(r.name ?? '').toLowerCase() === 'accepted' && String(r.type ?? '').includes('Work Order');
+    });
+    const { id: _id, quoteNumber, convertedWorkOrderId, idStatus, ...rest } = src as Record<string, unknown> & { id: string };
+    void _id; void convertedWorkOrderId; void idStatus;
+    const woId = await createRow('work_orders', {
+      ...rest,
+      quoteId: quote.id,
+      quoteNumber: quoteNumber ?? '',
+      idStatus: accepted?.id ?? '',
+      dateRegister: new Date().toISOString().slice(0, 10),
+    });
+    // Marcar la quote como convertida (tag "Converted" tipo Quote si existe)
+    const converted = tags.find((t) => {
+      const r = t as Record<string, unknown>;
+      return String(r.name ?? '').toLowerCase().startsWith('convert') && String(r.type ?? '').includes('Quote');
+    });
+    await updateRow(module.collection, quote.id, {
+      convertedWorkOrderId: woId,
+      ...(converted ? { idStatus: converted.id } : {}),
+    });
+  };
 
   const openNew = () => {
     setEditing(null);
@@ -167,6 +233,19 @@ export default function GenericModuleView({ module, onOpenRow }: Props) {
           <p className="module-desc">{module.description}</p>
         </div>
         <div className="module-actions">
+          {module.id === 'workorders' && (
+            <button
+              className="btn-outline"
+              disabled={reporting}
+              onClick={() => {
+                setReporting(true);
+                void generateWorkOrderReport(filtered).finally(() => setReporting(false));
+              }}
+            >
+              <FileSpreadsheet size={15} />
+              {reporting ? 'Generando…' : 'Reporte Excel'}
+            </button>
+          )}
           <ImportExportBar module={module} rows={rows} />
           <button className="btn-primary" onClick={openNew}>
             <Plus size={16} />
@@ -186,6 +265,40 @@ export default function GenericModuleView({ module, onOpenRow }: Props) {
         </div>
         <span className="row-count">{loading ? 'Cargando registros…' : `${filtered.length} registros`}</span>
       </div>
+
+      {statusField && statusTags.length > 0 && (
+        <nav className="status-bar" aria-label="Filtrar por status">
+          <ul>
+            <li>
+              <button
+                className={`status-chip${statusFilter === '' ? ' active' : ''}`}
+                onClick={() => setStatusFilter('')}
+              >
+                Todos
+                <span className="status-count">{rows.length}</span>
+              </button>
+            </li>
+            {statusTags.map((tag) => {
+              const t = tag as Record<string, unknown>;
+              const hex = tagColorToHex(t.color);
+              return (
+                <li key={tag.id}>
+                  <button
+                    className={`status-chip${statusFilter === tag.id ? ' active' : ''}`}
+                    /* color del tag como variable CSS en runtime */
+                    style={{ '--chip-color': hex } as CSSProperties}
+                    onClick={() => setStatusFilter(statusFilter === tag.id ? '' : tag.id)}
+                  >
+                    <span className="status-chip-dot" />
+                    {rowLabel(tag)}
+                    <span className="status-count">{statusCounts[tag.id] ?? 0}</span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </nav>
+      )}
 
       {loadError && (
         <div className="load-error" role="alert">
@@ -225,6 +338,16 @@ export default function GenericModuleView({ module, onOpenRow }: Props) {
                   <td key={f.key}>{renderCell(f, row, fkData)}</td>
                 ))}
                 <td className="col-actions">
+                  {module.id === 'quotes' && !(row as Record<string, unknown>).convertedWorkOrderId && (
+                    <button
+                      className="btn-icon-ghost convert-btn"
+                      onClick={() => void convertQuote(row)}
+                      aria-label="Convertir a Work Order"
+                      title="Convertir a Work Order"
+                    >
+                      <ArrowRightCircle size={15} />
+                    </button>
+                  )}
                   {onOpenRow && (
                     <button className="btn-icon-ghost" onClick={() => onOpenRow(row)} aria-label="Ver detalle">
                       <Eye size={15} />
@@ -383,7 +506,7 @@ function FormModal({
 
             <footer className="form-foot">
               <button type="button" className="btn-outline" onClick={onClose}>Cancelar</button>
-              <button type="submit" className="btn-primary btn-gradient" disabled={saving}>
+              <button type="submit" className="btn-dark" disabled={saving}>
                 {saving ? 'Guardando…' : editing ? 'Guardar cambios' : `Crear ${module.singular.toLowerCase()}`}
               </button>
             </footer>
@@ -489,7 +612,7 @@ function renderCell(field: FieldDef, row: Row, fkData: Record<string, Row[]>) {
       // Los status llevan su punto de color configurable (valor de runtime → variable CSS)
       if (field.fkCollection === 'cat_status') {
         return (
-          <span className="status-chip" style={{ '--chip-color': getRelationColor(value, catalog) } as CSSProperties}>
+          <span className="cell-status" style={{ '--chip-color': tagColorToHex(getRelationColor(value, catalog)) } as CSSProperties}>
             {getRelationName(value, catalog)}
           </span>
         );

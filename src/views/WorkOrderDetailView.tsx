@@ -3,7 +3,7 @@ import type { CSSProperties } from 'react';
 import { ArrowLeft, Car, CreditCard, Package, User } from 'lucide-react';
 import type { Row } from '../services/firestore';
 import { fetchAll, subscribe } from '../services/firestore';
-import { formatDate, getRelationColor, getRelationName, money } from '../utils/relations';
+import { formatDate, getFieldValue, getRelationColor, getRelationName, money, tagColorToHex } from '../utils/relations';
 import './WorkOrderDetailView.css';
 
 interface Props {
@@ -43,8 +43,8 @@ export default function WorkOrderDetailView({ workOrderId, onBack }: Props) {
 
   // Catálogos para resolver FKs: carga única, cambian poco.
   useEffect(() => {
-    const names = ['catalog_tag', 'customers', 'agents', 'catalog_zipcode', 'catalog_insurance',
-      'distributors', 'catalog_jobtype', 'catalog_part_number', 'catalog_payment_method'];
+    const names = ['catalog_tag', 'customers', 'team', 'catalog_zipcode', 'catalog_insurance',
+      'catalog_company', 'catalog_jobtype', 'catalog_part_number', 'catalog_payment_method'];
     let cancelled = false;
     void Promise.all(names.map(async (c) => [c, await fetchAll(c)] as const)).then((pairs) => {
       if (!cancelled) setCatalogs(Object.fromEntries(pairs));
@@ -53,6 +53,40 @@ export default function WorkOrderDetailView({ workOrderId, onBack }: Props) {
   }, []);
 
   const cat = (name: string) => catalogs[name] ?? [];
+
+  /** Resolución financiera con altKeys (bases snake_case) */
+  const fin = (() => {
+    const n = (keys: string[]) => {
+      const v = getFieldValue(order ?? {}, { key: keys[0], altKeys: keys.slice(1) });
+      const parsed = typeof v === 'number' ? v : parseFloat(String(v ?? ''));
+      return Number.isFinite(parsed) ? parsed : 0;
+    };
+    const subtotalPart = n(['subtotalPart', 'subtotal_part']);
+    const subtotalMolding = n(['subtotalMolding', 'subtotal_molding']);
+    const subtotalServices = n(['subtotalServices', 'subtotal_services']);
+    const totalTax = n(['taxDolar', 'total_tax', 'tax_dolar']);
+    const labor = n(['totalLabor', 'labor', 'total_labor']);
+    const discount = n(['discount']);
+    const longTrip = n(['longTrip', 'long_trip']);
+    const upsell = n(['upsell']);
+    const total = n(['total']);
+    const charged = total + upsell;
+    // P&L = cobrado − costo de parte − tax − labor (comisión se concilia aparte)
+    const profitLoss = charged - subtotalPart - totalTax - labor;
+    return { subtotalPart, subtotalMolding, subtotalServices, totalTax, labor, discount, longTrip, upsell, total, charged, profitLoss };
+  })();
+
+  const statusId = String(getFieldValue(order ?? {}, {
+    key: 'idStatus',
+    altKeys: ['tag_id', 'status_id', 'id_status', 'tag', 'status'],
+  }) ?? '');
+  const statusName = getRelationName(statusId, cat('catalog_tag'));
+
+  /** Pipeline principal del taller (idea del cliente: status tracker). */
+  const PIPELINE = ['Accepted', 'Working', 'Job Done'];
+  const pipelineIndex = PIPELINE.findIndex((s) => s.toLowerCase() === statusName.toLowerCase());
+  const offTrack = pipelineIndex === -1 && statusName !== '—';
+
 
   const totals = useMemo(() => {
     const paidSum = payments.reduce((s, p) => s + num(p.amount), 0);
@@ -102,9 +136,9 @@ export default function WorkOrderDetailView({ workOrderId, onBack }: Props) {
           <div className="wo-title-meta">
             <span
               className="status-chip"
-              style={{ '--chip-color': getRelationColor(order.idStatus, cat('catalog_tag')) } as CSSProperties}
+              style={{ '--chip-color': tagColorToHex(getRelationColor(statusId, cat('catalog_tag'))) } as CSSProperties}
             >
-              {getRelationName(order.idStatus, cat('catalog_tag'))}
+              {getRelationName(statusId, cat('catalog_tag'))}
             </span>
             <span className={`enum-badge enum-${String(order.insuranceType).toLowerCase()}`}>
               {String(order.insuranceType)}
@@ -113,6 +147,30 @@ export default function WorkOrderDetailView({ workOrderId, onBack }: Props) {
           </div>
         </div>
       </header>
+
+      {/* ===== Status tracker (pipeline del cliente) ===== */}
+      <ol className="wo-stepper" aria-label="Progreso de la orden">
+        {PIPELINE.map((stage, i) => {
+          const done = pipelineIndex >= 0 && i <= pipelineIndex;
+          return (
+            <li key={stage} className={`wo-step${done ? ' done' : ''}${i === pipelineIndex ? ' current' : ''}`}>
+              <span className="wo-step-dot" />
+              <span className="wo-step-label">{stage}</span>
+              {i < PIPELINE.length - 1 && <span className="wo-step-line" aria-hidden="true" />}
+            </li>
+          );
+        })}
+        {offTrack && (
+          <li className="wo-step offtrack">
+            <span
+              className="wo-step-badge"
+              style={{ '--chip-color': tagColorToHex(getRelationColor(statusId, cat('catalog_tag'))) } as CSSProperties}
+            >
+              {statusName}
+            </span>
+          </li>
+        )}
+      </ol>
 
       <div className="wo-grid">
         {/* ===== Ficha del vehículo ===== */}
@@ -133,7 +191,7 @@ export default function WorkOrderDetailView({ workOrderId, onBack }: Props) {
           <h2><User size={15} />Cliente y cita</h2>
           <dl className="spec-list">
             <div><dt>Cliente</dt><dd>{getRelationName(order.idCustomer, cat('customers'))}</dd></div>
-            <div><dt>Agente</dt><dd>{getRelationName(order.idAgent, cat('agents'))}</dd></div>
+            <div><dt>Agente</dt><dd>{getRelationName(order.idAgent, cat('team'))}</dd></div>
             <div><dt>Zona</dt><dd>{getRelationName(order.idZipcode, cat('catalog_zipcode'))}</dd></div>
             <div><dt>Fecha de cita</dt><dd>{formatDate(order.appointmentDate)}</dd></div>
             <div><dt>Entrada</dt><dd>{str(order.timeIn)}</dd></div>
@@ -195,7 +253,7 @@ export default function WorkOrderDetailView({ workOrderId, onBack }: Props) {
                   </td>
                   <td>{getRelationName(d.idJobtype, cat('catalog_jobtype'))}</td>
                   <td>{getRelationName(d.idPartnumber, cat('catalog_part_number'))}</td>
-                  <td>{getRelationName(d.idDistributor, cat('distributors'))}</td>
+                  <td>{getRelationName(d.idDistributor, cat('catalog_company'))}</td>
                   <td className="mono">{str(d.orderNumber)}</td>
                   <td className="cell-money">{money(d.glassCost)}</td>
                   {isInsurance && <td className="cell-money">{money(d.listPrice)}</td>}
@@ -250,6 +308,26 @@ export default function WorkOrderDetailView({ workOrderId, onBack }: Props) {
           </table>
         </div>
       </article>
+        <article className="wo-panel wo-finance">
+          <h2>Finanzas y P&L</h2>
+          <dl className="wo-fin-grid">
+            <div><dt>Subtotal parts</dt><dd>{money(fin.subtotalPart)}</dd></div>
+            <div><dt>Subtotal molding</dt><dd>{money(fin.subtotalMolding)}</dd></div>
+            <div><dt>Subtotal services</dt><dd>{money(fin.subtotalServices)}</dd></div>
+            <div><dt>Total tax</dt><dd>{money(fin.totalTax)}</dd></div>
+            <div><dt>Long trip</dt><dd>{money(fin.longTrip)}</dd></div>
+            <div><dt>Descuento</dt><dd>{money(fin.discount)}</dd></div>
+            <div><dt>Labor</dt><dd>{money(fin.labor)}</dd></div>
+            <div><dt>Upsell</dt><dd>{money(fin.upsell)}</dd></div>
+            <div className="wo-fin-total"><dt>Total</dt><dd>{money(fin.total)}</dd></div>
+            <div className="wo-fin-total"><dt>Cobrado (total + upsell)</dt><dd>{money(fin.charged)}</dd></div>
+          </dl>
+          <p className={`wo-pl ${fin.profitLoss >= 0 ? 'positive' : 'negative'}`}>
+            Profit &amp; Loss: <strong>{money(fin.profitLoss)}</strong>
+            <span className="wo-pl-note">cobrado − parte − tax − labor</span>
+          </p>
+        </article>
+
     </section>
   );
 }

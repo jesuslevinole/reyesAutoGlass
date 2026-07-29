@@ -528,3 +528,82 @@
   border-radius: 7px;
   margin-left: 6px;
 }
+
+/* ============ Barra de filtros por status (idea del cliente: cards por status) ============ */
+.status-bar ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.status-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 13px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--paper);
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink-soft);
+  transition: border-color .15s, box-shadow .15s, color .15s;
+}
+.status-chip:hover { border-color: var(--chip-color, var(--blue)); color: var(--ink); }
+.status-chip.active {
+  border-color: var(--chip-color, var(--blue));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--chip-color, var(--blue)) 18%, transparent);
+  color: var(--ink);
+}
+.status-chip-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--chip-color, var(--blue));
+  flex-shrink: 0;
+}
+.status-count {
+  font-size: 10.5px;
+  font-weight: 800;
+  background: #eef2fb;
+  color: var(--ink-soft);
+  border-radius: 999px;
+  padding: 2px 8px;
+}
+.status-chip.active .status-count {
+  background: var(--chip-color, var(--blue));
+  color: #fff;
+}
+
+/* ============ Conversión Quote → Work Order ============ */
+.convert-btn { color: #16a34a; }
+.convert-btn:hover { background: #ecfdf5; color: #065f46; }
+
+/* ============ Pill de status en celdas (fondo tintado, estilo demo) ============ */
+.cell-status {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--chip-color, var(--ink-soft));
+  background: color-mix(in srgb, var(--chip-color, #94a3b8) 13%, transparent);
+}
+
+/* ============ Botón oscuro de confirmación (estilo demo) ============ */
+.btn-dark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: #0c0e12;
+  color: #fff;
+  font-weight: 700;
+  font-size: 13.5px;
+  padding: 10px 22px;
+  border-radius: 10px;
+  transition: background .15s, transform .12s;
+}
+.btn-dark:hover { background: #1c2027; }
+.btn-dark:active { transform: translateY(1px); }
+.btn-dark:disabled { opacity: .55; cursor: not-allowed; }

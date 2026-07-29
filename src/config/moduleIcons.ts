@@ -1,9 +1,9 @@
 // Mapa único de íconos por módulo (lucide-react) — lo comparten Sidebar y el modal
 // de formularios para no duplicar la asignación módulo → ícono.
 import {
-  Banknote, Briefcase, Building2, ClipboardList, CreditCard, Crosshair,
-  Database, Frame, HandCoins, Hash, Layers, LayoutDashboard, ListTree, MapPin, Percent,
-  Receipt, Settings, Shield, ShieldCheck, Tag, Truck, UserCog, UserRound, Users, Wallet, Wrench,
+  Banknote, Briefcase, Building2, ClipboardList, Crosshair, FileText,
+  Database, Frame, Hash, Layers, LayoutDashboard, ListTree, MapPin, Percent,
+  Receipt, Settings, Shield, ShieldCheck, Tag, UserCog, UserRound, Users, Wallet,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
@@ -13,16 +13,14 @@ export const MODULE_ICONS: Record<string, LucideIcon> = {
   settings: Settings,
   users: UserRound,
   roles: Shield,
+  quotes: FileText,
   workorders: ClipboardList,
   servicesdetail: ListTree,
   customers: Users,
   agents: UserCog,
-  techs: Wrench,
-  distributors: Truck,
   insurances: ShieldCheck,
-  payments: CreditCard,
-  paymentdistributor: Banknote,
-  techpayments: HandCoins,
+  team: UserCog,
+  commissionpayments: Banknote,
   agentcomissions: Percent,
   cat_zipcode: MapPin,
   cat_company: Building2,

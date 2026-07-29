@@ -6,7 +6,7 @@ import {
 import type { Row } from '../services/firestore';
 import { subscribe } from '../services/firestore';
 import type { CatStatus, ServicesDetail, WorkOrder } from '../types';
-import { getRelationName, money } from '../utils/relations';
+import { getFieldValue, getRelationName, money, tagColorToHex } from '../utils/relations';
 import './DashboardView.css';
 
 const MONTHS_ES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
@@ -16,6 +16,27 @@ interface MonthPoint { label: string; total: number; paid: number; }
 function num(v: unknown): number {
   const n = typeof v === 'number' ? v : Number(v);
   return Number.isFinite(n) ? n : 0;
+}
+
+/** Lee un campo probando varias keys (camelCase de la app y snake_case del AppSheet). */
+function alt(row: Record<string, unknown>, keys: string[]): unknown {
+  return getFieldValue(row, { key: keys[0], altKeys: keys.slice(1) });
+}
+
+function altNum(row: Record<string, unknown>, keys: string[]): number {
+  return num(alt(row, keys));
+}
+
+/** Normaliza fecha a 'YYYY-MM-DD' desde string ISO o serial. */
+function dayKey(v: unknown): string {
+  if (typeof v !== 'string' || !v) return '';
+  return v.slice(0, 10);
+}
+
+function dateStr(offsetDays: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() + offsetDays);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
 export default function DashboardView() {
@@ -32,7 +53,7 @@ export default function DashboardView() {
   ), []);
   useEffect(() => subscribe('work_order_details', (r) => setDetails(r as unknown as ServicesDetail[])), []);
   useEffect(() => subscribe('catalog_tag', (r) => setStatuses(r as unknown as CatStatus[])), []);
-  useEffect(() => subscribe('distributors', setDistributors), []);
+  useEffect(() => subscribe('catalog_company', setDistributors), []);
 
   const kpis = useMemo(() => {
     const now = new Date();
@@ -44,15 +65,28 @@ export default function DashboardView() {
     let ordersThisMonth = 0, ordersPrevMonth = 0;
     let revenueThisMonth = 0, revenuePrevMonth = 0;
     let insuranceCount = 0;
+    let jobsToday = 0, jobsTomorrow = 0, jobsWeek = 0;
+    const today = dateStr(0);
+    const tomorrow = dateStr(1);
+    const weekEnd = dateStr(7);
 
     for (const o of orders) {
-      total += num(o.total);
-      paid += num(o.paid);
-      balance += num(o.balance);
-      if (o.insuranceType === 'INSURANCE') insuranceCount++;
-      const key = (o.dateRegister ?? '').slice(0, 7);
-      if (key === monthKey) { ordersThisMonth++; revenueThisMonth += num(o.total); }
-      if (key === prevKey) { ordersPrevMonth++; revenuePrevMonth += num(o.total); }
+      const row = o as unknown as Record<string, unknown>;
+      const oTotal = altNum(row, ['total']);
+      total += oTotal;
+      paid += altNum(row, ['paid']);
+      balance += altNum(row, ['balance']);
+      const insType = String(alt(row, ['insuranceType', 'insurrance', 'insurance', 'insurance_type']) ?? '');
+      if (insType.toLowerCase() === 'insurance') insuranceCount++;
+      const key = String(alt(row, ['dateRegister', 'date_register', 'created_at', 'date']) ?? '').slice(0, 7);
+      if (key === monthKey) { ordersThisMonth++; revenueThisMonth += oTotal; }
+      if (key === prevKey) { ordersPrevMonth++; revenuePrevMonth += oTotal; }
+      const appt = dayKey(alt(row, ['appointmentDate', 'appointment_date', 'appoiment_date']));
+      if (appt) {
+        if (appt === today) jobsToday++;
+        if (appt === tomorrow) jobsTomorrow++;
+        if (appt >= today && appt <= weekEnd) jobsWeek++;
+      }
     }
 
     const revenueDelta = revenuePrevMonth > 0
@@ -64,6 +98,7 @@ export default function DashboardView() {
       revenueThisMonth, revenueDelta,
       insurancePct: orders.length ? Math.round((insuranceCount / orders.length) * 100) : 0,
       count: orders.length,
+      jobsToday, jobsTomorrow, jobsWeek,
     };
   }, [orders]);
 
@@ -73,11 +108,11 @@ export default function DashboardView() {
     for (let i = 5; i >= 0; i--) {
       const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
       const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-      const inMonth = orders.filter((o) => (o.dateRegister ?? '').slice(0, 7) === key);
+      const inMonth = orders.filter((o) => String(alt(o as unknown as Record<string, unknown>, ['dateRegister', 'date_register', 'created_at', 'date']) ?? '').slice(0, 7) === key);
       points.push({
         label: MONTHS_ES[d.getMonth()],
-        total: inMonth.reduce((s, o) => s + num(o.total), 0),
-        paid: inMonth.reduce((s, o) => s + num(o.paid), 0),
+        total: inMonth.reduce((s, o) => s + altNum(o as unknown as Record<string, unknown>, ['total']), 0),
+        paid: inMonth.reduce((s, o) => s + altNum(o as unknown as Record<string, unknown>, ['paid']), 0),
       });
     }
     return points;
@@ -85,11 +120,14 @@ export default function DashboardView() {
 
   const statusDist = useMemo(() => {
     const counts = new Map<string, number>();
-    for (const o of orders) counts.set(o.idStatus, (counts.get(o.idStatus) ?? 0) + 1);
+    for (const o of orders) {
+      const id = String(alt(o as unknown as Record<string, unknown>, ['idStatus', 'tag_id', 'status_id', 'id_status', 'tag', 'status']) ?? '');
+      counts.set(id, (counts.get(id) ?? 0) + 1);
+    }
     return [...counts.entries()]
       .map(([id, count]) => {
         const st = statuses.find((s) => s.id === id);
-        return { id, name: st?.name ?? 'Sin status', color: st?.color ?? '#94a3b8', count };
+        return { id, name: st?.name ?? 'Sin status', color: tagColorToHex(st?.color), count };
       })
       .sort((a, b) => b.count - a.count)
       .slice(0, 6);
@@ -97,7 +135,11 @@ export default function DashboardView() {
 
   const topDistributors = useMemo(() => {
     const cost = new Map<string, number>();
-    for (const d of details) cost.set(d.idDistributor, (cost.get(d.idDistributor) ?? 0) + num(d.glassCost));
+    for (const det of details) {
+      const row = det as unknown as Record<string, unknown>;
+      const id = String(alt(row, ['idDistributor', 'distributor_id', 'id_distributor']) ?? '');
+      cost.set(id, (cost.get(id) ?? 0) + altNum(row, ['glassCost', 'glass_cost', 'cost', 'part_cost']));
+    }
     return [...cost.entries()]
       .filter(([id]) => id)
       .map(([id, amount]) => ({ id, name: getRelationName(id, distributors), amount }))
@@ -116,7 +158,28 @@ export default function DashboardView() {
         </div>
       </header>
 
-      {/* ===== Tarjetas hero con gradiente (referencia visual) ===== */}
+      {/* ===== Jobs por cita (idea del cliente) ===== */}
+      <p className="dash-section-label">Jobs &amp; Status</p>
+      <ul className="jobs-row">
+        <li>
+          <p className="jobs-label">Jobs hoy</p>
+          <p className="jobs-value">{loading ? <span className="skeleton skel-cell skel-w3" /> : kpis.jobsToday}</p>
+        </li>
+        <li>
+          <p className="jobs-label">Jobs mañana</p>
+          <p className="jobs-value">{loading ? <span className="skeleton skel-cell skel-w3" /> : kpis.jobsTomorrow}</p>
+        </li>
+        <li>
+          <p className="jobs-label">Jobs próximos 7 días</p>
+          <p className="jobs-value">{loading ? <span className="skeleton skel-cell skel-w3" /> : kpis.jobsWeek}</p>
+        </li>
+        <li>
+          <p className="jobs-label">Balance por cobrar</p>
+          <p className="jobs-value">{loading ? <span className="skeleton skel-cell skel-w3" /> : money(kpis.balance)}</p>
+        </li>
+      </ul>
+
+      <p className="dash-section-label">Revenue</p>
       <ul className="hero-cards">
         <li className="hero-card hero-blue">
           <div className="hero-icon"><DollarSign size={20} /></div>
