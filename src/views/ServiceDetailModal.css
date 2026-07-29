@@ -2,7 +2,7 @@
    izquierda, toggles de botones y bloques condicionales indentados. */
 
 .modal-card.sd-card {
-  width: min(680px, 96vw);
+  width: min(1000px, 96vw);
   max-height: 92vh;
   padding: 0;
   overflow: hidden;
@@ -22,19 +22,21 @@
 .sd-head-actions { display: flex; gap: 9px; }
 
 .sd-body {
-  padding: 20px 26px 26px;
+  padding: 20px 28px 26px;
   overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 15px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 15px 28px;
+  align-content: start;
 }
+.sd-full { grid-column: 1 / -1; }
 
-/* Fila: label izquierda (140px) + control */
+/* Fila: label izquierda + control */
 .sd-row {
   display: grid;
-  grid-template-columns: 150px 1fr;
+  grid-template-columns: 132px 1fr;
   align-items: center;
-  gap: 16px;
+  gap: 14px;
 }
 .sd-label {
   font-size: 13px;
@@ -120,3 +122,25 @@
 /* Inputs calculados (grises, solo lectura) */
 .sd-money.readonly { background: #f6f8fc; }
 .sd-money.readonly input { color: var(--ink-soft); font-weight: 600; }
+
+
+/* ============ NAGS description del part number ============ */
+.sd-nags { align-items: start; }
+.sd-nags-text {
+  font-size: 12.5px;
+  color: var(--ink);
+  background: #f6f9ff;
+  border: 1px solid #d9e5fb;
+  border-radius: 8px;
+  padding: 9px 12px;
+  line-height: 1.45;
+}
+.sd-nags-add {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+}
+
+@media (max-width: 760px) {
+  .sd-body { grid-template-columns: 1fr; }
+}

@@ -12,7 +12,8 @@ import type { FieldDef, ModuleDef } from '../config/modules';
 import { FULL_PERM } from '../utils/uiConfig';
 import type { ModulePerm } from '../utils/uiConfig';
 import type { Row } from '../services/firestore';
-import { createRow, deleteRow, fetchAll, subscribe, updateRow } from '../services/firestore';
+import { createRow, deleteRow, subscribe, updateRow } from '../services/firestore';
+import { cachedFetchAll, invalidateCatalog } from '../services/catalogCache';
 import { formatDate, getFieldValue, getRelationColor, getRelationName, money, rowLabel, tagColorToHex } from '../utils/relations';
 import ImportExportBar from '../components/ImportExportBar';
 import { generateWorkOrderReport } from '../utils/reportExcel';
@@ -99,7 +100,7 @@ export default function GenericModuleView({ module, perms = FULL_PERM, initialSe
       module.fields.filter((f) => f.fkCollection).map((f) => f.fkCollection as string),
     )];
     let cancelled = false;
-    void Promise.all(fkCollections.map(async (c) => [c, await fetchAll(c)] as const)).then((pairs) => {
+    void Promise.all(fkCollections.map(async (c) => [c, await cachedFetchAll(c)] as const)).then((pairs) => {
       if (!cancelled) setFkData(Object.fromEntries(pairs));
     });
     return () => { cancelled = true; };
@@ -212,6 +213,7 @@ export default function GenericModuleView({ module, perms = FULL_PERM, initialSe
   const handleDelete = async (row: Row) => {
     if (!window.confirm(`Delete this ${module.singular.toLowerCase()}? This action cannot be undone.`)) return;
     await deleteRow(module.collection, row.id);
+    invalidateCatalog(module.collection);
   };
 
   const handleSubmit = async (e: FormEvent) => {
@@ -225,6 +227,7 @@ export default function GenericModuleView({ module, perms = FULL_PERM, initialSe
       }
       if (editing) await updateRow(module.collection, editing.id, data);
       else await createRow(module.collection, data);
+      invalidateCatalog(module.collection);
       setModalOpen(false);
     } finally {
       setSaving(false);

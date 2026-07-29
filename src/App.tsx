@@ -15,6 +15,7 @@ import { subscribe } from './services/firestore';
 import { FULL_PERM, applyOverrides, orderNav } from './utils/uiConfig';
 import type { ModulePerm } from './utils/uiConfig';
 import { clearSession, loadSession, saveSession } from './config/auth';
+import { warmCatalogs } from './services/catalogCache';
 import type { Session } from './config/auth';
 import './App.css';
 
@@ -27,6 +28,16 @@ export default function App() {
   // Búsqueda global del topbar: al enviar salta a Work Orders con el término aplicado
   const [quickSearch, setQuickSearch] = useState('');
   const [searchNonce, setSearchNonce] = useState(0);
+
+  // Pre-carga de catálogos en segundo plano → los selects abren al instante
+  useEffect(() => {
+    if (!session) return;
+    warmCatalogs([
+      'catalog_tag', 'catalog_company', 'catalog_zipcode', 'customers', 'team',
+      'catalog_insurance', 'catalog_jobtype', 'catalog_part_number',
+      'catalog_price_tier', 'catalog_calibration_type', 'catalog_payment_method',
+    ]);
+  }, [session]);
 
   const enter = (s: Session) => { saveSession(s); setSession(s); };
   const logout = () => { clearSession(); setSession(null); };

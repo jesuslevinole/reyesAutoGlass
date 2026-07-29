@@ -8,6 +8,7 @@ import ServiceDetailModal from './ServiceDetailModal';
 import { getModule } from '../config/modules';
 import type { Row } from '../services/firestore';
 import { createRow, fetchAll, updateRow } from '../services/firestore';
+import { cachedFetchAll, invalidateCatalog } from '../services/catalogCache';
 import { getFieldValue, money, rowLabel } from '../utils/relations';
 import './WorkOrderWizard.css';
 
@@ -193,7 +194,7 @@ export default function WorkOrderWizard({ initialRow, onClose }: Props) {
 
   useEffect(() => {
     let alive = true;
-    void Promise.all(CATALOGS.map((c) => fetchAll(c))).then((results) => {
+    void Promise.all(CATALOGS.map((c) => cachedFetchAll(c))).then((results) => {
       if (!alive) return;
       setCatalogs(Object.fromEntries(CATALOGS.map((c, i) => [c, results[i]])));
     });
@@ -271,15 +272,18 @@ export default function WorkOrderWizard({ initialRow, onClose }: Props) {
   const detailPartPrice = (d: DetailDraft): number =>
     String(d.insurance ?? '') === 'Insurance' ? num(d.pricePartInsurance) : num(d.amountPricetier);
 
-  /** Al cambiar los borradores, los subtotales de la orden se derivan de ellos. */
+  /** Al cambiar los borradores, los subtotales de la orden se derivan de ellos.
+   *  Subtotal parts = suma de los Glass Cost de las partes agregadas. */
   const applyDrafts = (next: DetailDraft[]) => {
     setDrafts(next);
     if (next.length === 0) return;
-    const parts = next.filter((d) => String(d.type ?? '') !== 'Services');
+    const parts = next.filter((d) => String(d.type ?? '') === 'Parts');
+    const moldings = next.filter((d) => String(d.type ?? '') === 'Molding');
     const services = next.filter((d) => String(d.type ?? '') === 'Services');
     setForm((prev) => ({
       ...prev,
-      subtotalPart: parts.reduce((s, d) => s + detailPartPrice(d), 0),
+      subtotalPart: parts.reduce((s, d) => s + num(d.glassCost), 0),
+      subtotalMolding: moldings.reduce((s, d) => s + num(d.glassCost), 0),
       subtotalServices: services.reduce((s, d) => s + num(d.amount), 0),
       totalLabor: next.reduce((s, d) => s + num(d.totalLabor) + num(d.totalLaborHour), 0),
     }));
@@ -326,6 +330,7 @@ export default function WorkOrderWizard({ initialRow, onClose }: Props) {
       for (const d of drafts) {
         await createRow('work_order_details', { ...d, idWorkorder: woId });
       }
+      invalidateCatalog('work_orders');
       onClose();
     } finally {
       setSaving(false);
@@ -347,7 +352,8 @@ export default function WorkOrderWizard({ initialRow, onClose }: Props) {
   const onQuickCreated = async (id: string) => {
     if (!quickAdd) return;
     const collection = quickAdd.spec.collection;
-    const fresh = await fetchAll(collection);
+    invalidateCatalog(collection);
+    const fresh = await cachedFetchAll(collection);
     setCatalogs((prev) => ({ ...prev, [collection]: fresh }));
     if (quickAdd.targetKey === 'idZipcode') onZipcode(id);
     else set(quickAdd.targetKey, id);
@@ -487,6 +493,18 @@ export default function WorkOrderWizard({ initialRow, onClose }: Props) {
                 <div className="wz-field">
                   <label htmlFor="wz-year">Year <code className="wz-key">year</code></label>
                   <input id="wz-year" type="number" value={String(form.year ?? '')} onChange={(e) => set('year', e.target.value)} />
+                </div>
+                <div className="wz-field">
+                  <label htmlFor="wz-mark">Make <code className="wz-key">mark</code></label>
+                  <input id="wz-mark" value={String(form.mark ?? '')} onChange={(e) => set('mark', e.target.value)} />
+                </div>
+                <div className="wz-field">
+                  <label htmlFor="wz-model">Model <code className="wz-key">model</code></label>
+                  <input id="wz-model" value={String(form.model ?? '')} onChange={(e) => set('model', e.target.value)} />
+                </div>
+                <div className="wz-field">
+                  <label htmlFor="wz-body">Body <code className="wz-key">body</code></label>
+                  <input id="wz-body" value={String(form.body ?? '')} onChange={(e) => set('body', e.target.value)} />
                 </div>
                 <div className="wz-field">
                   <label htmlFor="wz-vin">Vin number <code className="wz-key">vinNumber</code></label>
@@ -674,7 +692,8 @@ export default function WorkOrderWizard({ initialRow, onClose }: Props) {
           <div className="wz-sum-card">
             <p className="wz-sum-card-title"><Car size={13} />Vehicle & Area</p>
             <dl>
-              <div><dt>Year / Plate</dt><dd>{[form.year, form.plate].filter(Boolean).join(' · ') || '—'}</dd></div>
+              <div><dt>Vehicle</dt><dd>{[form.year, form.mark, form.model].filter(Boolean).join(' ') || '—'}</dd></div>
+              <div><dt>Body / Plate</dt><dd>{[form.body, form.plate].filter(Boolean).join(' · ') || '—'}</dd></div>
               <div><dt>VIN</dt><dd>{String(form.vinNumber ?? '') || '—'}</dd></div>
               <div><dt>Zipcode</dt><dd>{form.idZipcode ? rowLabel(cat('catalog_zipcode').find((z) => z.id === form.idZipcode)) : '—'}</dd></div>
               <div><dt>Parts</dt><dd>{initialRow ? liveDetails.length : drafts.length}</dd></div>

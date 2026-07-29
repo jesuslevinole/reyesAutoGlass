@@ -2,7 +2,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { X } from 'lucide-react';
 import SearchableSelect from '../components/SearchableSelect';
 import type { Row } from '../services/firestore';
-import { createRow, fetchAll, updateRow } from '../services/firestore';
+import { createRow, updateRow } from '../services/firestore';
+import { cachedFetchAll, invalidateCatalog } from '../services/catalogCache';
 import { getModule } from '../config/modules';
 import { getFieldValue, rowLabel } from '../utils/relations';
 import './ServiceDetailModal.css';
@@ -57,11 +58,13 @@ export default function ServiceDetailModal({ initialRow, onClose, fixedWorkOrder
     return base;
   });
   const [saving, setSaving] = useState(false);
+  const [nagsDraft, setNagsDraft] = useState('');
+  const [nagsSaving, setNagsSaving] = useState(false);
   const [catalogs, setCatalogs] = useState<Record<string, Row[]>>({});
 
   useEffect(() => {
     let alive = true;
-    void Promise.all(CATALOGS.map((c) => fetchAll(c))).then((results) => {
+    void Promise.all(CATALOGS.map((c) => cachedFetchAll(c))).then((results) => {
       if (!alive) return;
       setCatalogs(Object.fromEntries(CATALOGS.map((c, i) => [c, results[i]])));
     });
@@ -119,6 +122,28 @@ export default function ServiceDetailModal({ initialRow, onClose, fixedWorkOrder
       .filter((c) => String((c as Record<string, unknown>).type ?? '').includes('Distributor'))
       .map((r) => ({ id: r.id, label: rowLabel(r) })),
   [catalogs]);
+
+  const selectedPart = form.idPartnumber
+    ? cat('catalog_part_number').find((p) => p.id === form.idPartnumber)
+    : undefined;
+  const partNags = selectedPart
+    ? String(getFieldValue(selectedPart, { key: 'nagsDescription', altKeys: ['nags_description', 'description'] }) ?? '')
+    : '';
+
+  /** El part number no tiene descripción NAGS → agregarla al registro del catálogo. */
+  const saveNags = async () => {
+    if (!selectedPart || !nagsDraft.trim()) return;
+    setNagsSaving(true);
+    try {
+      await updateRow('catalog_part_number', selectedPart.id, { nags_description: nagsDraft.trim() });
+      invalidateCatalog('catalog_part_number');
+      const fresh = await cachedFetchAll('catalog_part_number');
+      setCatalogs((prev) => ({ ...prev, catalog_part_number: fresh }));
+      setNagsDraft('');
+    } finally {
+      setNagsSaving(false);
+    }
+  };
 
   const save = async () => {
     setSaving(true);
@@ -193,7 +218,7 @@ export default function ServiceDetailModal({ initialRow, onClose, fixedWorkOrder
             </div>
           )}
 
-          <div className="sd-row">
+          <div className="sd-row sd-full">
             <span className="sd-label">Type</span>
             <div className="sd-toggle" role="radiogroup" aria-label="Detail type">
               {['Parts', 'Services', 'Molding'].map((opt) => (
@@ -265,6 +290,33 @@ export default function ServiceDetailModal({ initialRow, onClose, fixedWorkOrder
               onChange={(id) => set('idPartnumber', id)}
             />
           </div>
+
+          {selectedPart && (
+            <div className="sd-row sd-full sd-sub sd-nags">
+              <span className="sd-label">NAGS description</span>
+              {partNags ? (
+                <p className="sd-nags-text">{partNags}</p>
+              ) : (
+                <div className="sd-nags-add">
+                  <input
+                    className="sd-input"
+                    value={nagsDraft}
+                    placeholder="This part has no NAGS description — add it here…"
+                    aria-label="NAGS description"
+                    onChange={(e) => setNagsDraft(e.target.value)}
+                  />
+                  <button
+                    type="button"
+                    className="btn-primary"
+                    disabled={nagsSaving || !nagsDraft.trim()}
+                    onClick={() => void saveNags()}
+                  >
+                    {nagsSaving ? 'Saving…' : 'Add'}
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
 
           <div className="sd-row">
             <span className="sd-label">Glass Cost</span>
@@ -482,7 +534,7 @@ export default function ServiceDetailModal({ initialRow, onClose, fixedWorkOrder
             </>
           )}
 
-          <div className="sd-row sd-total">
+          <div className="sd-row sd-full sd-total">
             <span className="sd-label">Total Labor</span>
             <div className="sd-money">
               <span>$</span>
