@@ -31,7 +31,7 @@ type DetailModalState =
 /** Colecciones que el wizard necesita para selects y sumario. */
 const CATALOGS = [
   'catalog_tag', 'catalog_company', 'catalog_zipcode', 'customers',
-  'catalog_insurance', 'catalog_jobtype', 'catalog_part_number',
+  'catalog_insurance', 'catalog_jobtype', 'catalog_part_number', 'team',
 ] as const;
 
 /* ==================== Alta rápida de catálogos (sin salir del formulario) ==================== */
@@ -531,7 +531,26 @@ export default function WorkOrderWizard({ initialRow, onClose }: Props) {
               </SectionCard>
 
               <SectionCard icon={<MapPin size={15} />} title="Company & Area">
-                {catalogSelect('Company', 'idCompany', 'catalog_company')}
+                {catalogSelect('Company', 'idCompany', 'catalog_company', {
+                filtered: cat('catalog_company')
+                  .filter((c) => String((c as Record<string, unknown>).type ?? '').includes('Agent'))
+                  .map((r) => ({ id: r.id, label: rowLabel(r) })),
+                onPick: (id) => setForm((prev) => ({ ...prev, idCompany: id, idAgent: '' })),
+              })}
+              {Boolean(form.idCompany) && (
+                <div className="wz-field">
+                  <label htmlFor="wz-idAgent">Agent <code className="wz-key">idAgent</code></label>
+                  <SearchableSelect
+                    inputId="wz-idAgent"
+                    value={String(form.idAgent ?? '')}
+                    options={cat('team')
+                      .filter((t) => String(getFieldValue(t, { key: 'companyId', altKeys: ['company_id', 'id_company'] }) ?? '') === form.idCompany)
+                      .map((r) => ({ id: r.id, label: rowLabel(r) }))}
+                    placeholder="Agents of this company…"
+                    onChange={(id) => set('idAgent', id)}
+                  />
+                </div>
+              )}
                 {catalogSelect('Zipcode', 'idZipcode', 'catalog_zipcode', { onPick: onZipcode })}
                 {moneyInput('Long trip', 'longTrip')}
               </SectionCard>
@@ -752,6 +771,13 @@ export default function WorkOrderWizard({ initialRow, onClose }: Props) {
                   </div>
                 </div>
                 {moneyInput('Paid', 'paid')}
+                <div className="wz-field wz-full wz-order-total">
+                  <span className="wz-label">Order Total</span>
+                  <div className="wz-money readonly">
+                    <span>$</span>
+                    <input value={computedTotal.toFixed(2)} readOnly aria-label="Order total (computed)" />
+                  </div>
+                </div>
               </SectionCard>
             </>
           )}
@@ -840,6 +866,7 @@ export default function WorkOrderWizard({ initialRow, onClose }: Props) {
       {detailModal && (
         <ServiceDetailModal
           initialRow={detailModal.mode === 'live-edit' ? detailModal.row : null}
+          inheritedInsurance={String(form.insuranceType ?? 'Personal')}
           fixedWorkOrderId={initialRow && (detailModal.mode === 'live-new' || detailModal.mode === 'live-edit') ? initialRow.id : undefined}
           draft={!initialRow ? {
             initial: detailModal.mode === 'draft-edit' ? drafts[detailModal.index] : undefined,

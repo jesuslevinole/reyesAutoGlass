@@ -181,3 +181,11 @@
 @media (max-width: 640px) {
   .wo-step-line { width: 18px; margin: 0 4px; }
 }
+
+.status-chip-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--chip-color, var(--blue));
+  flex-shrink: 0;
+}

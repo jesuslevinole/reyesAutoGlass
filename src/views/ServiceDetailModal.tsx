@@ -15,6 +15,8 @@ interface Props {
   fixedWorkOrderId?: string;
   /** Orden aún no creada: no toca Firestore, entrega el borrador al wizard */
   draft?: { initial?: Record<string, unknown>; onSave: (data: Record<string, unknown>) => void };
+  /** Tipo de la orden (Personal/Insurance) — el detalle lo hereda, no se pregunta */
+  inheritedInsurance?: string;
 }
 
 type Form = Record<string, unknown>;
@@ -41,11 +43,11 @@ function woLabel(wo: Row): string {
 }
 
 /** Formulario "New Glass" del cliente: detalle de servicio con toggles condicionales. */
-export default function ServiceDetailModal({ initialRow, onClose, fixedWorkOrderId, draft }: Props) {
+export default function ServiceDetailModal({ initialRow, onClose, fixedWorkOrderId, draft, inheritedInsurance }: Props) {
   const module = useMemo(() => getModule('servicesdetail'), []);
 
   const [form, setForm] = useState<Form>(() => {
-    const base: Form = { type: 'Parts', insurance: 'Personal', pricetier: false, calibrationType: false };
+    const base: Form = { type: 'Parts', insurance: inheritedInsurance ?? 'Personal', pricetier: false, calibrationType: false };
     const source = draft?.initial ?? initialRow;
     if (source) {
       for (const f of module.fields) {
@@ -220,7 +222,14 @@ export default function ServiceDetailModal({ initialRow, onClose, fixedWorkOrder
                   value={String(form.idWorkorder ?? '')}
                   options={cat('work_orders').map((wo) => ({ id: wo.id, label: woLabel(wo) }))}
                   required
-                  onChange={(id) => set('idWorkorder', id)}
+                  onChange={(id) => {
+                    const wo = cat('work_orders').find((r) => r.id === id);
+                    const woInsurance = wo ? String(getFieldValue(wo, {
+                      key: 'insuranceType',
+                      altKeys: ['insurrance', 'insurance', 'insurance_type'],
+                    }) ?? 'Personal') : 'Personal';
+                    setForm((prev) => ({ ...prev, idWorkorder: id, insurance: woInsurance }));
+                  }}
                 />
               </div>
             )}
@@ -356,23 +365,6 @@ export default function ServiceDetailModal({ initialRow, onClose, fixedWorkOrder
                 aria-label="Order number"
                 onChange={(e) => set('orderNumber', e.target.value)}
               />
-            </div>
-            <div className="sd-row">
-              <span className="sd-label">Insurance *</span>
-              <div className="sd-toggle" role="radiogroup" aria-label="Insurance type">
-                {['Personal', 'Insurance'].map((opt) => (
-                  <button
-                    key={opt}
-                    type="button"
-                    role="radio"
-                    aria-checked={form.insurance === opt}
-                    className={`sd-toggle-btn${form.insurance === opt ? ' active' : ''}`}
-                    onClick={() => set('insurance', opt)}
-                  >
-                    {opt}
-                  </button>
-                ))}
-              </div>
             </div>
 
             {isPartsInsurance && (
@@ -548,7 +540,7 @@ export default function ServiceDetailModal({ initialRow, onClose, fixedWorkOrder
               <div><dt>Jobtype</dt><dd>{jobtypeName}</dd></div>
               <div><dt>Part number</dt><dd>{partName}</dd></div>
               <div><dt>Distributor</dt><dd>{distributorName}</dd></div>
-              <div><dt>Insurance</dt><dd>{String(form.insurance ?? '—')}</dd></div>
+              <div><dt>Insurance</dt><dd>{String(form.insurance ?? '—')} <em className="sd-inherited">(from order)</em></dd></div>
             </dl>
             <div className="sd-sum-money">
               <dl>

@@ -25,21 +25,22 @@
   padding: 20px 28px 26px;
   overflow-y: auto;
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 15px 28px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 15px 22px;
   align-content: start;
 }
 .sd-full { grid-column: 1 / -1; }
 
-/* Fila: label izquierda + control */
+/* Campo: label arriba, control abajo (3 columnas) */
 .sd-row {
-  display: grid;
-  grid-template-columns: 132px 1fr;
-  align-items: center;
-  gap: 14px;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+  min-width: 0;
 }
 .sd-label {
-  font-size: 13px;
+  font-size: 12.5px;
   font-weight: 600;
   color: var(--ink-soft);
 }
@@ -141,8 +142,12 @@
   gap: 8px;
 }
 
-@media (max-width: 760px) {
+@media (max-width: 980px) {
+  .sd-body { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 700px) {
   .sd-body { grid-template-columns: 1fr; }
+  .sd-composite-controls { grid-template-columns: 1fr; }
 }
 
 /* ============ Layout con sumario lateral ============ */
@@ -169,10 +174,9 @@
 .sd-section-title:first-child { margin-top: 0; }
 
 /* Fila compuesta: chips + monto en línea */
-.sd-composite { align-items: start; }
 .sd-composite-controls {
   display: grid;
-  grid-template-columns: 1fr 170px;
+  grid-template-columns: 1fr 180px;
   gap: 10px;
   align-items: center;
 }
@@ -258,3 +262,5 @@
   .sd-summary { border-left: none; border-top: 1px solid var(--border); }
   .sd-composite-controls { grid-template-columns: 1fr; }
 }
+
+.sd-inherited { font-style: normal; font-size: 10px; color: var(--ink-faint); }

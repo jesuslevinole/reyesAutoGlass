@@ -3,6 +3,7 @@ import type { CSSProperties } from 'react';
 import { ArrowLeft, Car, CreditCard, Package, User } from 'lucide-react';
 import type { Row } from '../services/firestore';
 import { fetchAll, subscribe } from '../services/firestore';
+import { subscribeCached } from '../services/catalogCache';
 import { formatDate, getFieldValue, getRelationColor, getRelationName, money, tagColorToHex } from '../utils/relations';
 import './WorkOrderDetailView.css';
 
@@ -28,12 +29,12 @@ export default function WorkOrderDetailView({ workOrderId, onBack }: Props) {
   const [loaded, setLoaded] = useState(false);
 
   // Colecciones vivas: la orden y sus hijos cambian mientras el taller trabaja.
-  useEffect(() => subscribe('work_orders', (rows) => {
+  useEffect(() => subscribeCached('work_orders', (rows) => {
     setOrder(rows.find((r) => r.id === workOrderId) ?? null);
     setLoaded(true);
   }), [workOrderId]);
 
-  useEffect(() => subscribe('work_order_details', (rows) => {
+  useEffect(() => subscribeCached('work_order_details', (rows) => {
     setDetails(rows.filter((r) => String(getFieldValue(r, {
       key: 'idWorkorder',
       altKeys: ['work_order_id', 'id_work_order', 'workOrderId'],
@@ -141,6 +142,7 @@ export default function WorkOrderDetailView({ workOrderId, onBack }: Props) {
               className="status-chip"
               style={{ '--chip-color': tagColorToHex(getRelationColor(statusId, cat('catalog_tag'))) } as CSSProperties}
             >
+              <span className="status-chip-dot" />
               {getRelationName(statusId, cat('catalog_tag'))}
             </span>
             <span className={`enum-badge enum-${String(order.insuranceType).toLowerCase()}`}>
@@ -242,7 +244,8 @@ export default function WorkOrderDetailView({ workOrderId, onBack }: Props) {
                 <th>Part number</th>
                 <th>Distributor</th>
                 <th>Order #</th>
-                <th>Part price</th>
+                <th>Part</th>
+                <th>Labor</th>
                 <th>Glass cost</th>
                 {isInsurance && <th>List price</th>}
                 {isInsurance && <th>NAGS hrs</th>}
@@ -263,6 +266,12 @@ export default function WorkOrderDetailView({ workOrderId, onBack }: Props) {
                     {String(d.type) === 'Services'
                       ? money(getFieldValue(d, { key: 'amount', altKeys: ['service_amount'] }))
                       : money(getFieldValue(d, { key: 'amountPricetier', altKeys: ['amount_price_tier', 'tier_amount', 'pricePartInsurance'] }))}
+                  </td>
+                  <td className="cell-money">
+                    {money(
+                      Number(getFieldValue(d, { key: 'totalLabor', altKeys: ['total_labor', 'labor'] }) ?? 0)
+                      + Number(getFieldValue(d, { key: 'totalLaborHour', altKeys: ['total_labor_hour'] }) ?? 0),
+                    )}
                   </td>
                   <td className="cell-money">{money(d.glassCost)}</td>
                   {isInsurance && <td className="cell-money">{money(d.listPrice)}</td>}

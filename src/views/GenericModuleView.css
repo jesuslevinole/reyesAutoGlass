@@ -99,14 +99,6 @@
   font-weight: 600;
   font-size: 12.5px;
 }
-.status-chip::before {
-  content: '';
-  width: 9px;
-  height: 9px;
-  border-radius: 50%;
-  background: var(--chip-color);
-}
-
 .color-dot {
   display: inline-block;
   width: 16px;

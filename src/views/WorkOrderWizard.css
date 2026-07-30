@@ -427,3 +427,9 @@
   color: var(--blue-deep);
 }
 .wz-detail-actions { display: inline-flex; gap: 3px; }
+
+/* Total de la orden visible en el formulario */
+.wz-order-total { border-top: 1px solid var(--border); padding-top: 15px; }
+.wz-order-total .wz-label { color: var(--ink); font-weight: 800; font-size: 13px; }
+.wz-order-total .wz-money { background: #ecfdf5; border-color: #a7f3d0; }
+.wz-order-total .wz-money input { font-weight: 800; font-size: 17px; color: #059669; }

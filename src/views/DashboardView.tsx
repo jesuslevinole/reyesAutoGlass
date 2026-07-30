@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import type { Row } from '../services/firestore';
 import { subscribe } from '../services/firestore';
+import { subscribeCached } from '../services/catalogCache';
 import type { CatStatus, ServicesDetail, WorkOrder } from '../types';
 import { getFieldValue, getRelationName, money, tagColorToHex } from '../utils/relations';
 import './DashboardView.css';
@@ -51,9 +52,9 @@ export default function DashboardView() {
     (r) => { setOrders(r as unknown as WorkOrder[]); setLoading(false); },
     () => setLoading(false),
   ), []);
-  useEffect(() => subscribe('work_order_details', (r) => setDetails(r as unknown as ServicesDetail[])), []);
-  useEffect(() => subscribe('catalog_tag', (r) => setStatuses(r as unknown as CatStatus[])), []);
-  useEffect(() => subscribe('catalog_company', setDistributors), []);
+  useEffect(() => subscribeCached('work_order_details', (r) => setDetails(r as unknown as ServicesDetail[])), []);
+  useEffect(() => subscribeCached('catalog_tag', (r) => setStatuses(r as unknown as CatStatus[])), []);
+  useEffect(() => subscribeCached('catalog_company', setDistributors), []);
 
   const kpis = useMemo(() => {
     const now = new Date();

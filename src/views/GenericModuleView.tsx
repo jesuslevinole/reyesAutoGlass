@@ -13,11 +13,11 @@ import type { FieldDef, ModuleDef } from '../config/modules';
 import { FULL_PERM } from '../utils/uiConfig';
 import type { ModulePerm } from '../utils/uiConfig';
 import type { Row } from '../services/firestore';
-import { createRow, deleteRow, subscribe, updateRow } from '../services/firestore';
-import { cachedFetchAll, invalidateCatalog } from '../services/catalogCache';
+import { createRow, deleteRow, updateRow } from '../services/firestore';
+import { cachedFetchAll, invalidateCatalog, subscribeCached } from '../services/catalogCache';
 import { formatDate, getFieldValue, getRelationColor, getRelationName, money, rowLabel, tagColorToHex } from '../utils/relations';
 import ImportExportBar from '../components/ImportExportBar';
-import { generateWorkOrderReport } from '../utils/reportExcel';
+import { generateServiceDetailsReport, generateWorkOrderReport } from '../utils/reportExcel';
 import ServiceDetailModal from './ServiceDetailModal';
 import WorkOrderWizard from './WorkOrderWizard';
 import SearchableSelect from '../components/SearchableSelect';
@@ -92,10 +92,10 @@ export default function GenericModuleView({ module, perms = FULL_PERM, initialSe
   const [activeSection, setActiveSection] = useState(sections[0].id);
 
   // Colección principal en tiempo real
-  useEffect(() => subscribe(
+  useEffect(() => subscribeCached(
     module.collection,
     (r) => { setRows(r); setLoadError(null); setLoading(false); },
-    (error) => { setLoadError(error.message); setLoading(false); },
+    (error) => { setLoadError(error instanceof Error ? error.message : String(error)); setLoading(false); },
   ), [module.collection]);
 
   // Catálogos referenciados por FK: carga única al montar el módulo.
@@ -291,13 +291,16 @@ export default function GenericModuleView({ module, perms = FULL_PERM, initialSe
               {activeFilterCount > 0 && <span className="filter-badge">{activeFilterCount}</span>}
             </button>
           )}
-          {module.id === 'workorders' && (
+          {(module.id === 'workorders' || module.id === 'servicesdetail') && (
             <button
               className="btn-outline"
               disabled={reporting}
               onClick={() => {
                 setReporting(true);
-                void generateWorkOrderReport(filtered).finally(() => setReporting(false));
+                const generate = module.id === 'workorders'
+                  ? generateWorkOrderReport(filtered)
+                  : generateServiceDetailsReport(filtered);
+                void generate.finally(() => setReporting(false));
               }}
             >
               <FileSpreadsheet size={15} />

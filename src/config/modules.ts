@@ -101,7 +101,7 @@ export const MODULES: ModuleDef[] = [
       { key: 'idAgent', label: 'Agent', type: 'fk', fkCollection: 'team', section: 'general', altKeys: ['agent_id', 'id_agent'] },
       { key: 'idTech', label: 'Technician', type: 'fk', fkCollection: 'team', section: 'general', altKeys: ['tech_id', 'id_tech'] },
       { key: 'idZipcode', label: 'Zipcode', type: 'fk', fkCollection: 'catalog_zipcode', section: 'general', altKeys: ['zipcode_id', 'zip_code_id', 'id_zipcode'] },
-      { key: 'idCompany', label: 'Company', type: 'fk', fkCollection: 'catalog_company', section: 'general', altKeys: ['company_id', 'id_company'] },
+      { key: 'idCompany', label: 'Company', type: 'fk', fkCollection: 'catalog_company', fkFilter: { key: 'type', equals: 'Agent' }, section: 'general', altKeys: ['company_id', 'id_company'] },
       { key: 'year', label: 'Year', type: 'int', section: 'vehiculo', altKeys: ['vehicle_year'] },
       { key: 'mark', label: 'Make', type: 'text', inList: true, section: 'vehiculo', altKeys: ['make', 'vehicle_make'] },
       { key: 'model', label: 'Model', type: 'text', inList: true, section: 'vehiculo', altKeys: ['vehicle_model'] },
