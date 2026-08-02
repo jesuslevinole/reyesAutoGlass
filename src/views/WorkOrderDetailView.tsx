@@ -86,8 +86,8 @@ export default function WorkOrderDetailView({ workOrderId, onBack }: Props) {
   }) ?? '');
   const statusName = getRelationName(statusId, cat('catalog_tag'));
 
-  /** Pipeline principal del taller (idea del cliente: status tracker). */
-  const PIPELINE = ['Accepted', 'Working', 'Job Done'];
+  /** Pipeline CRM del cliente: Accepted → Assigned → Sent → Paid → Complied. */
+  const PIPELINE = ['Accepted', 'Assigned', 'Sent', 'Paid', 'Complied'];
   const pipelineIndex = PIPELINE.findIndex((s) => s.toLowerCase() === statusName.toLowerCase());
   const offTrack = pipelineIndex === -1 && statusName !== '—';
 

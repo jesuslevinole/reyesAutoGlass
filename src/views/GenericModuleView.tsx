@@ -10,10 +10,11 @@ import {
 import type { LucideIcon } from 'lucide-react';
 import { MODULE_ICONS } from '../config/moduleIcons';
 import type { FieldDef, ModuleDef } from '../config/modules';
+import { ensureTag, pipelineFor, stageIndex } from '../utils/pipeline';
 import { FULL_PERM } from '../utils/uiConfig';
 import type { ModulePerm } from '../utils/uiConfig';
 import type { Row } from '../services/firestore';
-import { createRow, deleteRow, fetchAll, updateRow } from '../services/firestore';
+import { createRow, deleteRow, fetchAll, nextConsecutive, updateRow } from '../services/firestore';
 import { cachedFetchAll, invalidateCatalog, subscribeCached } from '../services/catalogCache';
 import { formatDate, getFieldValue, getRelationColor, getRelationName, money, rowLabel, tagColorToHex } from '../utils/relations';
 import ImportExportBar from '../components/ImportExportBar';
@@ -119,13 +120,20 @@ export default function GenericModuleView({ module, perms = FULL_PERM, initialSe
     if (!statusField) return [];
     const tags = fkData['catalog_tag'] ?? [];
     const filter = statusField.fkFilter;
-    return filter
+    const filtered = filter
       ? tags.filter((t) => {
           const v = (t as Record<string, unknown>)[filter.key];
           return typeof v === 'string' && v.includes(filter.equals);
         })
       : tags;
-  }, [statusField, fkData]);
+    // Orden CRM: primero las etapas del pipeline, luego el resto
+    const pipeline = pipelineFor(module.id === 'quotes' ? 'quote' : 'workorder');
+    return [...filtered].sort((a, b) => {
+      const ia = stageIndex(pipeline, rowLabel(a));
+      const ib = stageIndex(pipeline, rowLabel(b));
+      return (ia === -1 ? pipeline.length : ia) - (ib === -1 ? pipeline.length : ib);
+    });
+  }, [statusField, fkData, module.id]);
   const statusCounts = useMemo(() => {
     const counts: Record<string, number> = {};
     if (!statusField) return counts;
@@ -208,18 +216,16 @@ export default function GenericModuleView({ module, perms = FULL_PERM, initialSe
     if (!window.confirm('Convert this quote into a Work Order?')) return;
     const src = quote as Record<string, unknown>;
     const tags = fkData['catalog_tag'] ?? [];
-    // Status inicial de la orden: tag "Accepted" de tipo Work Order (si existe)
-    const accepted = tags.find((t) => {
-      const r = t as Record<string, unknown>;
-      return String(r.name ?? '').toLowerCase() === 'accepted' && String(r.type ?? '').includes('Work Order');
-    });
+    const acceptedId = await ensureTag(tags, 'Accepted', 'Work Order');
     const { id: _id, quoteNumber, convertedWorkOrderId, idStatus, ...rest } = src as Record<string, unknown> & { id: string };
     void _id; void convertedWorkOrderId; void idStatus;
+    const woNumber = await nextConsecutive('work_orders', 'Wo');
     const woId = await createRow('work_orders', {
       ...rest,
       quoteId: quote.id,
       quoteNumber: quoteNumber ?? '',
-      idStatus: accepted?.id ?? '',
+      workOrderNumber: woNumber,
+      idStatus: acceptedId,
       dateRegister: new Date().toISOString().slice(0, 10),
     });
     // Re-apuntar los detalles capturados en la quote hacia la Work Order
@@ -231,14 +237,12 @@ export default function GenericModuleView({ module, perms = FULL_PERM, initialSe
     for (const det of mine) {
       await updateRow('work_order_details', det.id, { idWorkorder: woId });
     }
-    // Marcar la quote como convertida (tag "Converted" tipo Quote si existe)
-    const converted = tags.find((t) => {
-      const r = t as Record<string, unknown>;
-      return String(r.name ?? '').toLowerCase().startsWith('convert') && String(r.type ?? '').includes('Quote');
-    });
+    // Etapa final del pipeline de la quote
+    const convertedId = await ensureTag(tags, 'Converted', 'Quote');
     await updateRow(module.collection, quote.id, {
       convertedWorkOrderId: woId,
-      ...(converted ? { idStatus: converted.id } : {}),
+      convertedWorkOrderNumber: woNumber,
+      idStatus: convertedId,
     });
   };
 

@@ -77,7 +77,8 @@ export const MODULES: ModuleDef[] = [
       { key: 'taxPercent', label: 'Tax %', type: 'percent', section: 'financiero', altKeys: ['tax_percent', 'tax'] },
       { key: 'total', label: 'Total', type: 'decimal', inList: true, section: 'financiero' },
       { key: 'notes', label: 'Notes', type: 'longtext', section: 'financiero', altKeys: ['note'] },
-      { key: 'convertedWorkOrderId', label: 'Generated Work Order', type: 'text', section: 'general', altKeys: ['converted_work_order_id'] },
+      { key: 'convertedWorkOrderId', label: 'Generated Work Order (id)', type: 'text', section: 'general', altKeys: ['converted_work_order_id'] },
+      { key: 'convertedWorkOrderNumber', label: 'Converted to WO', type: 'text', inList: true, section: 'general', altKeys: ['converted_work_order_number'] },
     ],
   },
   {
@@ -95,6 +96,7 @@ export const MODULES: ModuleDef[] = [
     ],
     fields: [
       { key: 'workOrderNumber', label: 'Work order #', type: 'text', inList: true, section: 'general', altKeys: ['work_order_number', 'wo_number', 'work_order', 'consecutive'] },
+      { key: 'quoteNumber', label: 'From quote', type: 'text', section: 'general', altKeys: ['quote_number'] },
       { key: 'insuranceType', label: 'Type', type: 'enum', options: ['Personal', 'Insurance'], inList: true, required: true, section: 'general', altKeys: ['insurrance', 'insurance', 'insurance_type'] },
       { key: 'dateRegister', label: 'Date', type: 'date', section: 'general', altKeys: ['date_register', 'created_at', 'date'] },
       { key: 'idStatus', label: 'Status', type: 'fk', fkCollection: 'catalog_tag', fkFilter: { key: 'type', equals: 'Work Order' }, inList: true, required: true, section: 'general', altKeys: ['tag_id', 'status_id', 'id_status', 'tag', 'status'] },

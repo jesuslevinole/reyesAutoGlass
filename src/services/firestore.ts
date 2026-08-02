@@ -7,6 +7,7 @@ import {
   doc,
   getDocs,
   onSnapshot,
+  runTransaction,
   setDoc,
   updateDoc,
   writeBatch,
@@ -73,4 +74,19 @@ export async function createMany(collectionName: string, rows: Record<string, un
 /** Guarda (merge) un documento con id conocido — usado por la configuración de UI. */
 export async function setRowMerged(collectionName: string, id: string, data: Record<string, unknown>): Promise<void> {
   await setDoc(doc(db, collectionName, id), data, { merge: true });
+}
+
+
+/** Consecutivo transaccional (sin saltos ni duplicados bajo concurrencia):
+ *  counters/<counterId> { n } → devuelve `${prefix}-001`, `${prefix}-002`, … */
+export async function nextConsecutive(counterId: string, prefix: string): Promise<string> {
+  const ref = doc(db, 'counters', counterId);
+  const n = await runTransaction(db, async (tx) => {
+    const snap = await tx.get(ref);
+    const current = snap.exists() ? Number((snap.data() as { n?: unknown }).n ?? 0) : 0;
+    const next = current + 1;
+    tx.set(ref, { n: next }, { merge: true });
+    return next;
+  });
+  return `${prefix}-${String(n).padStart(3, '0')}`;
 }

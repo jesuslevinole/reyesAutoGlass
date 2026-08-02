@@ -1,14 +1,15 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-  ArrowRightCircle, Briefcase, Calculator, CalendarDays, Car, ClipboardList, MapPin,
-  Minus, Pencil, Percent, Plus, Save, ShieldCheck, Trash2, UserRound, Wrench, X,
+  ArrowRightCircle, Briefcase, Calculator, CalendarDays, Car, Check, ClipboardList, Copy,
+  Hash, MapPin, Minus, Pencil, Percent, Plus, Save, ShieldCheck, Trash2, UserRound, Wrench, X,
 } from 'lucide-react';
 import SearchableSelect from '../components/SearchableSelect';
 import ServiceDetailModal from './ServiceDetailModal';
 import { getModule } from '../config/modules';
 import type { Row } from '../services/firestore';
-import { createRow, fetchAll, updateRow } from '../services/firestore';
+import { createRow, fetchAll, nextConsecutive, updateRow } from '../services/firestore';
 import { cachedFetchAll, invalidateCatalog } from '../services/catalogCache';
+import { ensureTag, pipelineFor, stageIndex } from '../utils/pipeline';
 import { getFieldValue, money, rowLabel } from '../utils/relations';
 import './WorkOrderWizard.css';
 
@@ -198,6 +199,7 @@ export default function WorkOrderWizard({ initialRow, onClose, mode = 'workorder
   const [catalogs, setCatalogs] = useState<Record<string, Row[]>>({});
   const [quickAdd, setQuickAdd] = useState<{ spec: QuickSpec; targetKey: string } | null>(null);
   const [converting, setConverting] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -388,18 +390,18 @@ export default function WorkOrderWizard({ initialRow, onClose, mode = 'workorder
     setConverting(true);
     try {
       const tags = cat('catalog_tag');
-      const accepted = tags.find((t) => {
-        const r = t as Record<string, unknown>;
-        return String(r.name ?? '').toLowerCase() === 'accepted' && String(r.type ?? '').includes('Work Order');
-      });
+      const acceptedId = await ensureTag(tags, 'Accepted', 'Work Order');
       const data: Record<string, unknown> = {};
       for (const f of module.fields) {
         if (form[f.key] !== undefined) data[f.key] = form[f.key];
       }
       data.total = computedTotal;
       data.balance = balance;
-      data.idStatus = accepted?.id ?? '';
+      data.idStatus = acceptedId;
       data.quoteId = initialRow.id;
+      const woNumber = await nextConsecutive('work_orders', 'Wo');
+      data.workOrderNumber = woNumber;
+      data.quoteNumber = String(getFieldValue(initialRow, { key: 'quoteNumber', altKeys: ['quote_number'] }) ?? '');
       const woId = await createRow('work_orders', data);
       // Re-apuntar los detalles de la quote hacia la nueva Work Order
       const allDetails = await fetchAll('work_order_details');
@@ -410,20 +412,80 @@ export default function WorkOrderWizard({ initialRow, onClose, mode = 'workorder
       for (const d of mine) {
         await updateRow('work_order_details', d.id, { idWorkorder: woId });
       }
-      // Marcar la quote como convertida
-      const converted = tags.find((t) => {
-        const r = t as Record<string, unknown>;
-        return String(r.name ?? '').toLowerCase().startsWith('convert') && String(r.type ?? '').includes('Quote');
-      });
+      // Marcar la quote como convertida (etapa final de su pipeline)
+      const convertedId = await ensureTag(tags, 'Converted', 'Quote');
       await updateRow('quotes', initialRow.id, {
         convertedWorkOrderId: woId,
-        ...(converted ? { idStatus: converted.id } : {}),
+        convertedWorkOrderNumber: woNumber,
+        idStatus: convertedId,
       });
       invalidateCatalog('quotes');
       invalidateCatalog('work_orders');
       onClose();
     } finally {
       setConverting(false);
+    }
+  };
+
+  /** CRM: mover el documento a una etapa del pipeline (crea el tag si no existe). */
+  const advanceToStage = async (stage: string) => {
+    const id = await ensureTag(cat('catalog_tag'), stage, isQuote ? 'Quote' : 'Work Order');
+    const fresh = await cachedFetchAll('catalog_tag');
+    setCatalogs((prev) => ({ ...prev, catalog_tag: fresh }));
+    set('idStatus', id);
+  };
+
+  /** Mensaje organizado con todos los elementos, listo para enviar al cliente/técnico. */
+  const buildMessage = (): string => {
+    const list = initialRow ? liveDetails.map((r) => r as DetailDraft) : drafts;
+    const lines: string[] = [];
+    lines.push(`${isQuote ? 'QUOTE' : 'WORK ORDER'}${docNumber ? ` ${docNumber}` : ''}`);
+    lines.push(`Status: ${rowLabel(statusRow) !== '—' ? rowLabel(statusRow) : 'Pending'} · Type: ${String(form.insuranceType ?? 'Personal')}`);
+    lines.push('');
+    if (customer) {
+      lines.push(`Customer: ${rowLabel(customer as Row)}`);
+      const phones = [customer.phone, customer.alternative_phone].filter(Boolean).join(' / ');
+      if (phones) lines.push(`Phone: ${phones}`);
+      if (customerAddress) lines.push(`Address: ${customerAddress}`);
+    }
+    if (form.appointmentDate) {
+      const time = form.timeIn || form.timeOut ? ` · ${form.timeIn ?? ''}–${form.timeOut ?? ''}` : '';
+      lines.push(`Appointment: ${String(form.appointmentDate)}${time}`);
+    }
+    const vehicle = [form.year, form.mark, form.model].filter(Boolean).join(' ');
+    if (vehicle || form.vinNumber || form.plate) {
+      lines.push('');
+      lines.push(`Vehicle: ${vehicle}${form.body ? ` · ${form.body}` : ''}`);
+      if (form.vinNumber) lines.push(`VIN: ${String(form.vinNumber)}`);
+      if (form.plate) lines.push(`Plate: ${String(form.plate)}`);
+    }
+    if (list.length > 0) {
+      lines.push('');
+      lines.push('Parts & Services:');
+      for (const d of list) {
+        lines.push(`• ${detailLabel(d)} — ${money(detailAmount(d))}`);
+      }
+    }
+    lines.push('');
+    lines.push(`Subtotal parts: ${money(num(form.subtotalPart))} · Services: ${money(num(form.subtotalServices))} · Labor: ${money(num(form.totalLabor))}`);
+    lines.push(`Tax: ${money(num(form.taxDolar))} · Long trip: ${money(num(form.longTrip))}`);
+    if (discountMoney > 0) lines.push(`Discount: −${money(discountMoney)} (${discountPercent.toFixed(1)}%)`);
+    lines.push(`TOTAL: ${money(discountMoney > 0 ? adjustedTotal : computedTotal)}`);
+    if (num(form.paid) > 0) lines.push(`Paid: ${money(num(form.paid))} · Balance: ${money(balance)}`);
+    if (form.notes) {
+      lines.push('');
+      lines.push(`Notes: ${String(form.notes)}`);
+    }
+    return lines.join('\n');
+  };
+
+  const copyMessage = async () => {
+    try {
+      await navigator.clipboard.writeText(buildMessage());
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 2500);
+    } catch {
+      window.prompt('Copy the message:', buildMessage());
     }
   };
 
@@ -442,6 +504,8 @@ export default function WorkOrderWizard({ initialRow, onClose, mode = 'workorder
         woId = initialRow.id;
         await updateRow(collection, woId, data);
       } else {
+        if (isQuote) data.quoteNumber = await nextConsecutive('quotes', 'Qo');
+        if (isQuote && !data.idStatus) data.idStatus = await ensureTag(cat('catalog_tag'), 'Draft', 'Quote');
         woId = await createRow(collection, data);
       }
       // Detalles capturados en el wizard (borradores) → work_order_details
@@ -525,6 +589,17 @@ export default function WorkOrderWizard({ initialRow, onClose, mode = 'workorder
     </div>
   );
 
+  const docNumber = initialRow
+    ? String(getFieldValue(initialRow, isQuote
+        ? { key: 'quoteNumber', altKeys: ['quote_number'] }
+        : { key: 'workOrderNumber', altKeys: ['work_order_number', 'wo_number'] }) ?? '')
+    : '';
+  const crossRef = initialRow
+    ? String(getFieldValue(initialRow, isQuote
+        ? { key: 'convertedWorkOrderNumber', altKeys: ['converted_work_order_number'] }
+        : { key: 'quoteNumber', altKeys: ['quote_number'] }) ?? '')
+    : '';
+
   const statusRow = form.idStatus ? cat('catalog_tag').find((t) => t.id === form.idStatus) : undefined;
   const missing: string[] = [];
   if (!form.idStatus) missing.push('Status');
@@ -536,7 +611,10 @@ export default function WorkOrderWizard({ initialRow, onClose, mode = 'workorder
       {/* ===== Header ===== */}
       <header className="wz-head">
         <div className="wz-head-text">
-          <h1>{initialRow ? (isQuote ? 'Edit Quote' : 'Edit Work Order') : (isQuote ? 'New Quote' : 'New Quote → Work Order')}</h1>
+          <h1>
+            {initialRow ? (isQuote ? 'Edit Quote' : 'Edit Work Order') : (isQuote ? 'New Quote' : 'New Work Order')}
+            {docNumber && <span className="wz-doc-number">{docNumber}</span>}
+          </h1>
           <p>{isQuote ? 'Fill out the form — convert it to a Work Order when accepted' : 'Fill out the form to register the order'}</p>
         </div>
         <button type="button" className="btn-icon-ghost" onClick={onClose} aria-label="Close">
@@ -570,6 +648,33 @@ export default function WorkOrderWizard({ initialRow, onClose, mode = 'workorder
                 <div className="wz-field">
                   <label htmlFor="wz-date">Date <code className="wz-key">dateRegister</code></label>
                   <input id="wz-date" type="date" value={String(form.dateRegister ?? '')} readOnly aria-label="Registration date (auto)" />
+                </div>
+                  <div className="wz-field wz-full">
+                  <span className="wz-label">Pipeline</span>
+                  <ol className="wz-pipeline" aria-label="Status pipeline">
+                    {pipelineFor(isQuote ? 'quote' : 'workorder').map((stage, i) => {
+                      const currentIndex = stageIndex(pipelineFor(isQuote ? 'quote' : 'workorder'), rowLabel(statusRow));
+                      const done = currentIndex >= 0 && i <= currentIndex;
+                      return (
+                        <li key={stage} className={`wz-stage${done ? ' done' : ''}${i === currentIndex ? ' current' : ''}`}>
+                          <button
+                            type="button"
+                            onClick={() => void advanceToStage(stage)}
+                            aria-label={`Move to ${stage}`}
+                          >
+                            <span className="wz-stage-dot" />
+                            {stage}
+                          </button>
+                          {i < pipelineFor(isQuote ? 'quote' : 'workorder').length - 1 && (
+                            <span className="wz-stage-line" aria-hidden="true" />
+                          )}
+                        </li>
+                      );
+                    })}
+                    {stageIndex(pipelineFor(isQuote ? 'quote' : 'workorder'), rowLabel(statusRow)) === -1 && rowLabel(statusRow) !== '—' && (
+                      <li className="wz-stage offpipe">{rowLabel(statusRow)}</li>
+                    )}
+                  </ol>
                 </div>
                 {catalogSelect('Status', 'idStatus', 'catalog_tag', { filtered: tagOptions, required: true })}
               </SectionCard>
@@ -924,6 +1029,16 @@ export default function WorkOrderWizard({ initialRow, onClose, mode = 'workorder
             )}
           </div>
 
+          {(docNumber || crossRef) && (
+            <div className="wz-sum-card">
+              <p className="wz-sum-card-title"><Hash size={13} />References</p>
+              <dl>
+                {docNumber && <div><dt>{isQuote ? 'Quote #' : 'Work Order #'}</dt><dd>{docNumber}</dd></div>}
+                {crossRef && <div><dt>{isQuote ? 'Converted to' : 'From quote'}</dt><dd className="wz-ref-badge">{crossRef}</dd></div>}
+              </dl>
+            </div>
+          )}
+
           <div className="wz-sum-card">
             <p className="wz-sum-card-title"><UserRound size={13} />Customer & Schedule</p>
             <dl>
@@ -979,6 +1094,10 @@ export default function WorkOrderWizard({ initialRow, onClose, mode = 'workorder
           </div>
 
           <div className="wz-sum-actions">
+            <button type="button" className="btn-outline wz-copy" onClick={() => void copyMessage()}>
+              {copied ? <Check size={15} /> : <Copy size={15} />}
+              {copied ? 'Copied!' : 'Copy message'}
+            </button>
             {isQuote && initialRow && !(initialRow as Record<string, unknown>).convertedWorkOrderId && (
               <button type="button" className="btn-primary wz-convert" onClick={() => void convertToWorkOrder()} disabled={converting}>
                 <ArrowRightCircle size={16} />
