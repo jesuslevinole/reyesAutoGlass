@@ -7,6 +7,7 @@ import RolesView from './views/RolesView';
 import DashboardView from './views/DashboardView';
 import GenericModuleView from './views/GenericModuleView';
 import SettingsView from './views/SettingsView';
+import StatusFlowView from './views/StatusFlowView';
 import WorkOrderDetailView from './views/WorkOrderDetailView';
 import { DEFAULT_NAV, getModule } from './config/modules';
 import type { ModuleDef } from './config/modules';
@@ -22,7 +23,7 @@ import './App.css';
 export default function App() {
   const [session, setSession] = useState<Session | null>(() => loadSession());
   const [view, setView] = useState('dashboard');
-  const [openWorkOrderId, setOpenWorkOrderId] = useState<string | null>(null);
+  const [openDoc, setOpenDoc] = useState<{ kind: 'workorder' | 'quote'; id: string } | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
@@ -104,7 +105,7 @@ export default function App() {
 
   const navigate = (viewId: string) => {
     setView(viewId);
-    setOpenWorkOrderId(null);
+    setOpenDoc(null);
     setSidebarOpen(false);
   };
 
@@ -143,7 +144,7 @@ export default function App() {
             </button>
             <p className="topbar-crumb">
               {navItems.find((i) => i.id === view)?.label ?? appName}
-              {openWorkOrderId && ' · Detail'}
+              {openDoc && ' · Detail'}
             </p>
             <div className="topbar-user">
               <span className="user-avatar">{session.name.slice(0, 2).toUpperCase()}</span>
@@ -158,10 +159,11 @@ export default function App() {
           </header>
 
           <main className="app-content">
-            {openWorkOrderId ? (
+            {openDoc ? (
               <WorkOrderDetailView
-                workOrderId={openWorkOrderId}
-                onBack={() => setOpenWorkOrderId(null)}
+                workOrderId={openDoc.id}
+                kind={openDoc.kind}
+                onBack={() => setOpenDoc(null)}
               />
             ) : view === 'dashboard' ? (
               <DashboardView />
@@ -169,6 +171,8 @@ export default function App() {
               <CatalogsView resolveModule={resolveModule} perms={permsFor('catalogs')} />
             ) : view === 'roles' ? (
               <RolesView />
+            ) : view === 'statusflow' ? (
+              <StatusFlowView />
             ) : view === 'settings' ? (
               <SettingsView uiConfig={uiConfig} navItems={navItems} />
             ) : (
@@ -177,7 +181,11 @@ export default function App() {
                 key={view}
                 module={resolveModule(view)}
                 perms={permsFor(view)}
-                onOpenRow={view === 'workorders' ? (row) => setOpenWorkOrderId(row.id) : undefined}
+                onOpenRow={view === 'workorders'
+                  ? (row) => setOpenDoc({ kind: 'workorder', id: row.id })
+                  : view === 'quotes'
+                    ? (row) => setOpenDoc({ kind: 'quote', id: row.id })
+                    : undefined}
               />
             )}
           </main>

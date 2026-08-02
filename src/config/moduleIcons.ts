@@ -9,6 +9,7 @@ import type { LucideIcon } from 'lucide-react';
 
 export const MODULE_ICONS: Record<string, LucideIcon> = {
   dashboard: LayoutDashboard,
+  statusflow: ListTree,
   catalogs: Database,
   settings: Settings,
   users: UserRound,

@@ -189,3 +189,15 @@
   background: var(--chip-color, var(--blue));
   flex-shrink: 0;
 }
+
+/* Etapas clicables del stepper (CRM) */
+.wo-step-btn {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 5px 9px;
+  border-radius: 999px;
+  transition: background .15s, transform .12s;
+}
+.wo-step-btn:hover { background: var(--blue-soft); transform: translateY(-1px); }
+.wo-step-btn:disabled { opacity: .6; cursor: wait; }

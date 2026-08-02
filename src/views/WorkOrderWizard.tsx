@@ -9,7 +9,7 @@ import { getModule } from '../config/modules';
 import type { Row } from '../services/firestore';
 import { createRow, fetchAll, nextConsecutive, updateRow } from '../services/firestore';
 import { cachedFetchAll, invalidateCatalog } from '../services/catalogCache';
-import { ensureTag, pipelineFor, stageIndex } from '../utils/pipeline';
+import { ensureTag, loadStatusRules, missingForStage, pipelineFor, stageIndex } from '../utils/pipeline';
 import { getFieldValue, money, rowLabel } from '../utils/relations';
 import './WorkOrderWizard.css';
 
@@ -200,6 +200,7 @@ export default function WorkOrderWizard({ initialRow, onClose, mode = 'workorder
   const [quickAdd, setQuickAdd] = useState<{ spec: QuickSpec; targetKey: string } | null>(null);
   const [converting, setConverting] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [messageModalOpen, setMessageModalOpen] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -427,65 +428,82 @@ export default function WorkOrderWizard({ initialRow, onClose, mode = 'workorder
     }
   };
 
-  /** CRM: mover el documento a una etapa del pipeline (crea el tag si no existe). */
+  /** CRM: mover a una etapa validando las reglas del Status Flow (y creando el tag si falta). */
   const advanceToStage = async (stage: string) => {
+    const rules = await loadStatusRules();
+    const stageRules = isQuote ? rules.quote : rules.workorder;
+    const missingFields = missingForStage(
+      stageRules,
+      stage,
+      (key) => form[key],
+      (key) => module.fields.find((f) => f.key === key)?.label ?? key,
+    );
+    if (missingFields.length > 0) {
+      window.alert(`To move to "${stage}", complete first: ${missingFields.join(', ')}`);
+      return;
+    }
     const id = await ensureTag(cat('catalog_tag'), stage, isQuote ? 'Quote' : 'Work Order');
     const fresh = await cachedFetchAll('catalog_tag');
     setCatalogs((prev) => ({ ...prev, catalog_tag: fresh }));
     set('idStatus', id);
   };
 
-  /** Mensaje organizado con todos los elementos, listo para enviar al cliente/técnico. */
-  const buildMessage = (): string => {
+  /** Mensaje organizado, armado solo con las secciones elegidas en el modal. */
+  const buildMessage = (sections: Set<string>): string => {
     const list = initialRow ? liveDetails.map((r) => r as DetailDraft) : drafts;
     const lines: string[] = [];
-    lines.push(`${isQuote ? 'QUOTE' : 'WORK ORDER'}${docNumber ? ` ${docNumber}` : ''}`);
-    lines.push(`Status: ${rowLabel(statusRow) !== '—' ? rowLabel(statusRow) : 'Pending'} · Type: ${String(form.insuranceType ?? 'Personal')}`);
-    lines.push('');
-    if (customer) {
+    if (sections.has('header')) {
+      lines.push(`${isQuote ? 'QUOTE' : 'WORK ORDER'}${docNumber ? ` ${docNumber}` : ''}`);
+      lines.push(`Status: ${rowLabel(statusRow) !== '—' ? rowLabel(statusRow) : 'Pending'} · Type: ${String(form.insuranceType ?? 'Personal')}`);
+    }
+    if (sections.has('customer') && customer) {
+      lines.push('');
       lines.push(`Customer: ${rowLabel(customer as Row)}`);
       const phones = [customer.phone, customer.alternative_phone].filter(Boolean).join(' / ');
       if (phones) lines.push(`Phone: ${phones}`);
-      if (customerAddress) lines.push(`Address: ${customerAddress}`);
     }
-    if (form.appointmentDate) {
+    if (sections.has('address') && customerAddress) lines.push(`Address: ${customerAddress}`);
+    if (sections.has('appointment') && form.appointmentDate) {
       const time = form.timeIn || form.timeOut ? ` · ${form.timeIn ?? ''}–${form.timeOut ?? ''}` : '';
       lines.push(`Appointment: ${String(form.appointmentDate)}${time}`);
     }
-    const vehicle = [form.year, form.mark, form.model].filter(Boolean).join(' ');
-    if (vehicle || form.vinNumber || form.plate) {
-      lines.push('');
-      lines.push(`Vehicle: ${vehicle}${form.body ? ` · ${form.body}` : ''}`);
-      if (form.vinNumber) lines.push(`VIN: ${String(form.vinNumber)}`);
-      if (form.plate) lines.push(`Plate: ${String(form.plate)}`);
-    }
-    if (list.length > 0) {
-      lines.push('');
-      lines.push('Parts & Services:');
-      for (const d of list) {
-        lines.push(`• ${detailLabel(d)} — ${money(detailAmount(d))}`);
+    if (sections.has('vehicle')) {
+      const vehicle = [form.year, form.mark, form.model].filter(Boolean).join(' ');
+      if (vehicle || form.vinNumber || form.plate) {
+        lines.push('');
+        lines.push(`Vehicle: ${vehicle}${form.body ? ` · ${form.body}` : ''}`);
+        if (form.vinNumber) lines.push(`VIN: ${String(form.vinNumber)}`);
+        if (form.plate) lines.push(`Plate: ${String(form.plate)}`);
       }
     }
-    lines.push('');
-    lines.push(`Subtotal parts: ${money(num(form.subtotalPart))} · Services: ${money(num(form.subtotalServices))} · Labor: ${money(num(form.totalLabor))}`);
-    lines.push(`Tax: ${money(num(form.taxDolar))} · Long trip: ${money(num(form.longTrip))}`);
-    if (discountMoney > 0) lines.push(`Discount: −${money(discountMoney)} (${discountPercent.toFixed(1)}%)`);
-    lines.push(`TOTAL: ${money(discountMoney > 0 ? adjustedTotal : computedTotal)}`);
-    if (num(form.paid) > 0) lines.push(`Paid: ${money(num(form.paid))} · Balance: ${money(balance)}`);
-    if (form.notes) {
+    if (sections.has('details') && list.length > 0) {
+      lines.push('');
+      lines.push('Parts & Services:');
+      for (const d of list) lines.push(`• ${detailLabel(d)} — ${money(detailAmount(d))}`);
+    }
+    if (sections.has('totals')) {
+      lines.push('');
+      lines.push(`Subtotal parts: ${money(num(form.subtotalPart))} · Services: ${money(num(form.subtotalServices))} · Labor: ${money(num(form.totalLabor))}`);
+      lines.push(`Tax: ${money(num(form.taxDolar))} · Long trip: ${money(num(form.longTrip))}`);
+      if (discountMoney > 0) lines.push(`Discount: −${money(discountMoney)} (${discountPercent.toFixed(1)}%)`);
+      lines.push(`TOTAL: ${money(discountMoney > 0 ? adjustedTotal : computedTotal)}`);
+      if (num(form.paid) > 0) lines.push(`Paid: ${money(num(form.paid))} · Balance: ${money(balance)}`);
+    }
+    if (sections.has('notes') && form.notes) {
       lines.push('');
       lines.push(`Notes: ${String(form.notes)}`);
     }
-    return lines.join('\n');
+    return lines.join('\n').replace(/^\n+/, '');
   };
 
-  const copyMessage = async () => {
+  const copyWithSections = async (sections: Set<string>) => {
+    const text = buildMessage(sections);
     try {
-      await navigator.clipboard.writeText(buildMessage());
+      await navigator.clipboard.writeText(text);
       setCopied(true);
       window.setTimeout(() => setCopied(false), 2500);
     } catch {
-      window.prompt('Copy the message:', buildMessage());
+      window.prompt('Copy the message:', text);
     }
   };
 
@@ -702,6 +720,21 @@ export default function WorkOrderWizard({ initialRow, onClose, mode = 'workorder
               )}
                 {catalogSelect('Zipcode', 'idZipcode', 'catalog_zipcode', { onPick: onZipcode })}
                 {moneyInput('Long trip', 'longTrip')}
+                <div className="wz-field">
+                  <label htmlFor="wz-idTech">Technician <code className="wz-key">idTech</code></label>
+                  <SearchableSelect
+                    inputId="wz-idTech"
+                    value={String(form.idTech ?? '')}
+                    options={(() => {
+                      const techs = cat('team').filter((t) =>
+                        String(getFieldValue(t, { key: 'type', altKeys: ['role'] }) ?? '').includes('Tech'));
+                      return (techs.length > 0 ? techs : cat('team')).map((r) => ({ id: r.id, label: rowLabel(r) }));
+                    })()}
+                    placeholder="Assign a technician…"
+                    onChange={(id) => set('idTech', id)}
+                  />
+                </div>
+                {moneyInput('Tech labor', 'techLabor')}
               </SectionCard>
             </>
           )}
@@ -1094,7 +1127,7 @@ export default function WorkOrderWizard({ initialRow, onClose, mode = 'workorder
           </div>
 
           <div className="wz-sum-actions">
-            <button type="button" className="btn-outline wz-copy" onClick={() => void copyMessage()}>
+            <button type="button" className="btn-outline wz-copy" onClick={() => setMessageModalOpen(true)}>
               {copied ? <Check size={15} /> : <Copy size={15} />}
               {copied ? 'Copied!' : 'Copy message'}
             </button>
@@ -1118,6 +1151,16 @@ export default function WorkOrderWizard({ initialRow, onClose, mode = 'workorder
           </div>
         </aside>
       </div>
+
+      {messageModalOpen && (
+        <MessageModal
+          onCopy={(sections) => {
+            void copyWithSections(sections);
+            setMessageModalOpen(false);
+          }}
+          onClose={() => setMessageModalOpen(false)}
+        />
+      )}
 
       {detailModal && (
         <ServiceDetailModal
@@ -1148,6 +1191,152 @@ export default function WorkOrderWizard({ initialRow, onClose, mode = 'workorder
           onClose={() => setQuickAdd(null)}
         />
       )}
+    </div>
+  );
+}
+
+
+/* ==================== Modal del mensaje: secciones + presets con nombre ==================== */
+
+const MESSAGE_SECTIONS: { id: string; label: string }[] = [
+  { id: 'header', label: 'Header (number, status, type)' },
+  { id: 'customer', label: 'Customer & phones' },
+  { id: 'address', label: 'Address' },
+  { id: 'appointment', label: 'Appointment' },
+  { id: 'vehicle', label: 'Vehicle' },
+  { id: 'details', label: 'Parts & Services' },
+  { id: 'totals', label: 'Totals' },
+  { id: 'notes', label: 'Notes' },
+];
+
+interface MessagePreset extends Row { name?: string; sections?: string[] }
+
+function MessageModal({ onCopy, onClose }: {
+  onCopy: (sections: Set<string>) => void;
+  onClose: () => void;
+}) {
+  const [selection, setSelection] = useState<Set<string>>(
+    () => new Set(MESSAGE_SECTIONS.map((s) => s.id)),
+  );
+  const [presets, setPresets] = useState<MessagePreset[]>([]);
+  const [presetName, setPresetName] = useState('');
+  const [savingPreset, setSavingPreset] = useState(false);
+
+  useEffect(() => {
+    let alive = true;
+    void cachedFetchAll('message_presets').then((rows) => {
+      if (alive) setPresets(rows as MessagePreset[]);
+    });
+    return () => { alive = false; };
+  }, []);
+
+  const toggle = (id: string) => {
+    setSelection((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const applyPreset = (preset: MessagePreset) =>
+    setSelection(new Set(preset.sections ?? []));
+
+  const savePreset = async () => {
+    if (!presetName.trim()) return;
+    setSavingPreset(true);
+    try {
+      await createRow('message_presets', { name: presetName.trim(), sections: [...selection] });
+      invalidateCatalog('message_presets');
+      setPresets(await cachedFetchAll('message_presets') as MessagePreset[]);
+      setPresetName('');
+    } finally {
+      setSavingPreset(false);
+    }
+  };
+
+  const removePreset = async (preset: MessagePreset) => {
+    if (!window.confirm(`Delete preset "${preset.name ?? ''}"?`)) return;
+    const { deleteRow } = await import('../services/firestore');
+    await deleteRow('message_presets', preset.id);
+    invalidateCatalog('message_presets');
+    setPresets(await cachedFetchAll('message_presets') as MessagePreset[]);
+  };
+
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="modal-card msg-modal" onClick={(e) => e.stopPropagation()}>
+        <header className="msg-head">
+          <span className="msg-icon"><Copy size={15} /></span>
+          <div className="msg-title">
+            <h3>Copy message</h3>
+            <p>Choose what to include — save it as a preset for the people you always message.</p>
+          </div>
+          <button type="button" className="btn-icon-ghost" onClick={onClose} aria-label="Close">
+            <X size={17} />
+          </button>
+        </header>
+
+        {presets.length > 0 && (
+          <div className="msg-presets">
+            <p className="msg-presets-label">Saved presets</p>
+            <ul>
+              {presets.map((preset) => (
+                <li key={preset.id}>
+                  <button type="button" className="msg-preset" onClick={() => applyPreset(preset)}>
+                    {preset.name ?? 'Preset'}
+                  </button>
+                  <button
+                    type="button"
+                    className="msg-preset-del"
+                    aria-label={`Delete ${preset.name ?? 'preset'}`}
+                    onClick={() => void removePreset(preset)}
+                  >
+                    <X size={11} />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        <ul className="msg-sections">
+          {MESSAGE_SECTIONS.map((section) => {
+            const checked = selection.has(section.id);
+            return (
+              <li key={section.id}>
+                <label className={`msg-section${checked ? ' checked' : ''}`}>
+                  <input type="checkbox" checked={checked} onChange={() => toggle(section.id)} />
+                  {section.label}
+                </label>
+              </li>
+            );
+          })}
+        </ul>
+
+        <div className="msg-save-preset">
+          <input
+            value={presetName}
+            placeholder="Preset name (e.g. Technician, Customer)…"
+            onChange={(e) => setPresetName(e.target.value)}
+          />
+          <button
+            type="button"
+            className="btn-outline"
+            disabled={savingPreset || !presetName.trim()}
+            onClick={() => void savePreset()}
+          >
+            {savingPreset ? 'Saving…' : 'Save preset'}
+          </button>
+        </div>
+
+        <footer className="msg-foot">
+          <button type="button" className="btn-outline" onClick={onClose}>Cancel</button>
+          <button type="button" className="btn-dark" onClick={() => onCopy(selection)} disabled={selection.size === 0}>
+            <Copy size={15} />
+            Copy message
+          </button>
+        </footer>
+      </div>
     </div>
   );
 }

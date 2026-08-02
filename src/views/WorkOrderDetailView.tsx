@@ -2,13 +2,18 @@ import { useEffect, useMemo, useState } from 'react';
 import type { CSSProperties } from 'react';
 import { ArrowLeft, Car, CreditCard, Package, User } from 'lucide-react';
 import type { Row } from '../services/firestore';
-import { fetchAll, subscribe } from '../services/firestore';
+import { fetchAll, subscribe, updateRow } from '../services/firestore';
+import { invalidateCatalog } from '../services/catalogCache';
+import { getModule } from '../config/modules';
+import { ensureTag, loadStatusRules, missingForStage, pipelineFor } from '../utils/pipeline';
 import { subscribeCached } from '../services/catalogCache';
 import { formatDate, getFieldValue, getRelationColor, getRelationName, money, tagColorToHex } from '../utils/relations';
 import './WorkOrderDetailView.css';
 
 interface Props {
   workOrderId: string;
+  /** 'quote' abre el detalle de una cotización con su propio pipeline */
+  kind?: 'workorder' | 'quote';
   onBack: () => void;
 }
 
@@ -21,7 +26,9 @@ function str(v: unknown): string {
   return typeof v === 'string' && v ? v : '—';
 }
 
-export default function WorkOrderDetailView({ workOrderId, onBack }: Props) {
+export default function WorkOrderDetailView({ workOrderId, kind = 'workorder', onBack }: Props) {
+  const isQuote = kind === 'quote';
+  const collection = isQuote ? 'quotes' : 'work_orders';
   const [order, setOrder] = useState<Row | null>(null);
   const [details, setDetails] = useState<Row[]>([]);
   const [payments, setPayments] = useState<Row[]>([]);
@@ -29,10 +36,10 @@ export default function WorkOrderDetailView({ workOrderId, onBack }: Props) {
   const [loaded, setLoaded] = useState(false);
 
   // Colecciones vivas: la orden y sus hijos cambian mientras el taller trabaja.
-  useEffect(() => subscribeCached('work_orders', (rows) => {
+  useEffect(() => subscribeCached(collection, (rows) => {
     setOrder(rows.find((r) => r.id === workOrderId) ?? null);
     setLoaded(true);
-  }), [workOrderId]);
+  }), [workOrderId, collection]);
 
   useEffect(() => subscribeCached('work_order_details', (rows) => {
     setDetails(rows.filter((r) => String(getFieldValue(r, {
@@ -80,14 +87,44 @@ export default function WorkOrderDetailView({ workOrderId, onBack }: Props) {
     return { subtotalPart, subtotalMolding, subtotalServices, totalTax, labor, discount, longTrip, upsell, total, charged, profitLoss };
   })();
 
+  /** CRM: cambiar de etapa desde el detalle, validando las reglas configuradas. */
+  const [advancing, setAdvancing] = useState(false);
+  const advanceToStage = async (stage: string) => {
+    if (!order || advancing) return;
+    setAdvancing(true);
+    try {
+      const rules = await loadStatusRules();
+      const stageRules = isQuote ? rules.quote : rules.workorder;
+      const module = getModule('workorders');
+      const missing = missingForStage(
+        stageRules,
+        stage,
+        (key) => {
+          const field = module.fields.find((f) => f.key === key);
+          return field ? getFieldValue(order, field) : undefined;
+        },
+        (key) => module.fields.find((f) => f.key === key)?.label ?? key,
+      );
+      if (missing.length > 0) {
+        window.alert(`To move to "${stage}", complete first: ${missing.join(', ')}`);
+        return;
+      }
+      const tagId = await ensureTag(cat('catalog_tag'), stage, isQuote ? 'Quote' : 'Work Order');
+      await updateRow(collection, order.id, { idStatus: tagId });
+      invalidateCatalog(collection);
+    } finally {
+      setAdvancing(false);
+    }
+  };
+
   const statusId = String(getFieldValue(order ?? {}, {
     key: 'idStatus',
     altKeys: ['tag_id', 'status_id', 'id_status', 'tag', 'status'],
   }) ?? '');
   const statusName = getRelationName(statusId, cat('catalog_tag'));
 
-  /** Pipeline CRM del cliente: Accepted → Assigned → Sent → Paid → Complied. */
-  const PIPELINE = ['Accepted', 'Assigned', 'Sent', 'Paid', 'Complied'];
+  /** Pipeline CRM del cliente según el tipo de documento. */
+  const PIPELINE = [...pipelineFor(isQuote ? 'quote' : 'workorder')];
   const pipelineIndex = PIPELINE.findIndex((s) => s.toLowerCase() === statusName.toLowerCase());
   const offTrack = pipelineIndex === -1 && statusName !== '—';
 
@@ -159,8 +196,16 @@ export default function WorkOrderDetailView({ workOrderId, onBack }: Props) {
           const done = pipelineIndex >= 0 && i <= pipelineIndex;
           return (
             <li key={stage} className={`wo-step${done ? ' done' : ''}${i === pipelineIndex ? ' current' : ''}`}>
-              <span className="wo-step-dot" />
-              <span className="wo-step-label">{stage}</span>
+              <button
+                type="button"
+                className="wo-step-btn"
+                disabled={advancing}
+                title={`Move to ${stage}`}
+                onClick={() => void advanceToStage(stage)}
+              >
+                <span className="wo-step-dot" />
+                <span className="wo-step-label">{stage}</span>
+              </button>
               {i < PIPELINE.length - 1 && <span className="wo-step-line" aria-hidden="true" />}
             </li>
           );

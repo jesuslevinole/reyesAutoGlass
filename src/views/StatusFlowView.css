@@ -1,0 +1,205 @@
+/* Status Flow — reglas CRM por etapa (patrón Roelca en paleta clara) */
+
+.sf-kinds { display: flex; gap: 9px; }
+.sf-kind {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 17px;
+  border-radius: 999px;
+  border: 1.5px solid var(--border);
+  background: var(--paper);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-soft);
+  transition: all .16s ease;
+}
+.sf-kind:hover { border-color: var(--blue); color: var(--blue-deep); }
+.sf-kind.active {
+  background: var(--blue);
+  border-color: var(--blue);
+  color: #fff;
+  box-shadow: 0 5px 14px color-mix(in srgb, var(--blue) 35%, transparent);
+}
+
+.sf-stages {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  list-style: none;
+  max-width: 760px;
+}
+.sf-stage {
+  position: relative;
+  background: var(--paper);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: var(--shadow-card);
+  padding: 16px 20px;
+  margin-bottom: 26px;
+}
+.sf-connector {
+  position: absolute;
+  left: 34px;
+  bottom: -26px;
+  width: 2.5px;
+  height: 26px;
+  background: #d8dfee;
+}
+.sf-stage-head { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
+.sf-stage-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: var(--blue-soft);
+  color: var(--blue-deep);
+  font-weight: 800;
+  font-size: 13px;
+}
+.sf-stage-head h2 { font-size: 15.5px; font-weight: 800; flex: 1; }
+.sf-edit { padding: 7px 14px; font-size: 12.5px; }
+
+.sf-none { font-size: 12.5px; color: var(--ink-faint); font-style: italic; }
+.sf-chips { display: flex; flex-wrap: wrap; gap: 7px; list-style: none; }
+.sf-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--blue-deep);
+  background: var(--blue-soft);
+  border-radius: 999px;
+  padding: 5px 7px 5px 12px;
+}
+.sf-chip button {
+  display: inline-flex;
+  padding: 3px;
+  border-radius: 50%;
+  color: var(--blue-deep);
+  transition: background .15s;
+}
+.sf-chip button:hover { background: rgba(255, 255, 255, .7); }
+
+/* ============ Modal de campos requeridos ============ */
+.modal-card.sf-modal {
+  width: min(760px, 96vw);
+  max-height: 90vh;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.sf-modal-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 17px 20px 13px;
+  border-bottom: 1px solid var(--border);
+  background: linear-gradient(180deg, var(--blue-soft), transparent);
+}
+.sf-modal-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  background: var(--blue-soft);
+  color: var(--blue-deep);
+  border: 1px solid color-mix(in srgb, var(--blue) 30%, transparent);
+}
+.sf-modal-title { flex: 1; }
+.sf-modal-title h3 { font-size: 15px; font-weight: 800; }
+.sf-modal-title p { font-size: 12px; color: var(--ink-soft); margin-top: 2px; }
+
+.sf-search {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin: 12px 20px;
+  padding: 9px 13px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: var(--ink-faint);
+  transition: border-color .15s, box-shadow .15s;
+}
+.sf-search:focus-within { border-color: var(--blue); box-shadow: 0 0 0 3px color-mix(in srgb, var(--blue) 13%, transparent); }
+.sf-search input { flex: 1; border: none; outline: none; font-size: 13px; background: transparent; }
+
+.sf-modal-body { flex: 1; overflow-y: auto; padding: 0 20px 16px; display: flex; flex-direction: column; gap: 15px; }
+.sf-group-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+.sf-group-head h4 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .8px;
+  text-transform: uppercase;
+  color: #8b95ac;
+}
+.sf-group-count {
+  font-size: 10px;
+  font-weight: 800;
+  background: #eef2fb;
+  color: var(--ink-soft);
+  border-radius: 999px;
+  padding: 2px 8px;
+}
+.sf-group-actions { display: flex; gap: 6px; }
+.sf-group-actions button {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--blue);
+  padding: 3px 9px;
+  border-radius: 7px;
+  transition: background .15s;
+}
+.sf-group-actions button:hover { background: var(--blue-soft); }
+
+.sf-field-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 7px;
+  list-style: none;
+}
+.sf-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 11px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  font-size: 12.5px;
+  color: var(--ink-soft);
+  cursor: pointer;
+  transition: all .13s ease;
+  background: var(--paper);
+}
+.sf-field:hover { border-color: var(--blue); }
+.sf-field.checked {
+  background: var(--blue-soft);
+  border-color: color-mix(in srgb, var(--blue) 45%, transparent);
+  color: var(--ink);
+  font-weight: 600;
+}
+.sf-field input { accent-color: var(--blue); flex-shrink: 0; }
+
+.sf-modal-foot {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 13px 20px;
+  border-top: 1px solid var(--border);
+  background: #fafbfe;
+}
+.sf-foot-spacer { flex: 1; }

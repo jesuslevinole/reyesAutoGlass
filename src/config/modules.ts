@@ -102,6 +102,7 @@ export const MODULES: ModuleDef[] = [
       { key: 'idStatus', label: 'Status', type: 'fk', fkCollection: 'catalog_tag', fkFilter: { key: 'type', equals: 'Work Order' }, inList: true, required: true, section: 'general', altKeys: ['tag_id', 'status_id', 'id_status', 'tag', 'status'] },
       { key: 'idAgent', label: 'Agent', type: 'fk', fkCollection: 'team', section: 'general', altKeys: ['agent_id', 'id_agent'] },
       { key: 'idTech', label: 'Technician', type: 'fk', fkCollection: 'team', section: 'general', altKeys: ['tech_id', 'id_tech'] },
+      { key: 'techLabor', label: 'Tech labor', type: 'decimal', section: 'general', altKeys: ['tech_labor', 'labor_tech', 'tech_pay'] },
       { key: 'idZipcode', label: 'Zipcode', type: 'fk', fkCollection: 'catalog_zipcode', section: 'general', altKeys: ['zipcode_id', 'zip_code_id', 'id_zipcode'] },
       { key: 'idCompany', label: 'Company', type: 'fk', fkCollection: 'catalog_company', fkFilter: { key: 'type', equals: 'Agent' }, section: 'general', altKeys: ['company_id', 'id_company'] },
       { key: 'year', label: 'Year', type: 'int', section: 'vehiculo', altKeys: ['vehicle_year'] },
@@ -444,6 +445,7 @@ export const DEFAULT_NAV: NavItem[] = [
   { id: 'commissionpayments', label: 'Commission Payments' },
   { id: 'users', label: 'Users' },
   { id: 'roles', label: 'Roles' },
+  { id: 'statusflow', label: 'Status Flow' },
   { id: 'catalogs', label: 'Catalogs' },
   { id: 'settings', label: 'Settings' },
 ];
