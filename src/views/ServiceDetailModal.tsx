@@ -239,7 +239,7 @@ export default function ServiceDetailModal({ initialRow, onClose, fixedWorkOrder
             <div className="sd-row sd-full">
               <span className="sd-label">Type</span>
               <div className="sd-toggle" role="radiogroup" aria-label="Detail type">
-                {['Parts', 'Services', 'Molding'].map((opt) => (
+                {['Parts', 'Services'].map((opt) => (
                   <button
                     key={opt}
                     type="button"
@@ -468,6 +468,16 @@ export default function ServiceDetailModal({ initialRow, onClose, fixedWorkOrder
                         {rowLabel(tier)}
                       </button>
                     ))}
+                    <button
+                      type="button"
+                      role="radio"
+                      aria-checked={!form.idPricetier}
+                      className={`sd-toggle-btn sd-manual${!form.idPricetier ? ' active' : ''}`}
+                      title="Type the amount manually"
+                      onClick={() => syncLabor({ idPricetier: '' })}
+                    >
+                      Manual
+                    </button>
                   </div>
                   <div className="sd-money">
                     <span>$</span>
@@ -500,6 +510,16 @@ export default function ServiceDetailModal({ initialRow, onClose, fixedWorkOrder
                         {rowLabel(cal)}
                       </button>
                     ))}
+                    <button
+                      type="button"
+                      role="radio"
+                      aria-checked={!form.idCalibrationType}
+                      className={`sd-toggle-btn sd-manual${!form.idCalibrationType ? ' active' : ''}`}
+                      title="Type the amount manually"
+                      onClick={() => syncLabor({ idCalibrationType: '' })}
+                    >
+                      Manual
+                    </button>
                   </div>
                   <div className="sd-money">
                     <span>$</span>

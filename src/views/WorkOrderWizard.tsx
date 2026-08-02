@@ -67,8 +67,11 @@ const QUICK_SPECS: Record<string, QuickSpec> = {
     collection: 'customers',
     fields: [
       { key: 'first_name', label: 'Name' }, { key: 'last_name', label: 'Last name' },
-      { key: 'phone', label: 'Phone' }, { key: 'email', label: 'Email' },
-      { key: 'address', label: 'Address' },
+      { key: 'phone', label: 'Primary phone' }, { key: 'alternative_phone', label: 'Secondary phone' },
+      { key: 'email', label: 'Email' },
+      { key: 'address', label: 'Street address' }, { key: 'apartment', label: 'Apartment / Unit #' },
+      { key: 'city', label: 'City' }, { key: 'state', label: 'State' }, { key: 'zipcode', label: 'Zipcode' },
+      { key: 'notes', label: 'Notes' },
     ],
   },
   catalog_insurance: {
@@ -244,6 +247,17 @@ export default function WorkOrderWizard({ initialRow, onClose, mode = 'workorder
     + (form.insuranceType === 'Insurance' ? num(form.kitFlatRate) - num(form.deductible) : 0);
   const balance = computedTotal - num(form.paid);
 
+  /* ===== Descuento / ajuste: en % o en moneda, reflejando su equivalente ===== */
+  const discountIsFixed = form.discountType === 'Fixed';
+  const discountValue = num(form.discountValue);
+  const discountMoney = discountIsFixed
+    ? discountValue
+    : Math.round(computedTotal * discountValue) / 100;
+  const discountPercent = discountIsFixed
+    ? (computedTotal > 0 ? Math.round((discountValue / computedTotal) * 10000) / 100 : 0)
+    : discountValue;
+  const adjustedTotal = computedTotal - discountMoney;
+
   /** Zipcode del catálogo → autollenar tax % y long trip (dato del cliente). */
   const onZipcode = (id: string) => {
     set('idZipcode', id);
@@ -359,6 +373,13 @@ export default function WorkOrderWizard({ initialRow, onClose, mode = 'workorder
   };
 
   const customer = cat('customers').find((c) => c.id === form.idCustomer) as Record<string, unknown> | undefined;
+  const customerAddress = customer
+    ? [
+        [customer.address, customer.apartment].filter(Boolean).join(' '),
+        customer.city,
+        [customer.state, customer.zipcode].filter(Boolean).join(' '),
+      ].filter(Boolean).join(', ')
+    : '';
 
   /** Flujo del cliente: la quote aceptada se convierte en Work Order (con sus detalles). */
   const convertToWorkOrder = async () => {
@@ -415,6 +436,7 @@ export default function WorkOrderWizard({ initialRow, onClose, mode = 'workorder
       }
       data.total = computedTotal;
       data.balance = balance;
+      data.discount = discountMoney;
       let woId: string;
       if (initialRow) {
         woId = initialRow.id;
@@ -662,17 +684,31 @@ export default function WorkOrderWizard({ initialRow, onClose, mode = 'workorder
               <SectionCard icon={<UserRound size={15} />} title="Customer">
                 {catalogSelect('Customer', 'idCustomer', 'customers', { required: true })}
                 <div className="wz-field">
-                  <label htmlFor="wz-cust-address">Address</label>
-                  <input id="wz-cust-address" value={String(customer?.address ?? '')} readOnly placeholder="Filled from the customer" />
+                  <label htmlFor="wz-cust-phone">Primary phone</label>
+                  <input id="wz-cust-phone" value={String(customer?.phone ?? '')} readOnly placeholder="Filled from the customer" />
                 </div>
                 <div className="wz-field">
-                  <label htmlFor="wz-cust-phone">Phone</label>
-                  <input id="wz-cust-phone" value={String(customer?.phone ?? '')} readOnly placeholder="Filled from the customer" />
+                  <label htmlFor="wz-cust-phone2">Secondary phone</label>
+                  <input id="wz-cust-phone2" value={String(customer?.alternative_phone ?? '')} readOnly placeholder="Filled from the customer" />
                 </div>
                 <div className="wz-field">
                   <label htmlFor="wz-cust-email">Email</label>
                   <input id="wz-cust-email" value={String(customer?.email ?? '')} readOnly placeholder="Filled from the customer" />
                 </div>
+                <div className="wz-field wz-full">
+                  <label htmlFor="wz-cust-address">Address</label>
+                  <input id="wz-cust-address" value={customerAddress} readOnly placeholder="Street, apartment, city, state, zipcode — filled from the customer" />
+                </div>
+                {customerAddress !== '' && (
+                  <div className="wz-field wz-full wz-map">
+                    <iframe
+                      title="Customer location"
+                      src={`https://www.google.com/maps?q=${encodeURIComponent(customerAddress)}&output=embed`}
+                      loading="lazy"
+                      referrerPolicy="no-referrer-when-downgrade"
+                    />
+                  </div>
+                )}
               </SectionCard>
 
               <SectionCard icon={<CalendarDays size={15} />} title="Schedule">
@@ -801,6 +837,74 @@ export default function WorkOrderWizard({ initialRow, onClose, mode = 'workorder
                   </div>
                 </div>
               </SectionCard>
+
+              <SectionCard icon={<Percent size={15} />} title="Discount / Adjustment">
+                <div className="wz-field">
+                  <span className="wz-label">Type <code className="wz-key">discountType</code></span>
+                  <div className="wz-toggle" role="radiogroup" aria-label="Discount type">
+                    {[['Percentage', 'Percentage'], ['Fixed', 'Fixed Amount']].map(([value, label]) => (
+                      <button
+                        key={value}
+                        type="button"
+                        role="radio"
+                        aria-checked={(form.discountType ?? 'Percentage') === value}
+                        className={`wz-toggle-btn${(form.discountType ?? 'Percentage') === value ? ' active' : ''}`}
+                        onClick={() => set('discountType', value)}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div className="wz-field">
+                  <label htmlFor="wz-discount-value">{discountIsFixed ? 'Discount ($)' : 'Discount (%)'} <code className="wz-key">discountValue</code></label>
+                  <div className="wz-money">
+                    <span>{discountIsFixed ? '$' : '%'}</span>
+                    <input
+                      id="wz-discount-value"
+                      type="number"
+                      step="0.01"
+                      value={String(form.discountValue ?? '')}
+                      placeholder="0.00"
+                      onChange={(e) => set('discountValue', e.target.value)}
+                    />
+                  </div>
+                </div>
+                <div className="wz-field">
+                  <span className="wz-label">{discountIsFixed ? 'Equivalent (%)' : 'Equivalent ($)'}</span>
+                  <div className="wz-money readonly">
+                    <span>{discountIsFixed ? '%' : '$'}</span>
+                    <input
+                      value={discountIsFixed ? discountPercent.toFixed(2) : discountMoney.toFixed(2)}
+                      readOnly
+                      aria-label="Discount equivalent (computed)"
+                    />
+                  </div>
+                </div>
+                <div className="wz-field wz-full">
+                  <label htmlFor="wz-discount-reason">Reason <code className="wz-key">discountReason</code></label>
+                  <input
+                    id="wz-discount-reason"
+                    value={String(form.discountReason ?? '')}
+                    placeholder="Why is this adjustment applied…"
+                    onChange={(e) => set('discountReason', e.target.value)}
+                  />
+                </div>
+              </SectionCard>
+
+              <SectionCard icon={<ClipboardList size={15} />} title="Notes">
+                <div className="wz-field wz-full">
+                  <label htmlFor="wz-notes" className="sr-only">Notes</label>
+                  <textarea
+                    id="wz-notes"
+                    className="wz-textarea"
+                    rows={3}
+                    value={String(form.notes ?? '')}
+                    placeholder="Add any notes about this job…"
+                    onChange={(e) => set('notes', e.target.value)}
+                  />
+                </div>
+              </SectionCard>
             </>
           )}
         </div>
@@ -863,6 +967,8 @@ export default function WorkOrderWizard({ initialRow, onClose, mode = 'workorder
               {isInsurance && <div><dt>Kit flat rate</dt><dd>{money(num(form.kitFlatRate))}</dd></div>}
               {isInsurance && <div><dt>Deductible</dt><dd>−{money(num(form.deductible))}</dd></div>}
               <div><dt>Upsell</dt><dd>{money(num(form.upsell))}</dd></div>
+              {discountMoney > 0 && <div><dt>Discount ({discountPercent.toFixed(1)}%)</dt><dd>−{money(discountMoney)}</dd></div>}
+              {discountMoney > 0 && <div><dt>Adjusted total</dt><dd>{money(adjustedTotal)}</dd></div>}
               <div><dt>Paid</dt><dd>{money(num(form.paid))}</dd></div>
             </dl>
             <div className="wz-total-box">

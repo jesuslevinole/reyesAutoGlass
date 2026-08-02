@@ -264,3 +264,7 @@
 }
 
 .sd-inherited { font-style: normal; font-size: 10px; color: var(--ink-faint); }
+
+/* Opción de costo manual (sin catálogo) */
+.sd-toggle-btn.sd-manual { border-style: dashed; }
+.sd-toggle-btn.sd-manual.active { border-style: solid; }

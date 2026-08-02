@@ -446,3 +446,28 @@
   padding: 9px 13px;
   text-align: center;
 }
+
+/* Mapa de la dirección del cliente */
+.wz-map iframe {
+  width: 100%;
+  height: 200px;
+  border: 1px solid var(--border);
+  border-radius: 11px;
+}
+
+/* Notas */
+.wz-textarea {
+  width: 100%;
+  padding: 11px 13px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  outline: none;
+  font: inherit;
+  font-size: 13.5px;
+  resize: vertical;
+  transition: border-color .15s, box-shadow .15s;
+}
+.wz-textarea:focus {
+  border-color: var(--blue);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--blue) 13%, transparent);
+}
