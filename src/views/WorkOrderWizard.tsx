@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-  Briefcase, Calculator, CalendarDays, Car, ClipboardList, MapPin,
+  ArrowRightCircle, Briefcase, Calculator, CalendarDays, Car, ClipboardList, MapPin,
   Minus, Pencil, Percent, Plus, Save, ShieldCheck, Trash2, UserRound, Wrench, X,
 } from 'lucide-react';
 import SearchableSelect from '../components/SearchableSelect';
@@ -15,6 +15,8 @@ import './WorkOrderWizard.css';
 interface Props {
   initialRow: Row | null;
   onClose: () => void;
+  /** 'quote': guarda en quotes, status tipo Quote y permite convertir a Work Order */
+  mode?: 'workorder' | 'quote';
 }
 
 type Form = Record<string, unknown>;
@@ -171,7 +173,9 @@ function num(v: unknown): number {
   return Number.isFinite(n) ? n : 0;
 }
 
-export default function WorkOrderWizard({ initialRow, onClose }: Props) {
+export default function WorkOrderWizard({ initialRow, onClose, mode = 'workorder' }: Props) {
+  const isQuote = mode === 'quote';
+  const collection = isQuote ? 'quotes' : 'work_orders';
   const module = useMemo(() => getModule('workorders'), []);
 
   const [form, setForm] = useState<Form>(() => {
@@ -184,13 +188,13 @@ export default function WorkOrderWizard({ initialRow, onClose }: Props) {
     }
     return base;
   });
-  const [tab, setTab] = useState(0);
   const [saving, setSaving] = useState(false);
   const [drafts, setDrafts] = useState<DetailDraft[]>([]);
   const [liveDetails, setLiveDetails] = useState<Row[]>([]);
   const [detailModal, setDetailModal] = useState<DetailModalState>(null);
   const [catalogs, setCatalogs] = useState<Record<string, Row[]>>({});
   const [quickAdd, setQuickAdd] = useState<{ spec: QuickSpec; targetKey: string } | null>(null);
+  const [converting, setConverting] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -231,11 +235,6 @@ export default function WorkOrderWizard({ initialRow, onClose }: Props) {
   const set = (key: string, value: unknown) => setForm((prev) => ({ ...prev, [key]: value }));
 
   const isInsurance = form.insuranceType === 'Insurance';
-  const tabs = useMemo(
-    () => ['Work Order', 'Vehicle', 'Customer', ...(isInsurance ? ['Insurance'] : []), 'Totals'],
-    [isInsurance],
-  );
-  const tabName = tabs[Math.min(tab, tabs.length - 1)];
 
   /* ===== Cálculos en vivo con las fórmulas del cliente =====
    *  TOTAL = MOLDING + PART + SERVICES + LABOR + LONG_TRIP + TAX
@@ -361,6 +360,52 @@ export default function WorkOrderWizard({ initialRow, onClose }: Props) {
 
   const customer = cat('customers').find((c) => c.id === form.idCustomer) as Record<string, unknown> | undefined;
 
+  /** Flujo del cliente: la quote aceptada se convierte en Work Order (con sus detalles). */
+  const convertToWorkOrder = async () => {
+    if (!initialRow || !isQuote) return;
+    if (!window.confirm('Convert this quote into a Work Order?')) return;
+    setConverting(true);
+    try {
+      const tags = cat('catalog_tag');
+      const accepted = tags.find((t) => {
+        const r = t as Record<string, unknown>;
+        return String(r.name ?? '').toLowerCase() === 'accepted' && String(r.type ?? '').includes('Work Order');
+      });
+      const data: Record<string, unknown> = {};
+      for (const f of module.fields) {
+        if (form[f.key] !== undefined) data[f.key] = form[f.key];
+      }
+      data.total = computedTotal;
+      data.balance = balance;
+      data.idStatus = accepted?.id ?? '';
+      data.quoteId = initialRow.id;
+      const woId = await createRow('work_orders', data);
+      // Re-apuntar los detalles de la quote hacia la nueva Work Order
+      const allDetails = await fetchAll('work_order_details');
+      const mine = allDetails.filter((d) => String(getFieldValue(d, {
+        key: 'idWorkorder',
+        altKeys: ['work_order_id', 'id_work_order', 'workOrderId'],
+      }) ?? '') === initialRow.id);
+      for (const d of mine) {
+        await updateRow('work_order_details', d.id, { idWorkorder: woId });
+      }
+      // Marcar la quote como convertida
+      const converted = tags.find((t) => {
+        const r = t as Record<string, unknown>;
+        return String(r.name ?? '').toLowerCase().startsWith('convert') && String(r.type ?? '').includes('Quote');
+      });
+      await updateRow('quotes', initialRow.id, {
+        convertedWorkOrderId: woId,
+        ...(converted ? { idStatus: converted.id } : {}),
+      });
+      invalidateCatalog('quotes');
+      invalidateCatalog('work_orders');
+      onClose();
+    } finally {
+      setConverting(false);
+    }
+  };
+
   const save = async () => {
     setSaving(true);
     try {
@@ -373,15 +418,15 @@ export default function WorkOrderWizard({ initialRow, onClose }: Props) {
       let woId: string;
       if (initialRow) {
         woId = initialRow.id;
-        await updateRow('work_orders', woId, data);
+        await updateRow(collection, woId, data);
       } else {
-        woId = await createRow('work_orders', data);
+        woId = await createRow(collection, data);
       }
       // Detalles capturados en el wizard (borradores) → work_order_details
       for (const d of drafts) {
         await createRow('work_order_details', { ...d, idWorkorder: woId });
       }
-      invalidateCatalog('work_orders');
+      invalidateCatalog(collection);
       onClose();
     } finally {
       setSaving(false);
@@ -392,7 +437,7 @@ export default function WorkOrderWizard({ initialRow, onClose }: Props) {
     cat(collection).map((r) => ({ id: r.id, label: rowLabel(r) }));
 
   const tagOptions = cat('catalog_tag')
-    .filter((t) => String((t as Record<string, unknown>).type ?? '').includes('Work Order'))
+    .filter((t) => String((t as Record<string, unknown>).type ?? '').includes(isQuote ? 'Quote' : 'Work Order'))
     .map((r) => ({ id: r.id, label: rowLabel(r) }));
 
   const openQuick = (collection: string, targetKey: string) => {
@@ -458,8 +503,6 @@ export default function WorkOrderWizard({ initialRow, onClose }: Props) {
     </div>
   );
 
-  const TAB_ICONS: Record<string, typeof Briefcase> = { 'Work Order': Briefcase, 'Vehicle': Car, 'Customer': UserRound, 'Insurance': ShieldCheck, 'Totals': Calculator };
-
   const statusRow = form.idStatus ? cat('catalog_tag').find((t) => t.id === form.idStatus) : undefined;
   const missing: string[] = [];
   if (!form.idStatus) missing.push('Status');
@@ -471,39 +514,18 @@ export default function WorkOrderWizard({ initialRow, onClose }: Props) {
       {/* ===== Header ===== */}
       <header className="wz-head">
         <div className="wz-head-text">
-          <h1>{initialRow ? 'Edit Work Order' : 'New Work Order'}</h1>
-          <p>Fill out the form to register the order</p>
+          <h1>{initialRow ? (isQuote ? 'Edit Quote' : 'Edit Work Order') : (isQuote ? 'New Quote' : 'New Quote → Work Order')}</h1>
+          <p>{isQuote ? 'Fill out the form — convert it to a Work Order when accepted' : 'Fill out the form to register the order'}</p>
         </div>
         <button type="button" className="btn-icon-ghost" onClick={onClose} aria-label="Close">
           <X size={19} />
         </button>
       </header>
 
-      {/* ===== Tabs con íconos ===== */}
-      <nav className="wz-tabs" aria-label="Form sections">
-        <ul>
-          {tabs.map((name, i) => {
-            const Icon = TAB_ICONS[name] ?? Briefcase;
-            return (
-              <li key={name}>
-                <button
-                  type="button"
-                  className={`wz-tab${i === tab ? ' active' : ''}`}
-                  onClick={() => setTab(i)}
-                >
-                  <Icon size={15} />
-                  {name}
-                </button>
-              </li>
-            );
-          })}
-        </ul>
-      </nav>
-
       {/* ===== Cuerpo: tarjetas de sección + sidebar de sumario ===== */}
       <div className="wz-body">
         <div className="wz-main">
-          {tabName === 'Work Order' && (
+          {(
             <>
               <SectionCard icon={<Briefcase size={15} />} title="Order Type & Dates">
                 <div className="wz-field wz-full">
@@ -525,7 +547,7 @@ export default function WorkOrderWizard({ initialRow, onClose }: Props) {
                 </div>
                 <div className="wz-field">
                   <label htmlFor="wz-date">Date <code className="wz-key">dateRegister</code></label>
-                  <input id="wz-date" type="date" value={String(form.dateRegister ?? '')} onChange={(e) => set('dateRegister', e.target.value)} />
+                  <input id="wz-date" type="date" value={String(form.dateRegister ?? '')} readOnly aria-label="Registration date (auto)" />
                 </div>
                 {catalogSelect('Status', 'idStatus', 'catalog_tag', { filtered: tagOptions, required: true })}
               </SectionCard>
@@ -557,7 +579,7 @@ export default function WorkOrderWizard({ initialRow, onClose }: Props) {
             </>
           )}
 
-          {tabName === 'Vehicle' && (
+          {(
             <>
               <SectionCard icon={<Car size={15} />} title="Vehicle Information">
                 <div className="wz-field">
@@ -635,7 +657,7 @@ export default function WorkOrderWizard({ initialRow, onClose }: Props) {
             </>
           )}
 
-          {tabName === 'Customer' && (
+          {(
             <>
               <SectionCard icon={<UserRound size={15} />} title="Customer">
                 {catalogSelect('Customer', 'idCustomer', 'customers', { required: true })}
@@ -670,7 +692,7 @@ export default function WorkOrderWizard({ initialRow, onClose }: Props) {
             </>
           )}
 
-          {tabName === 'Insurance' && (
+          {isInsurance && (
             <SectionCard icon={<ShieldCheck size={15} />} title="Insurance">
               {catalogSelect('Insurance Carrier', 'idInsurance', 'catalog_insurance', { required: true })}
               {moneyInput('Deductible', 'deductible')}
@@ -682,7 +704,7 @@ export default function WorkOrderWizard({ initialRow, onClose }: Props) {
             </SectionCard>
           )}
 
-          {tabName === 'Totals' && (
+          {(
             <>
               <SectionCard icon={<Calculator size={15} />} title="Subtotals">
                 <div className="wz-field" key="subtotalPart">
@@ -851,9 +873,18 @@ export default function WorkOrderWizard({ initialRow, onClose }: Props) {
           </div>
 
           <div className="wz-sum-actions">
+            {isQuote && initialRow && !(initialRow as Record<string, unknown>).convertedWorkOrderId && (
+              <button type="button" className="btn-primary wz-convert" onClick={() => void convertToWorkOrder()} disabled={converting}>
+                <ArrowRightCircle size={16} />
+                {converting ? 'Converting…' : 'Convert to Work Order'}
+              </button>
+            )}
+            {isQuote && initialRow && Boolean((initialRow as Record<string, unknown>).convertedWorkOrderId) && (
+              <p className="wz-converted-note">Already converted to a Work Order.</p>
+            )}
             <button type="button" className="btn-dark wz-save" onClick={() => void save()} disabled={saving}>
               <Save size={16} />
-              {saving ? 'Saving…' : 'Save Work Order'}
+              {saving ? 'Saving…' : isQuote ? 'Save Quote' : 'Save Work Order'}
             </button>
             <button type="button" className="btn-outline wz-cancel" onClick={onClose}>
               <X size={15} />

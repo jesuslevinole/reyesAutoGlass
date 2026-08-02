@@ -13,7 +13,7 @@ import type { FieldDef, ModuleDef } from '../config/modules';
 import { FULL_PERM } from '../utils/uiConfig';
 import type { ModulePerm } from '../utils/uiConfig';
 import type { Row } from '../services/firestore';
-import { createRow, deleteRow, updateRow } from '../services/firestore';
+import { createRow, deleteRow, fetchAll, updateRow } from '../services/firestore';
 import { cachedFetchAll, invalidateCatalog, subscribeCached } from '../services/catalogCache';
 import { formatDate, getFieldValue, getRelationColor, getRelationName, money, rowLabel, tagColorToHex } from '../utils/relations';
 import ImportExportBar from '../components/ImportExportBar';
@@ -222,6 +222,15 @@ export default function GenericModuleView({ module, perms = FULL_PERM, initialSe
       idStatus: accepted?.id ?? '',
       dateRegister: new Date().toISOString().slice(0, 10),
     });
+    // Re-apuntar los detalles capturados en la quote hacia la Work Order
+    const allDetails = await fetchAll('work_order_details');
+    const mine = allDetails.filter((d) => String(getFieldValue(d, {
+      key: 'idWorkorder',
+      altKeys: ['work_order_id', 'id_work_order', 'workOrderId'],
+    }) ?? '') === quote.id);
+    for (const det of mine) {
+      await updateRow('work_order_details', det.id, { idWorkorder: woId });
+    }
     // Marcar la quote como convertida (tag "Converted" tipo Quote si existe)
     const converted = tags.find((t) => {
       const r = t as Record<string, unknown>;
@@ -308,7 +317,7 @@ export default function GenericModuleView({ module, perms = FULL_PERM, initialSe
             </button>
           )}
           <ImportExportBar module={module} rows={rows} />
-          {perms.add && (<button className="btn-primary" onClick={openNew}>
+          {perms.add && module.id !== 'workorders' && (<button className="btn-primary" onClick={openNew}>
             <Plus size={16} />
             New {module.singular.toLowerCase()}
           </button>)}
@@ -462,6 +471,14 @@ export default function GenericModuleView({ module, perms = FULL_PERM, initialSe
         />
       )}
 
+      {modalOpen && module.id === 'quotes' && (
+        <WorkOrderWizard
+          mode="quote"
+          initialRow={editing}
+          onClose={() => setModalOpen(false)}
+        />
+      )}
+
       {modalOpen && module.id === 'servicesdetail' && (
         <ServiceDetailModal
           initialRow={editing}
@@ -469,7 +486,7 @@ export default function GenericModuleView({ module, perms = FULL_PERM, initialSe
         />
       )}
 
-      {modalOpen && module.id !== 'workorders' && module.id !== 'servicesdetail' && (
+      {modalOpen && module.id !== 'workorders' && module.id !== 'quotes' && module.id !== 'servicesdetail' && (
         <FormModal
           module={module}
           sections={sections}

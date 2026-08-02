@@ -1,13 +1,13 @@
 {
-  "name": "ReyesAutoGlass",
-  "short_name": "ReyesGlass",
-  "description": "Gestión de órdenes de trabajo, clientes y comisiones",
+  "name": "GlassWorks",
+  "short_name": "GlassWorks",
+  "description": "Auto glass shop management",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#F4F7F9",
-  "theme_color": "#0F172A",
-  "lang": "es",
+  "background_color": "#f5f6f9",
+  "theme_color": "#3583f6",
   "icons": [
-    { "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+    { "src": "/pwa-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/pwa-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
   ]
 }

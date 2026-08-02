@@ -433,3 +433,16 @@
 .wz-order-total .wz-label { color: var(--ink); font-weight: 800; font-size: 13px; }
 .wz-order-total .wz-money { background: #ecfdf5; border-color: #a7f3d0; }
 .wz-order-total .wz-money input { font-weight: 800; font-size: 17px; color: #059669; }
+
+/* Conversión de quote y nota de convertida */
+.wz-convert { width: 100%; justify-content: center; padding: 12px; font-size: 13.5px; }
+.wz-converted-note {
+  font-size: 12px;
+  font-weight: 600;
+  color: #047857;
+  background: #ecfdf5;
+  border: 1px solid #a7f3d0;
+  border-radius: 9px;
+  padding: 9px 13px;
+  text-align: center;
+}
