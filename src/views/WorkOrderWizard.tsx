@@ -72,8 +72,9 @@ const QUICK_SPECS: Record<string, QuickSpec> = {
       { key: 'first_name', label: 'Name' }, { key: 'last_name', label: 'Last name' },
       { key: 'phone', label: 'Primary phone' }, { key: 'alternative_phone', label: 'Secondary phone' },
       { key: 'email', label: 'Email' },
-      { key: 'address', label: 'Street address' }, { key: 'apartment', label: 'Apartment / Unit #' },
+      { key: 'address', label: 'Street address' }, { key: 'apartment', label: 'Unit / Apt / Suite #' },
       { key: 'city', label: 'City' }, { key: 'state', label: 'State' }, { key: 'zipcode', label: 'Zipcode' },
+      { key: 'customerSuggestedPrice', label: 'Customer Suggested Price' },
       { key: 'notes', label: 'Notes' },
     ],
   },
@@ -449,6 +450,25 @@ export default function WorkOrderWizard({ initialRow, onClose, mode = 'workorder
     } finally {
       setConverting(false);
     }
+  };
+
+  /** Insurance Information (fórmulas del cliente):
+   *  Price Part Insurance = List Price × NAGS Rate (%)
+   *  Total Labor = NAGS Labor Hour × Price For Hour
+   *  Ambos alimentan los totales de la orden (subtotal parts y labor) con tax reactivo. */
+  const syncInsurance = (patch: Record<string, unknown>) => {
+    setForm((prev) => {
+      const next = { ...prev, ...patch };
+      const listPrice = num(next.listPrice);
+      const rate = num(next.nagsRate);
+      const pricePart = Math.round(listPrice * rate) / 100;
+      const laborTotal = Math.round(num(next.nagsLaborHour) * num(next.priceForHour) * 100) / 100;
+      next.pricePartInsurance = pricePart;
+      next.subtotalPart = pricePart;
+      next.totalLabor = laborTotal;
+      next.taxDolar = taxFor(pricePart, num(next.taxPercent));
+      return next;
+    });
   };
 
   /** CRM: mover a una etapa del catálogo validando sus reglas del Status Flow. */
@@ -940,10 +960,104 @@ export default function WorkOrderWizard({ initialRow, onClose, mode = 'workorder
           )}
 
           {isInsurance && (
-            <SectionCard icon={<ShieldCheck size={15} />} title="Insurance">
-              {catalogSelect('Insurance Carrier', 'idInsurance', 'catalog_insurance', { required: true })}
-              {moneyInput('Deductible', 'deductible')}
-              {moneyInput('Kit Flat Rate', 'kitFlatRate')}
+            <SectionCard icon={<ShieldCheck size={15} />} title="Insurance Information">
+              {catalogSelect('Insurance Company', 'idInsurance', 'catalog_insurance', { required: true })}
+              <div className="wz-field">
+                <label htmlFor="wz-policy">Policy Number <code className="wz-key">policyNumber</code></label>
+                <input id="wz-policy" value={String(form.policyNumber ?? '')} onChange={(e) => set('policyNumber', e.target.value)} />
+              </div>
+              <div className="wz-field">
+                <label htmlFor="wz-claim">Claim Number <code className="wz-key">claimNumber</code></label>
+                <input id="wz-claim" value={String(form.claimNumber ?? '')} onChange={(e) => set('claimNumber', e.target.value)} />
+              </div>
+
+              <div className="wz-field">
+                <label htmlFor="wz-ins-listprice">List Price <code className="wz-key">listPrice</code></label>
+                <div className="wz-money">
+                  <span>$</span>
+                  <input
+                    id="wz-ins-listprice"
+                    type="number"
+                    step="0.01"
+                    value={String(form.listPrice ?? '')}
+                    placeholder="0.00"
+                    onChange={(e) => syncInsurance({ listPrice: e.target.value })}
+                  />
+                </div>
+              </div>
+              <div className="wz-field">
+                <label htmlFor="wz-ins-rate">NAGS Rate <code className="wz-key">nagsRate</code></label>
+                <div className="wz-money">
+                  <span>%</span>
+                  <input
+                    id="wz-ins-rate"
+                    type="number"
+                    step="0.01"
+                    value={String(form.nagsRate ?? '')}
+                    placeholder="0.00"
+                    onChange={(e) => syncInsurance({ nagsRate: e.target.value })}
+                  />
+                </div>
+              </div>
+              <div className="wz-field">
+                <span className="wz-label">Price Part Insurance</span>
+                <div className="wz-money readonly">
+                  <span>$</span>
+                  <input value={num(form.pricePartInsurance).toFixed(2)} readOnly aria-label="Price part insurance (computed)" />
+                </div>
+              </div>
+
+              <div className="wz-field">
+                <label htmlFor="wz-ins-hours">NAGS Labor Hour <code className="wz-key">nagsLaborHour</code></label>
+                <div className="wz-money">
+                  <span>hrs</span>
+                  <input
+                    id="wz-ins-hours"
+                    type="number"
+                    step="0.1"
+                    value={String(form.nagsLaborHour ?? '')}
+                    placeholder="0.0"
+                    onChange={(e) => syncInsurance({ nagsLaborHour: e.target.value })}
+                  />
+                </div>
+              </div>
+              <div className="wz-field">
+                <label htmlFor="wz-ins-priceh">Price For Hour <code className="wz-key">priceForHour</code></label>
+                <div className="wz-money">
+                  <span>$</span>
+                  <input
+                    id="wz-ins-priceh"
+                    type="number"
+                    step="0.01"
+                    value={String(form.priceForHour ?? '')}
+                    placeholder="0.00"
+                    onChange={(e) => syncInsurance({ priceForHour: e.target.value })}
+                  />
+                </div>
+              </div>
+              <div className="wz-field">
+                <span className="wz-label">Total Labor</span>
+                <div className="wz-money readonly">
+                  <span>$</span>
+                  <input value={num(form.totalLabor).toFixed(2)} readOnly aria-label="Total labor (computed)" />
+                </div>
+              </div>
+
+              {moneyInput('Flat Rate Kit', 'kitFlatRate')}
+              <div className="wz-field">
+                <label htmlFor="wz-deductible" className="wz-req">Deductible * <code className="wz-key">deductible</code></label>
+                <div className="wz-money">
+                  <span>$</span>
+                  <input
+                    id="wz-deductible"
+                    type="number"
+                    step="0.01"
+                    value={String(form.deductible ?? '')}
+                    placeholder="0.00"
+                    onChange={(e) => set('deductible', e.target.value)}
+                  />
+                </div>
+              </div>
               <div className="wz-field">
                 <label htmlFor="wz-auth">ID Autorization <code className="wz-key">idAutorization</code></label>
                 <input id="wz-auth" value={String(form.idAutorization ?? '')} onChange={(e) => set('idAutorization', e.target.value)} />
@@ -1170,8 +1284,11 @@ export default function WorkOrderWizard({ initialRow, onClose, mode = 'workorder
               <p className="wz-sum-card-title"><ShieldCheck size={13} />Insurance</p>
               <dl>
                 <div><dt>Carrier</dt><dd>{form.idInsurance ? rowLabel(cat('catalog_insurance').find((i) => i.id === form.idInsurance)) : '—'}</dd></div>
+                <div><dt>Policy #</dt><dd>{String(form.policyNumber ?? '') || '—'}</dd></div>
+                <div><dt>Claim #</dt><dd>{String(form.claimNumber ?? '') || '—'}</dd></div>
+                <div><dt>Price Part INS</dt><dd>{money(num(form.pricePartInsurance))}</dd></div>
                 <div><dt>Deductible</dt><dd>{money(num(form.deductible))}</dd></div>
-                <div><dt>Kit Flat Rate</dt><dd>{money(num(form.kitFlatRate))}</dd></div>
+                <div><dt>Flat Rate Kit</dt><dd>{money(num(form.kitFlatRate))}</dd></div>
               </dl>
             </div>
           )}
