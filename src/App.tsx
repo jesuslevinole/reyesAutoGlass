@@ -30,9 +30,11 @@ export default function App() {
   // Pre-carga de catálogos en segundo plano → los selects abren al instante
   useEffect(() => {
     if (!session) return;
+    // catalog_part_number (11k docs) NO se pre-calienta: se carga al abrir el
+    // formulario de detalle y su snapshot local dura 7 días (cero lecturas después).
     warmCatalogs([
       'catalog_tag', 'catalog_company', 'catalog_zipcode', 'customers', 'team',
-      'catalog_insurance', 'catalog_jobtype', 'catalog_part_number',
+      'catalog_insurance', 'catalog_jobtype',
       'catalog_price_tier', 'catalog_calibration_type', 'catalog_payment_method',
     ]);
   }, [session]);

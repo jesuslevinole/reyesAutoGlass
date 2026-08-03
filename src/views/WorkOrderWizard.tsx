@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-  ArrowRightCircle, Briefcase, Calculator, CalendarDays, Car, Check, ClipboardList, Copy,
-  Hash, MapPin, Minus, Pencil, Percent, Plus, Save, ShieldCheck, Trash2, UserRound, Wrench, X,
+  ArrowDown, ArrowRightCircle, ArrowUp, Briefcase, Calculator, CalendarDays, Car, Check,
+  ClipboardList, Copy, Hash, MapPin, Minus, Pencil, Percent, Plus, Save, ShieldCheck,
+  Trash2, UserRound, Wrench, X,
 } from 'lucide-react';
 import SearchableSelect from '../components/SearchableSelect';
 import ServiceDetailModal from './ServiceDetailModal';
@@ -387,6 +388,16 @@ export default function WorkOrderWizard({ initialRow, onClose, mode = 'workorder
     return partValue + num(form.insuranceType === 'Insurance' ? d.totalLaborHour : d.totalLabor);
   };
 
+  /** Label de team: "First name Last name" (con respaldo al rowLabel). */
+  const teamName = (t: Row): string => {
+    const first = getFieldValue(t, { key: 'first_name', altKeys: ['firstName', 'name', 'FIRST NAME'] });
+    const last = getFieldValue(t, { key: 'last_name', altKeys: ['lastName', 'LAST NAME'] });
+    const full = [first, last].filter(Boolean).join(' ').trim();
+    return full || rowLabel(t);
+  };
+  const teamOfType = (type: 'Agent' | 'Tech') => cat('team').filter((t) =>
+    String(getFieldValue(t, { key: 'type', altKeys: ['role', 'TYPE'] }) ?? '').includes(type));
+
   const customer = cat('customers').find((c) => c.id === form.idCustomer) as Record<string, unknown> | undefined;
   const customerAddress = customer
     ? [
@@ -469,69 +480,68 @@ export default function WorkOrderWizard({ initialRow, onClose, mode = 'workorder
     return String(raw);
   };
 
-  /** Mensaje organizado, armado solo con las secciones elegidas en el modal. */
-  const buildMessage = (sections: Set<string>): string => {
+  /** Mensaje organizado, emitido EXACTAMENTE en el orden elegido en el modal. */
+  const buildMessage = (ordered: string[]): string => {
     const list = initialRow ? liveDetails.map((r) => r as DetailDraft) : drafts;
-    const lines: string[] = [];
-    if (sections.has('header')) {
-      lines.push(`${isQuote ? 'QUOTE' : 'WORK ORDER'}${docNumber ? ` ${docNumber}` : ''}`);
-      lines.push(`Status: ${rowLabel(statusRow) !== '—' ? rowLabel(statusRow) : 'Pending'} · Type: ${String(form.insuranceType ?? 'Personal')}`);
-    }
-    if (sections.has('customer') && customer) {
-      lines.push('');
-      lines.push(`Customer: ${rowLabel(customer as Row)}`);
-      const phones = [customer.phone, customer.alternative_phone].filter(Boolean).join(' / ');
-      if (phones) lines.push(`Phone: ${phones}`);
-    }
-    if (sections.has('address') && customerAddress) lines.push(`Address: ${customerAddress}`);
-    if (sections.has('appointment') && form.appointmentDate) {
-      const time = form.timeIn || form.timeOut ? ` · ${form.timeIn ?? ''}–${form.timeOut ?? ''}` : '';
-      lines.push(`Appointment: ${String(form.appointmentDate)}${time}`);
-    }
-    if (sections.has('vehicle')) {
-      const vehicle = [form.year, form.mark, form.model].filter(Boolean).join(' ');
-      if (vehicle || form.vinNumber || form.plate) {
-        lines.push('');
-        lines.push(`Vehicle: ${vehicle}${form.body ? ` · ${form.body}` : ''}`);
-        if (form.vinNumber) lines.push(`VIN: ${String(form.vinNumber)}`);
-        if (form.plate) lines.push(`Plate: ${String(form.plate)}`);
+    const blocks: string[][] = [];
+    for (const id of ordered) {
+      if (id === 'header') {
+        blocks.push([
+          `${isQuote ? 'QUOTE' : 'WORK ORDER'}${docNumber ? ` ${docNumber}` : ''}`,
+          `Status: ${rowLabel(statusRow) !== '—' ? rowLabel(statusRow) : 'Pending'} · Type: ${String(form.insuranceType ?? 'Personal')}`,
+        ]);
+      } else if (id === 'customer' && customer) {
+        const lines = [`Customer: ${rowLabel(customer as Row)}`];
+        const phones = [customer.phone, customer.alternative_phone].filter(Boolean).join(' / ');
+        if (phones) lines.push(`Phone: ${phones}`);
+        blocks.push(lines);
+      } else if (id === 'address' && customerAddress) {
+        blocks.push([`Address: ${customerAddress}`]);
+      } else if (id === 'appointment' && form.appointmentDate) {
+        const time = form.timeIn || form.timeOut ? ` · ${form.timeIn ?? ''}–${form.timeOut ?? ''}` : '';
+        blocks.push([`Appointment: ${String(form.appointmentDate)}${time}`]);
+      } else if (id === 'vehicle') {
+        const vehicle = [form.year, form.mark, form.model].filter(Boolean).join(' ');
+        if (vehicle || form.vinNumber || form.plate) {
+          const lines = [`Vehicle: ${vehicle}${form.body ? ` · ${form.body}` : ''}`];
+          if (form.vinNumber) lines.push(`VIN: ${String(form.vinNumber)}`);
+          if (form.plate) lines.push(`Plate: ${String(form.plate)}`);
+          blocks.push(lines);
+        }
+      } else if (id === 'details' && list.length > 0) {
+        blocks.push(['Parts & Services:', ...list.map((d) => `• ${detailLabel(d)} — ${money(detailAmount(d))}`)]);
+      } else if (id === 'totals') {
+        const lines = [
+          `Subtotal parts: ${money(num(form.subtotalPart))} · Services: ${money(num(form.subtotalServices))} · Labor: ${money(num(form.totalLabor))}`,
+          `Tax: ${money(num(form.taxDolar))} · Long trip: ${money(num(form.longTrip))}`,
+        ];
+        if (discountMoney > 0) lines.push(`Discount: −${money(discountMoney)} (${discountPercent.toFixed(1)}%)`);
+        lines.push(`TOTAL: ${money(discountMoney > 0 ? adjustedTotal : computedTotal)}`);
+        if (num(form.paid) > 0) lines.push(`Paid: ${money(num(form.paid))} · Balance: ${money(balance)}`);
+        blocks.push(lines);
+      } else if (id === 'notes' && form.notes) {
+        blocks.push([`Notes: ${String(form.notes)}`]);
+      } else if (id.startsWith('field:')) {
+        const key = id.slice(6);
+        const value = fieldValueText(key);
+        if (value) {
+          const label = module.fields.find((f) => f.key === key)?.label ?? key;
+          blocks.push([`${label}: ${value}`]);
+        }
       }
     }
-    if (sections.has('details') && list.length > 0) {
-      lines.push('');
-      lines.push('Parts & Services:');
-      for (const d of list) lines.push(`• ${detailLabel(d)} — ${money(detailAmount(d))}`);
-    }
-    if (sections.has('totals')) {
-      lines.push('');
-      lines.push(`Subtotal parts: ${money(num(form.subtotalPart))} · Services: ${money(num(form.subtotalServices))} · Labor: ${money(num(form.totalLabor))}`);
-      lines.push(`Tax: ${money(num(form.taxDolar))} · Long trip: ${money(num(form.longTrip))}`);
-      if (discountMoney > 0) lines.push(`Discount: −${money(discountMoney)} (${discountPercent.toFixed(1)}%)`);
-      lines.push(`TOTAL: ${money(discountMoney > 0 ? adjustedTotal : computedTotal)}`);
-      if (num(form.paid) > 0) lines.push(`Paid: ${money(num(form.paid))} · Balance: ${money(balance)}`);
-    }
-    if (sections.has('notes') && form.notes) {
-      lines.push('');
-      lines.push(`Notes: ${String(form.notes)}`);
-    }
-    // Campos individuales del formulario elegidos en el modal (prefijo field:)
-    const fieldKeys = [...sections].filter((s) => s.startsWith('field:')).map((s) => s.slice(6));
-    const fieldLines = fieldKeys
-      .map((key) => {
-        const value = fieldValueText(key);
-        if (!value) return null;
-        const label = module.fields.find((f) => f.key === key)?.label ?? key;
-        return `${label}: ${value}`;
-      })
-      .filter(Boolean) as string[];
-    if (fieldLines.length > 0) {
-      lines.push('');
-      lines.push(...fieldLines);
-    }
-    return lines.join('\n').replace(/^\n+/, '');
+    // Campos individuales consecutivos se agrupan sin línea en blanco entre ellos
+    const out: string[] = [];
+    blocks.forEach((lines, i) => {
+      const isField = lines.length === 1 && !lines[0].startsWith('Parts &');
+      const prevWasField = i > 0 && blocks[i - 1].length === 1;
+      if (i > 0 && !(isField && prevWasField)) out.push('');
+      out.push(...lines);
+    });
+    return out.join('\n');
   };
 
-  const copyWithSections = async (sections: Set<string>) => {
+  const copyWithSections = async (sections: string[]) => {
     const text = buildMessage(sections);
     try {
       await navigator.clipboard.writeText(text);
@@ -756,38 +766,43 @@ export default function WorkOrderWizard({ initialRow, onClose, mode = 'workorder
               </SectionCard>
 
               <SectionCard icon={<MapPin size={15} />} title="Company & Area">
-                {catalogSelect('Company', 'idCompany', 'catalog_company', {
-                filtered: cat('catalog_company')
-                  .filter((c) => String((c as Record<string, unknown>).type ?? '').includes('Agent'))
-                  .map((r) => ({ id: r.id, label: rowLabel(r) })),
-                onPick: (id) => setForm((prev) => ({ ...prev, idCompany: id, idAgent: '' })),
-              })}
-              {Boolean(form.idCompany) && (
                 <div className="wz-field">
-                  <label htmlFor="wz-idAgent">Agent <code className="wz-key">idAgent</code></label>
-                  <SearchableSelect
-                    inputId="wz-idAgent"
-                    value={String(form.idAgent ?? '')}
-                    options={cat('team')
-                      .filter((t) => String(getFieldValue(t, { key: 'companyId', altKeys: ['company_id', 'id_company'] }) ?? '') === form.idCompany)
-                      .map((r) => ({ id: r.id, label: rowLabel(r) }))}
-                    placeholder="Agents of this company…"
-                    onChange={(id) => set('idAgent', id)}
-                  />
-                </div>
-              )}
-                {catalogSelect('Zipcode', 'idZipcode', 'catalog_zipcode', { onPick: onZipcode })}
+                <label htmlFor="wz-idAgent" className="wz-req">Agent * <code className="wz-key">idAgent</code></label>
+                <SearchableSelect
+                  inputId="wz-idAgent"
+                  value={String(form.idAgent ?? '')}
+                  options={teamOfType('Agent').map((r) => ({ id: r.id, label: teamName(r) }))}
+                  placeholder="Search agent…"
+                  onChange={(id) => {
+                    const agent = cat('team').find((t) => t.id === id);
+                    const companyId = agent ? String(getFieldValue(agent, {
+                      key: 'companyId',
+                      altKeys: ['company_id', 'id_company', 'idCompany'],
+                    }) ?? '') : '';
+                    // La company se deriva del agente — no se edita a mano
+                    setForm((prev) => ({ ...prev, idAgent: id, idCompany: companyId }));
+                  }}
+                />
+              </div>
+              <div className="wz-field">
+                <label htmlFor="wz-company-ro">Company</label>
+                <input
+                  id="wz-company-ro"
+                  value={form.idCompany
+                    ? rowLabel(cat('catalog_company').find((c) => c.id === form.idCompany))
+                    : ''}
+                  readOnly
+                  placeholder="Set by the selected agent"
+                />
+              </div>
+              {catalogSelect('Zipcode', 'idZipcode', 'catalog_zipcode', { onPick: onZipcode })}
                 {moneyInput('Long trip', 'longTrip')}
                 <div className="wz-field">
                   <label htmlFor="wz-idTech">Technician <code className="wz-key">idTech</code></label>
                   <SearchableSelect
                     inputId="wz-idTech"
                     value={String(form.idTech ?? '')}
-                    options={(() => {
-                      const techs = cat('team').filter((t) =>
-                        String(getFieldValue(t, { key: 'type', altKeys: ['role'] }) ?? '').includes('Tech'));
-                      return (techs.length > 0 ? techs : cat('team')).map((r) => ({ id: r.id, label: rowLabel(r) }));
-                    })()}
+                    options={teamOfType('Tech').map((r) => ({ id: r.id, label: teamName(r) }))}
                     placeholder="Assign a technician…"
                     onChange={(id) => set('idTech', id)}
                   />
@@ -1283,21 +1298,33 @@ function messageFieldGroups() {
 
 interface MessagePreset extends Row { name?: string; sections?: string[] }
 
+
+/** Label legible de un elemento del mensaje (bloque o campo). */
+function messageItemLabel(id: string): string {
+  const block = MESSAGE_BLOCKS.find((b) => b.id === id);
+  if (block) return block.label;
+  if (id.startsWith('field:')) {
+    const key = id.slice(6);
+    return getModule('workorders').fields.find((f) => f.key === key)?.label ?? key;
+  }
+  return id;
+}
+
 const MSG_LAST_KEY = 'gw_msg_last_selection';
 
 function MessageModal({ preview, onCopy, onClose }: {
-  preview: (sections: Set<string>) => string;
-  onCopy: (sections: Set<string>) => void;
+  preview: (sections: string[]) => string;
+  onCopy: (sections: string[]) => void;
   onClose: () => void;
 }) {
-  const [selection, setSelection] = useState<Set<string>>(() => {
-    // Memoria: arranca con la última selección usada
+  // Selección ORDENADA: el orden del array es el orden del mensaje
+  const [selection, setSelection] = useState<string[]>(() => {
     try {
       const raw = localStorage.getItem(MSG_LAST_KEY);
       const parsed = raw ? JSON.parse(raw) as string[] : null;
-      if (Array.isArray(parsed) && parsed.length > 0) return new Set(parsed);
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
     } catch { /* selección por defecto */ }
-    return new Set(MESSAGE_BLOCKS.map((s) => s.id));
+    return MESSAGE_BLOCKS.map((s) => s.id);
   });
   const [fieldSearch, setFieldSearch] = useState('');
   const fieldGroups = useMemo(() => messageFieldGroups(), []);
@@ -1314,21 +1341,27 @@ function MessageModal({ preview, onCopy, onClose }: {
   }, []);
 
   const toggle = (id: string) => {
+    setSelection((prev) => prev.includes(id) ? prev.filter((s) => s !== id) : [...prev, id]);
+  };
+
+  const moveItem = (index: number, dir: -1 | 1) => {
     setSelection((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
+      const j = index + dir;
+      if (j < 0 || j >= prev.length) return prev;
+      const next = [...prev];
+      [next[index], next[j]] = [next[j], next[index]];
       return next;
     });
   };
 
   const applyPreset = (preset: MessagePreset) =>
-    setSelection(new Set(preset.sections ?? []));
+    setSelection(preset.sections ?? []);
 
   const savePreset = async () => {
     if (!presetName.trim()) return;
     setSavingPreset(true);
     try {
-      await createRow('message_presets', { name: presetName.trim(), sections: [...selection] });
+      await createRow('message_presets', { name: presetName.trim(), sections: selection });
       invalidateCatalog('message_presets');
       setPresets(await cachedFetchAll('message_presets') as MessagePreset[]);
       setPresetName('');
@@ -1386,13 +1419,13 @@ function MessageModal({ preview, onCopy, onClose }: {
           <div className="msg-group-row">
             <p className="msg-group-label">Message blocks</p>
             <span className="msg-quick">
-              <button type="button" onClick={() => setSelection((prev) => new Set([...prev, ...MESSAGE_BLOCKS.map((b) => b.id)]))}>All</button>
-              <button type="button" onClick={() => setSelection((prev) => new Set([...prev].filter((s) => s.startsWith('field:'))))}>None</button>
+              <button type="button" onClick={() => setSelection((prev) => [...prev, ...MESSAGE_BLOCKS.filter((b) => !prev.includes(b.id)).map((b) => b.id)])}>All</button>
+              <button type="button" onClick={() => setSelection((prev) => prev.filter((s) => s.startsWith('field:')))}>None</button>
             </span>
           </div>
           <ul className="msg-sections">
             {MESSAGE_BLOCKS.map((section) => {
-              const checked = selection.has(section.id);
+              const checked = selection.includes(section.id);
               return (
                 <li key={section.id}>
                   <label className={`msg-section${checked ? ' checked' : ''}`}>
@@ -1424,7 +1457,7 @@ function MessageModal({ preview, onCopy, onClose }: {
                 <h4>{group.section}</h4>
                 <ul className="msg-sections">
                   {group.fields.map((field) => {
-                    const checked = selection.has(field.id);
+                    const checked = selection.includes(field.id);
                     return (
                       <li key={field.id}>
                         <label className={`msg-section${checked ? ' checked' : ''}`}>
@@ -1437,6 +1470,31 @@ function MessageModal({ preview, onCopy, onClose }: {
                 </ul>
               </section>
             ))}
+
+          <p className="msg-group-label">Send order ({selection.length})</p>
+          {selection.length === 0 ? (
+            <p className="msg-order-empty">Nothing selected yet.</p>
+          ) : (
+            <ol className="msg-order">
+              {selection.map((id, index) => (
+                <li key={id}>
+                  <span className="msg-order-num">{index + 1}</span>
+                  <span className="msg-order-label">{messageItemLabel(id)}</span>
+                  <span className="msg-order-actions">
+                    <button className="btn-icon-ghost" onClick={() => moveItem(index, -1)} disabled={index === 0} aria-label="Move up">
+                      <ArrowUp size={13} />
+                    </button>
+                    <button className="btn-icon-ghost" onClick={() => moveItem(index, 1)} disabled={index === selection.length - 1} aria-label="Move down">
+                      <ArrowDown size={13} />
+                    </button>
+                    <button className="btn-danger-ghost" onClick={() => toggle(id)} aria-label="Remove">
+                      <X size={13} />
+                    </button>
+                  </span>
+                </li>
+              ))}
+            </ol>
+          )}
 
           <p className="msg-group-label">Preview</p>
           <pre className="msg-preview">{preview(selection) || '— Nothing selected —'}</pre>
@@ -1463,10 +1521,10 @@ function MessageModal({ preview, onCopy, onClose }: {
           <button
             type="button"
             className="btn-dark"
-            disabled={selection.size === 0}
+            disabled={selection.length === 0}
             onClick={() => {
               try {
-                localStorage.setItem(MSG_LAST_KEY, JSON.stringify([...selection]));
+                localStorage.setItem(MSG_LAST_KEY, JSON.stringify(selection));
               } catch { /* sin storage */ }
               onCopy(selection);
             }}
