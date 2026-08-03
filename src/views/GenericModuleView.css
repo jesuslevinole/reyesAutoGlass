@@ -522,44 +522,55 @@
 }
 
 /* ============ Barra de filtros por status (idea del cliente: cards por status) ============ */
+.status-bar {
+  overflow-x: auto;
+  padding-bottom: 3px;
+}
 .status-bar ul {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  background: #eef1f7;
+  border: 1px solid #e3e8f2;
+  border-radius: 999px;
+  padding: 4px;
+  white-space: nowrap;
 }
 .status-chip {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  padding: 7px 13px;
+  padding: 8px 15px;
   border-radius: 999px;
-  border: 1px solid var(--border);
-  background: var(--paper);
   font-size: 12.5px;
   font-weight: 600;
   color: var(--ink-soft);
-  transition: border-color .15s, box-shadow .15s, color .15s;
+  transition: background .18s ease, color .18s ease, box-shadow .18s ease;
 }
-.status-chip:hover { border-color: var(--chip-color, var(--blue)); color: var(--ink); }
+.status-chip:hover { color: var(--ink); }
 .status-chip.active {
-  border-color: var(--chip-color, var(--blue));
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--chip-color, var(--blue)) 18%, transparent);
+  background: var(--paper);
   color: var(--ink);
+  font-weight: 700;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, .12), 0 4px 10px rgba(15, 23, 42, .07);
 }
 .status-chip-dot {
   width: 9px;
   height: 9px;
   border-radius: 50%;
   background: var(--chip-color, var(--blue));
+  box-shadow: 0 0 0 2.5px color-mix(in srgb, var(--chip-color, var(--blue)) 18%, transparent);
   flex-shrink: 0;
 }
 .status-count {
   font-size: 10.5px;
   font-weight: 800;
-  background: #eef2fb;
+  min-width: 20px;
+  text-align: center;
+  background: rgba(15, 23, 42, .06);
   color: var(--ink-soft);
   border-radius: 999px;
-  padding: 2px 8px;
+  padding: 2px 7px;
 }
 .status-chip.active .status-count {
   background: var(--chip-color, var(--blue));
@@ -764,9 +775,6 @@
   .data-table tbody tr:hover .col-actions button { opacity: 1; }
 }
 
-/* Chips de status con vida */
-.status-chip { transition: all .16s ease; }
-.status-chip:hover { transform: translateY(-1px); }
 
 /* ==================== Responsive móvil ==================== */
 @media (max-width: 760px) {

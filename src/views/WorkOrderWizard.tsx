@@ -74,7 +74,6 @@ const QUICK_SPECS: Record<string, QuickSpec> = {
       { key: 'email', label: 'Email' },
       { key: 'address', label: 'Street address' }, { key: 'apartment', label: 'Unit / Apt / Suite #' },
       { key: 'city', label: 'City' }, { key: 'state', label: 'State' }, { key: 'zipcode', label: 'Zipcode' },
-      { key: 'customerSuggestedPrice', label: 'Customer Suggested Price' },
       { key: 'notes', label: 'Notes' },
     ],
   },
@@ -930,6 +929,18 @@ export default function WorkOrderWizard({ initialRow, onClose, mode = 'workorder
                   <label htmlFor="wz-cust-address">Address</label>
                   <input id="wz-cust-address" value={customerAddress} readOnly placeholder="Street, apartment, city, state, zipcode — filled from the customer" />
                 </div>
+                {Boolean(customer?.notes) && (
+                  <div className="wz-field wz-full">
+                    <label htmlFor="wz-cust-notes">Customer notes</label>
+                    <textarea
+                      id="wz-cust-notes"
+                      className="wz-textarea wz-readonly"
+                      rows={2}
+                      value={String(customer?.notes ?? '')}
+                      readOnly
+                    />
+                  </div>
+                )}
                 {customerAddress !== '' && (
                   <div className="wz-field wz-full wz-map">
                     <iframe
@@ -1206,6 +1217,7 @@ export default function WorkOrderWizard({ initialRow, onClose, mode = 'workorder
                     />
                   </div>
                 </div>
+                {moneyInput('Customer Suggested Price', 'customerSuggestedPrice')}
                 <div className="wz-field wz-full">
                   <label htmlFor="wz-discount-reason">Reason <code className="wz-key">discountReason</code></label>
                   <input

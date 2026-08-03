@@ -794,3 +794,6 @@
 @media (max-width: 520px) {
   .qa-fields { grid-template-columns: 1fr; }
 }
+
+/* Campos de solo lectura del cliente */
+.wz-textarea.wz-readonly { background: #f6f8fc; color: var(--ink-soft); resize: none; }

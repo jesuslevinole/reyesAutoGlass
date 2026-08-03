@@ -129,6 +129,7 @@ export const MODULES: ModuleDef[] = [
       { key: 'discountType', label: 'Discount type', type: 'enum', options: ['Percentage', 'Fixed'], section: 'financiero', altKeys: ['discount_type'] },
       { key: 'discountValue', label: 'Discount value', type: 'decimal', section: 'financiero', altKeys: ['discount_value'] },
       { key: 'discountReason', label: 'Discount reason', type: 'text', section: 'financiero', altKeys: ['discount_reason'] },
+      { key: 'customerSuggestedPrice', label: 'Customer Suggested Price', type: 'decimal', section: 'financiero', altKeys: ['customer_suggested_price', 'suggested_price'] },
       { key: 'notes', label: 'Notes', type: 'longtext', section: 'financiero', altKeys: ['note'] },
       { key: 'upsell', label: 'Upsell', type: 'decimal', section: 'financiero', altKeys: ['upsell'] },
       { key: 'upsold', label: 'Upsold', type: 'decimal', showIf: { key: 'insuranceType', equals: 'Personal' }, section: 'financiero', altKeys: ['upsold'] },
