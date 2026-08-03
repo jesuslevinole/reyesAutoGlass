@@ -357,11 +357,15 @@
   padding: 20px;
 }
 .qa-card {
-  width: min(430px, 100%);
+  width: min(880px, 94vw);
+  max-height: 90vh;
   background: var(--paper);
   border-radius: 15px;
-  box-shadow: var(--shadow-float);
+  box-shadow: 0 24px 60px rgba(15, 23, 42, .25);
+  display: flex;
+  flex-direction: column;
   overflow: hidden;
+  animation: modal-in .24s cubic-bezier(.2, .9, .3, 1);
 }
 .qa-head {
   display: flex;
@@ -372,11 +376,10 @@
 }
 .qa-head h3 { font-size: 14.5px; font-weight: 700; }
 .qa-fields {
-  padding: 17px 19px;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  max-height: 55vh;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 13px 16px;
+  padding: 16px 20px;
   overflow-y: auto;
 }
 .qa-foot {
@@ -781,3 +784,13 @@
 .msg-order-actions { display: inline-flex; gap: 1px; }
 .msg-order-actions button { padding: 4px; }
 .msg-order-empty { font-size: 12px; color: var(--ink-faint); font-style: italic; margin-bottom: 6px; }
+
+
+/* Notas del alta rápida a lo ancho */
+.qa-fields .qa-field-full { grid-column: 1 / -1; }
+@media (max-width: 760px) {
+  .qa-fields { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 520px) {
+  .qa-fields { grid-template-columns: 1fr; }
+}
