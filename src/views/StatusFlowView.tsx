@@ -1,8 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Check, GitBranch, Pencil, Save, Search, X } from 'lucide-react';
+import { ArrowDown, ArrowUp, Check, Eye, EyeOff, GitBranch, Hand, Pencil, Save, Search, X, Zap } from 'lucide-react';
 import { getModule } from '../config/modules';
-import type { StageRules, StatusRules } from '../utils/pipeline';
-import { QUOTE_PIPELINE, WORKORDER_PIPELINE, loadStatusRules, saveStatusRules } from '../utils/pipeline';
+import type { Row } from '../services/firestore';
+import { cachedFetchAll } from '../services/catalogCache';
+import { tagColorToHex } from '../utils/relations';
+import type { KindRules, StatusRules } from '../utils/pipeline';
+import { configOf, loadStatusRules, saveStatusRules, stagesFromTags } from '../utils/pipeline';
 import './StatusFlowView.css';
 
 type Kind = 'quote' | 'workorder';
@@ -26,32 +29,69 @@ function useFieldCatalog() {
 
 export default function StatusFlowView() {
   const [kind, setKind] = useState<Kind>('quote');
-  const [rules, setRules] = useState<StatusRules>({ quote: {}, workorder: {} });
-  const [loading, setLoading] = useState(true);
+  const [tags, setTags] = useState<Row[]>([]);
+  const [rules, setRules] = useState<StatusRules>({
+    quote: { order: [], stages: {} },
+    workorder: { order: [], stages: {} },
+  });
   const [saved, setSaved] = useState(false);
-  const [editingStage, setEditingStage] = useState<string | null>(null);
+  const [editingStage, setEditingStage] = useState<{ id: string; name: string } | null>(null);
   const { groups, labelOf } = useFieldCatalog();
 
   useEffect(() => {
     let alive = true;
-    void loadStatusRules().then((r) => {
+    void Promise.all([cachedFetchAll('catalog_tag'), loadStatusRules()]).then(([t, r]) => {
       if (!alive) return;
+      setTags(t);
       setRules(r);
-      setLoading(false);
     });
     return () => { alive = false; };
   }, []);
 
-  const pipeline = kind === 'quote' ? QUOTE_PIPELINE : WORKORDER_PIPELINE;
-  const stageRules: StageRules = rules[kind];
+  const kindRules: KindRules = rules[kind];
+  const stages = useMemo(
+    () => stagesFromTags(tags, kind, kindRules.order),
+    [tags, kind, kindRules.order],
+  );
 
-  const setStage = (stage: string, fieldIds: string[]) => {
-    setRules((prev) => ({ ...prev, [kind]: { ...prev[kind], [stage]: fieldIds } }));
+  const patchKind = (patch: Partial<KindRules>) => {
+    setRules((prev) => ({ ...prev, [kind]: { ...prev[kind], ...patch } }));
     setSaved(false);
   };
 
+  const move = (index: number, dir: -1 | 1) => {
+    const j = index + dir;
+    if (j < 0 || j >= stages.length) return;
+    const ids = stages.map((s) => s.id);
+    [ids[index], ids[j]] = [ids[j], ids[index]];
+    patchKind({ order: ids });
+  };
+
+  const setMechanism = (stageId: string, mechanism: 'auto' | 'manual') => {
+    patchKind({
+      stages: { ...kindRules.stages, [stageId]: { ...configOf(kindRules, stageId), mechanism } },
+    });
+  };
+
+  const toggleHidden = (stageId: string) => {
+    const cfg = configOf(kindRules, stageId);
+    patchKind({
+      stages: { ...kindRules.stages, [stageId]: { ...cfg, hidden: !cfg.hidden } },
+    });
+  };
+
+  const setRequired = (stageId: string, required: string[]) => {
+    patchKind({
+      stages: { ...kindRules.stages, [stageId]: { ...configOf(kindRules, stageId), required } },
+    });
+  };
+
   const save = async () => {
-    await saveStatusRules(rules);
+    // Persistir el orden visible actual de ambos pipelines
+    await saveStatusRules({
+      ...rules,
+      [kind]: { ...kindRules, order: stages.map((s) => s.id) },
+    });
     setSaved(true);
   };
 
@@ -61,11 +101,12 @@ export default function StatusFlowView() {
         <div>
           <h1>Status Flow</h1>
           <p className="module-desc">
-            CRM rules — which fields must be completed before a quote or work order can move to each stage
+            Stages come from the Status catalog. Set their order, how each one is reached
+            (automatic when its fields are filled, or a manual button), and what is required.
           </p>
         </div>
         <div className="module-actions">
-          <button className="btn-primary btn-gradient" onClick={() => void save()} disabled={loading}>
+          <button className="btn-primary btn-gradient" onClick={() => void save()}>
             {saved ? <Check size={15} /> : <Save size={15} />}
             {saved ? 'Saved' : 'Save rules'}
           </button>
@@ -86,38 +127,90 @@ export default function StatusFlowView() {
         ))}
       </nav>
 
+      {stages.length === 0 && (
+        <p className="sf-none">No statuses of this type in the catalog yet — create them in Catalogs → Status (Tags).</p>
+      )}
+
       <ol className="sf-stages">
-        {pipeline.map((stage, index) => {
-          const required = stageRules[stage] ?? [];
+        {stages.map((stage, index) => {
+          const cfg = configOf(kindRules, stage.id);
           return (
-            <li className="sf-stage" key={stage}>
+            <li className="sf-stage" key={stage.id}>
               <div className="sf-stage-head">
                 <span className="sf-stage-num">{index + 1}</span>
-                <h2>{stage}</h2>
+                <span
+                  className="sf-stage-color"
+                  /* color real del tag del catálogo */
+                  style={{ '--stage-color': tagColorToHex(stage.color) } as React.CSSProperties}
+                />
+                <h2>{stage.name}</h2>
+                <span className="sf-mech" role="radiogroup" aria-label="Mechanism">
+                  <button
+                    type="button"
+                    role="radio"
+                    aria-checked={cfg.mechanism === 'auto'}
+                    className={`sf-mech-btn auto${cfg.mechanism === 'auto' ? ' active' : ''}`}
+                    title="Moves here automatically when its required fields are filled"
+                    onClick={() => setMechanism(stage.id, 'auto')}
+                  >
+                    <Zap size={12} />
+                    Auto
+                  </button>
+                  <button
+                    type="button"
+                    role="radio"
+                    aria-checked={cfg.mechanism === 'manual'}
+                    className={`sf-mech-btn manual${cfg.mechanism === 'manual' ? ' active' : ''}`}
+                    title="Moves here only when someone presses the stage button"
+                    onClick={() => setMechanism(stage.id, 'manual')}
+                  >
+                    <Hand size={12} />
+                    Manual
+                  </button>
+                </span>
+                <button
+                  type="button"
+                  className={`sf-visibility${cfg.hidden ? ' off' : ''}`}
+                  title={cfg.hidden
+                    ? 'Hidden from the pipeline bar — reachable only via the Status select'
+                    : 'Shown as a stage in the pipeline bar'}
+                  onClick={() => toggleHidden(stage.id)}
+                >
+                  {cfg.hidden ? <EyeOff size={13} /> : <Eye size={13} />}
+                  {cfg.hidden ? 'Off pipeline' : 'In pipeline'}
+                </button>
+                <span className="sf-order">
+                  <button className="btn-icon-ghost" onClick={() => move(index, -1)} disabled={index === 0} aria-label="Move up">
+                    <ArrowUp size={14} />
+                  </button>
+                  <button className="btn-icon-ghost" onClick={() => move(index, 1)} disabled={index === stages.length - 1} aria-label="Move down">
+                    <ArrowDown size={14} />
+                  </button>
+                </span>
                 <button
                   type="button"
                   className="btn-outline sf-edit"
-                  onClick={() => setEditingStage(stage)}
+                  onClick={() => setEditingStage({ id: stage.id, name: stage.name })}
                 >
                   <Pencil size={13} />
                   Requirements
                 </button>
               </div>
-              {required.length === 0 ? (
+              {cfg.required.length === 0 ? (
                 <p className="sf-none">
-                  {index === 0
-                    ? 'Entry stage — no requirements.'
+                  {cfg.mechanism === 'auto'
+                    ? 'Auto with no required fields — it will advance immediately. Add requirements.'
                     : 'No requirements — anyone can move it here.'}
                 </p>
               ) : (
                 <ul className="sf-chips">
-                  {required.map((id) => (
+                  {cfg.required.map((id) => (
                     <li key={id} className="sf-chip">
                       {labelOf(id)}
                       <button
                         type="button"
                         aria-label={`Remove ${labelOf(id)}`}
-                        onClick={() => setStage(stage, required.filter((r) => r !== id))}
+                        onClick={() => setRequired(stage.id, cfg.required.filter((r) => r !== id))}
                       >
                         <X size={11} />
                       </button>
@@ -125,7 +218,7 @@ export default function StatusFlowView() {
                   ))}
                 </ul>
               )}
-              {index < pipeline.length - 1 && <span className="sf-connector" aria-hidden="true" />}
+              {index < stages.length - 1 && <span className="sf-connector" aria-hidden="true" />}
             </li>
           );
         })}
@@ -133,11 +226,11 @@ export default function StatusFlowView() {
 
       {editingStage && (
         <RequiredFieldsModal
-          stage={editingStage}
+          stage={editingStage.name}
           groups={groups}
-          selected={stageRules[editingStage] ?? []}
+          selected={configOf(kindRules, editingStage.id).required}
           onConfirm={(ids) => {
-            setStage(editingStage, ids);
+            setRequired(editingStage.id, ids);
             setEditingStage(null);
           }}
           onClose={() => setEditingStage(null)}

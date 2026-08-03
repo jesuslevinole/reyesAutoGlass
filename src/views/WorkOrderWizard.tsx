@@ -9,7 +9,8 @@ import { getModule } from '../config/modules';
 import type { Row } from '../services/firestore';
 import { createRow, fetchAll, nextConsecutive, updateRow } from '../services/firestore';
 import { cachedFetchAll, invalidateCatalog } from '../services/catalogCache';
-import { ensureTag, loadStatusRules, missingForStage, pipelineFor, stageIndex } from '../utils/pipeline';
+import type { KindRules } from '../utils/pipeline';
+import { autoAdvanceTarget, configOf, ensureTag, loadStatusRules, missingForStage, stagesFromTags, visibleStages } from '../utils/pipeline';
 import { getFieldValue, money, rowLabel } from '../utils/relations';
 import './WorkOrderWizard.css';
 
@@ -201,6 +202,17 @@ export default function WorkOrderWizard({ initialRow, onClose, mode = 'workorder
   const [converting, setConverting] = useState(false);
   const [copied, setCopied] = useState(false);
   const [messageModalOpen, setMessageModalOpen] = useState(false);
+  const [statusRules, setStatusRules] = useState<KindRules>({ order: [], stages: {} });
+
+  useEffect(() => {
+    let alive = true;
+    void loadStatusRules().then((r) => {
+      if (alive) setStatusRules(isQuote ? r.quote : r.workorder);
+    });
+    return () => { alive = false; };
+    // isQuote es estable durante la vida del wizard
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     let alive = true;
@@ -428,24 +440,33 @@ export default function WorkOrderWizard({ initialRow, onClose, mode = 'workorder
     }
   };
 
-  /** CRM: mover a una etapa validando las reglas del Status Flow (y creando el tag si falta). */
-  const advanceToStage = async (stage: string) => {
-    const rules = await loadStatusRules();
-    const stageRules = isQuote ? rules.quote : rules.workorder;
+  /** CRM: mover a una etapa del catálogo validando sus reglas del Status Flow. */
+  const advanceToStage = async (stageId: string, stageName: string) => {
     const missingFields = missingForStage(
-      stageRules,
-      stage,
+      statusRules,
+      stageId,
       (key) => form[key],
       (key) => module.fields.find((f) => f.key === key)?.label ?? key,
     );
     if (missingFields.length > 0) {
-      window.alert(`To move to "${stage}", complete first: ${missingFields.join(', ')}`);
+      window.alert(`To move to "${stageName}", complete first: ${missingFields.join(', ')}`);
       return;
     }
-    const id = await ensureTag(cat('catalog_tag'), stage, isQuote ? 'Quote' : 'Work Order');
-    const fresh = await cachedFetchAll('catalog_tag');
-    setCatalogs((prev) => ({ ...prev, catalog_tag: fresh }));
-    set('idStatus', id);
+    set('idStatus', stageId);
+  };
+
+  /** Valor legible de un campo del formulario para el mensaje (FK→nombre, dinero, etc.). */
+  const fieldValueText = (key: string): string => {
+    const field = module.fields.find((f) => f.key === key);
+    const raw = form[key];
+    if (raw === undefined || raw === null || raw === '') return '';
+    if (!field) return String(raw);
+    if (field.type === 'fk' && field.fkCollection) {
+      return rowLabel(cat(field.fkCollection).find((r) => r.id === raw));
+    }
+    if (field.type === 'decimal') return money(num(raw));
+    if (field.type === 'boolean') return raw ? 'Yes' : 'No';
+    return String(raw);
   };
 
   /** Mensaje organizado, armado solo con las secciones elegidas en el modal. */
@@ -493,6 +514,20 @@ export default function WorkOrderWizard({ initialRow, onClose, mode = 'workorder
       lines.push('');
       lines.push(`Notes: ${String(form.notes)}`);
     }
+    // Campos individuales del formulario elegidos en el modal (prefijo field:)
+    const fieldKeys = [...sections].filter((s) => s.startsWith('field:')).map((s) => s.slice(6));
+    const fieldLines = fieldKeys
+      .map((key) => {
+        const value = fieldValueText(key);
+        if (!value) return null;
+        const label = module.fields.find((f) => f.key === key)?.label ?? key;
+        return `${label}: ${value}`;
+      })
+      .filter(Boolean) as string[];
+    if (fieldLines.length > 0) {
+      lines.push('');
+      lines.push(...fieldLines);
+    }
     return lines.join('\n').replace(/^\n+/, '');
   };
 
@@ -517,6 +552,11 @@ export default function WorkOrderWizard({ initialRow, onClose, mode = 'workorder
       data.total = computedTotal;
       data.balance = balance;
       data.discount = discountMoney;
+      // Mecanismo automático: si las siguientes etapas 'auto' ya cumplen requisitos, avanzar
+      if (data.idStatus) {
+        const target = autoAdvanceTarget(pipelineStages, statusRules, String(data.idStatus), (key) => data[key]);
+        if (target) data.idStatus = target;
+      }
       let woId: string;
       if (initialRow) {
         woId = initialRow.id;
@@ -618,6 +658,17 @@ export default function WorkOrderWizard({ initialRow, onClose, mode = 'workorder
         : { key: 'quoteNumber', altKeys: ['quote_number'] }) ?? '')
     : '';
 
+  const allStages = stagesFromTags(cat('catalog_tag'), isQuote ? 'quote' : 'workorder', statusRules.order);
+  const pipelineStages = visibleStages(allStages, statusRules);
+  const currentStageIndex = pipelineStages.findIndex((s) => s.id === form.idStatus);
+  /** Faltantes por etapa (candado visual en la barra). */
+  const stageMissing = (stageId: string): string[] => missingForStage(
+    statusRules,
+    stageId,
+    (key) => form[key],
+    (key) => module.fields.find((f) => f.key === key)?.label ?? key,
+  );
+
   const statusRow = form.idStatus ? cat('catalog_tag').find((t) => t.id === form.idStatus) : undefined;
   const missing: string[] = [];
   if (!form.idStatus) missing.push('Status');
@@ -670,26 +721,33 @@ export default function WorkOrderWizard({ initialRow, onClose, mode = 'workorder
                   <div className="wz-field wz-full">
                   <span className="wz-label">Pipeline</span>
                   <ol className="wz-pipeline" aria-label="Status pipeline">
-                    {pipelineFor(isQuote ? 'quote' : 'workorder').map((stage, i) => {
-                      const currentIndex = stageIndex(pipelineFor(isQuote ? 'quote' : 'workorder'), rowLabel(statusRow));
-                      const done = currentIndex >= 0 && i <= currentIndex;
+                    {pipelineStages.map((stage, i) => {
+                      const cfg = configOf(statusRules, stage.id);
+                      const done = currentStageIndex >= 0 && i <= currentStageIndex;
+                      const missing = stageMissing(stage.id);
+                      const locked = missing.length > 0 && !done;
                       return (
-                        <li key={stage} className={`wz-stage${done ? ' done' : ''}${i === currentIndex ? ' current' : ''}`}>
+                        <li key={stage.id} className={`wz-stage${done ? ' done' : ''}${i === currentStageIndex ? ' current' : ''}${locked ? ' locked' : ''}`}>
                           <button
                             type="button"
-                            onClick={() => void advanceToStage(stage)}
-                            aria-label={`Move to ${stage}`}
+                            onClick={() => void advanceToStage(stage.id, stage.name)}
+                            title={locked
+                              ? `Missing: ${missing.join(', ')}`
+                              : cfg.mechanism === 'auto'
+                                ? 'Automatic — advances when its fields are filled'
+                                : 'Manual — press to move here'}
+                            aria-label={`Move to ${stage.name}`}
                           >
                             <span className="wz-stage-dot" />
-                            {stage}
+                            {stage.name}
+                            {cfg.mechanism === 'auto' && <span className="wz-stage-auto" aria-hidden="true">⚡</span>}
+                            {locked && <span className="wz-stage-lock" aria-hidden="true">🔒</span>}
                           </button>
-                          {i < pipelineFor(isQuote ? 'quote' : 'workorder').length - 1 && (
-                            <span className="wz-stage-line" aria-hidden="true" />
-                          )}
+                          {i < pipelineStages.length - 1 && <span className="wz-stage-line" aria-hidden="true" />}
                         </li>
                       );
                     })}
-                    {stageIndex(pipelineFor(isQuote ? 'quote' : 'workorder'), rowLabel(statusRow)) === -1 && rowLabel(statusRow) !== '—' && (
+                    {currentStageIndex === -1 && rowLabel(statusRow) !== '—' && (
                       <li className="wz-stage offpipe">{rowLabel(statusRow)}</li>
                     )}
                   </ol>
@@ -1154,6 +1212,7 @@ export default function WorkOrderWizard({ initialRow, onClose, mode = 'workorder
 
       {messageModalOpen && (
         <MessageModal
+          preview={(sections) => buildMessage(sections)}
           onCopy={(sections) => {
             void copyWithSections(sections);
             setMessageModalOpen(false);
@@ -1198,7 +1257,7 @@ export default function WorkOrderWizard({ initialRow, onClose, mode = 'workorder
 
 /* ==================== Modal del mensaje: secciones + presets con nombre ==================== */
 
-const MESSAGE_SECTIONS: { id: string; label: string }[] = [
+const MESSAGE_BLOCKS: { id: string; label: string }[] = [
   { id: 'header', label: 'Header (number, status, type)' },
   { id: 'customer', label: 'Customer & phones' },
   { id: 'address', label: 'Address' },
@@ -1209,15 +1268,39 @@ const MESSAGE_SECTIONS: { id: string; label: string }[] = [
   { id: 'notes', label: 'Notes' },
 ];
 
+/** Campos del formulario agrupados por sección — seleccionables uno a uno. */
+function messageFieldGroups() {
+  const module = getModule('workorders');
+  return (module.sections ?? [])
+    .map((s) => ({
+      section: s.title,
+      fields: module.fields
+        .filter((f) => f.section === s.id)
+        .map((f) => ({ id: `field:${f.key}`, label: f.label })),
+    }))
+    .filter((g) => g.fields.length > 0);
+}
+
 interface MessagePreset extends Row { name?: string; sections?: string[] }
 
-function MessageModal({ onCopy, onClose }: {
+const MSG_LAST_KEY = 'gw_msg_last_selection';
+
+function MessageModal({ preview, onCopy, onClose }: {
+  preview: (sections: Set<string>) => string;
   onCopy: (sections: Set<string>) => void;
   onClose: () => void;
 }) {
-  const [selection, setSelection] = useState<Set<string>>(
-    () => new Set(MESSAGE_SECTIONS.map((s) => s.id)),
-  );
+  const [selection, setSelection] = useState<Set<string>>(() => {
+    // Memoria: arranca con la última selección usada
+    try {
+      const raw = localStorage.getItem(MSG_LAST_KEY);
+      const parsed = raw ? JSON.parse(raw) as string[] : null;
+      if (Array.isArray(parsed) && parsed.length > 0) return new Set(parsed);
+    } catch { /* selección por defecto */ }
+    return new Set(MESSAGE_BLOCKS.map((s) => s.id));
+  });
+  const [fieldSearch, setFieldSearch] = useState('');
+  const fieldGroups = useMemo(() => messageFieldGroups(), []);
   const [presets, setPresets] = useState<MessagePreset[]>([]);
   const [presetName, setPresetName] = useState('');
   const [savingPreset, setSavingPreset] = useState(false);
@@ -1299,19 +1382,65 @@ function MessageModal({ onCopy, onClose }: {
           </div>
         )}
 
-        <ul className="msg-sections">
-          {MESSAGE_SECTIONS.map((section) => {
-            const checked = selection.has(section.id);
-            return (
-              <li key={section.id}>
-                <label className={`msg-section${checked ? ' checked' : ''}`}>
-                  <input type="checkbox" checked={checked} onChange={() => toggle(section.id)} />
-                  {section.label}
-                </label>
-              </li>
-            );
-          })}
-        </ul>
+        <div className="msg-body">
+          <div className="msg-group-row">
+            <p className="msg-group-label">Message blocks</p>
+            <span className="msg-quick">
+              <button type="button" onClick={() => setSelection((prev) => new Set([...prev, ...MESSAGE_BLOCKS.map((b) => b.id)]))}>All</button>
+              <button type="button" onClick={() => setSelection((prev) => new Set([...prev].filter((s) => s.startsWith('field:'))))}>None</button>
+            </span>
+          </div>
+          <ul className="msg-sections">
+            {MESSAGE_BLOCKS.map((section) => {
+              const checked = selection.has(section.id);
+              return (
+                <li key={section.id}>
+                  <label className={`msg-section${checked ? ' checked' : ''}`}>
+                    <input type="checkbox" checked={checked} onChange={() => toggle(section.id)} />
+                    {section.label}
+                  </label>
+                </li>
+              );
+            })}
+          </ul>
+
+          <p className="msg-group-label">Individual form fields</p>
+          <input
+            className="msg-field-search"
+            value={fieldSearch}
+            placeholder="Search field…"
+            onChange={(e) => setFieldSearch(e.target.value)}
+          />
+          {fieldGroups
+            .map((group) => ({
+              ...group,
+              fields: fieldSearch.trim()
+                ? group.fields.filter((f) => f.label.toLowerCase().includes(fieldSearch.trim().toLowerCase()))
+                : group.fields,
+            }))
+            .filter((group) => group.fields.length > 0)
+            .map((group) => (
+              <section key={group.section} className="msg-field-group">
+                <h4>{group.section}</h4>
+                <ul className="msg-sections">
+                  {group.fields.map((field) => {
+                    const checked = selection.has(field.id);
+                    return (
+                      <li key={field.id}>
+                        <label className={`msg-section${checked ? ' checked' : ''}`}>
+                          <input type="checkbox" checked={checked} onChange={() => toggle(field.id)} />
+                          {field.label}
+                        </label>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </section>
+            ))}
+
+          <p className="msg-group-label">Preview</p>
+          <pre className="msg-preview">{preview(selection) || '— Nothing selected —'}</pre>
+        </div>
 
         <div className="msg-save-preset">
           <input
@@ -1331,7 +1460,17 @@ function MessageModal({ onCopy, onClose }: {
 
         <footer className="msg-foot">
           <button type="button" className="btn-outline" onClick={onClose}>Cancel</button>
-          <button type="button" className="btn-dark" onClick={() => onCopy(selection)} disabled={selection.size === 0}>
+          <button
+            type="button"
+            className="btn-dark"
+            disabled={selection.size === 0}
+            onClick={() => {
+              try {
+                localStorage.setItem(MSG_LAST_KEY, JSON.stringify([...selection]));
+              } catch { /* sin storage */ }
+              onCopy(selection);
+            }}
+          >
             <Copy size={15} />
             Copy message
           </button>

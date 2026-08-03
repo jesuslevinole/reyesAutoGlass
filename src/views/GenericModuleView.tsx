@@ -10,7 +10,7 @@ import {
 import type { LucideIcon } from 'lucide-react';
 import { MODULE_ICONS } from '../config/moduleIcons';
 import type { FieldDef, ModuleDef } from '../config/modules';
-import { ensureTag, pipelineFor, stageIndex } from '../utils/pipeline';
+import { ensureTag, loadStatusRules } from '../utils/pipeline';
 import { FULL_PERM } from '../utils/uiConfig';
 import type { ModulePerm } from '../utils/uiConfig';
 import type { Row } from '../services/firestore';
@@ -88,6 +88,14 @@ export default function GenericModuleView({ module, perms = FULL_PERM, initialSe
   const [drawerOpen, setDrawerOpen] = useState(false);
   /** Filtros del drawer: fk/enum → id/valor; boolean → 'true'/'false'; date → {from,to} */
   const [filters, setFilters] = useState<Record<string, unknown>>({});
+  const [statusOrder, setStatusOrder] = useState<string[]>([]);
+  useEffect(() => {
+    let alive = true;
+    void loadStatusRules().then((r) => {
+      if (alive) setStatusOrder(module.id === 'quotes' ? r.quote.order : r.workorder.order);
+    });
+    return () => { alive = false; };
+  }, [module.id]);
 
   const sections = useMemo(() => module.sections ?? [DEFAULT_SECTION], [module]);
   const [activeSection, setActiveSection] = useState(sections[0].id);
@@ -126,14 +134,13 @@ export default function GenericModuleView({ module, perms = FULL_PERM, initialSe
           return typeof v === 'string' && v.includes(filter.equals);
         })
       : tags;
-    // Orden CRM: primero las etapas del pipeline, luego el resto
-    const pipeline = pipelineFor(module.id === 'quotes' ? 'quote' : 'workorder');
+    // Orden CRM: el orden configurado en Status Flow
     return [...filtered].sort((a, b) => {
-      const ia = stageIndex(pipeline, rowLabel(a));
-      const ib = stageIndex(pipeline, rowLabel(b));
-      return (ia === -1 ? pipeline.length : ia) - (ib === -1 ? pipeline.length : ib);
+      const ia = statusOrder.indexOf(a.id);
+      const ib = statusOrder.indexOf(b.id);
+      return (ia === -1 ? statusOrder.length : ia) - (ib === -1 ? statusOrder.length : ib);
     });
-  }, [statusField, fkData, module.id]);
+  }, [statusField, fkData, statusOrder]);
   const statusCounts = useMemo(() => {
     const counts: Record<string, number> = {};
     if (!statusField) return counts;

@@ -5,7 +5,8 @@ import type { Row } from '../services/firestore';
 import { fetchAll, subscribe, updateRow } from '../services/firestore';
 import { invalidateCatalog } from '../services/catalogCache';
 import { getModule } from '../config/modules';
-import { ensureTag, loadStatusRules, missingForStage, pipelineFor } from '../utils/pipeline';
+import type { KindRules } from '../utils/pipeline';
+import { loadStatusRules, missingForStage, stagesFromTags, visibleStages } from '../utils/pipeline';
 import { subscribeCached } from '../services/catalogCache';
 import { formatDate, getFieldValue, getRelationColor, getRelationName, money, tagColorToHex } from '../utils/relations';
 import './WorkOrderDetailView.css';
@@ -89,16 +90,15 @@ export default function WorkOrderDetailView({ workOrderId, kind = 'workorder', o
 
   /** CRM: cambiar de etapa desde el detalle, validando las reglas configuradas. */
   const [advancing, setAdvancing] = useState(false);
-  const advanceToStage = async (stage: string) => {
+  const advanceToStage = async (stageId: string, stageName: string) => {
     if (!order || advancing) return;
     setAdvancing(true);
     try {
-      const rules = await loadStatusRules();
-      const stageRules = isQuote ? rules.quote : rules.workorder;
+      const stageRules = kindRules;
       const module = getModule('workorders');
       const missing = missingForStage(
         stageRules,
-        stage,
+        stageId,
         (key) => {
           const field = module.fields.find((f) => f.key === key);
           return field ? getFieldValue(order, field) : undefined;
@@ -106,11 +106,10 @@ export default function WorkOrderDetailView({ workOrderId, kind = 'workorder', o
         (key) => module.fields.find((f) => f.key === key)?.label ?? key,
       );
       if (missing.length > 0) {
-        window.alert(`To move to "${stage}", complete first: ${missing.join(', ')}`);
+        window.alert(`To move to "${stageName}", complete first: ${missing.join(', ')}`);
         return;
       }
-      const tagId = await ensureTag(cat('catalog_tag'), stage, isQuote ? 'Quote' : 'Work Order');
-      await updateRow(collection, order.id, { idStatus: tagId });
+      await updateRow(collection, order.id, { idStatus: stageId });
       invalidateCatalog(collection);
     } finally {
       setAdvancing(false);
@@ -123,9 +122,22 @@ export default function WorkOrderDetailView({ workOrderId, kind = 'workorder', o
   }) ?? '');
   const statusName = getRelationName(statusId, cat('catalog_tag'));
 
-  /** Pipeline CRM del cliente según el tipo de documento. */
-  const PIPELINE = [...pipelineFor(isQuote ? 'quote' : 'workorder')];
-  const pipelineIndex = PIPELINE.findIndex((s) => s.toLowerCase() === statusName.toLowerCase());
+  /** Pipeline desde el catálogo de Status, en el orden del configurador. */
+  const [kindRules, setKindRules] = useState<KindRules>({ order: [], stages: {} });
+  useEffect(() => {
+    let alive = true;
+    void loadStatusRules().then((r) => {
+      if (alive) setKindRules(isQuote ? r.quote : r.workorder);
+    });
+    return () => { alive = false; };
+    // isQuote es estable durante la vida de la vista
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const pipelineStages = visibleStages(
+    stagesFromTags(cat('catalog_tag'), isQuote ? 'quote' : 'workorder', kindRules.order),
+    kindRules,
+  );
+  const pipelineIndex = pipelineStages.findIndex((s) => s.id === statusId);
   const offTrack = pipelineIndex === -1 && statusName !== '—';
 
 
@@ -192,21 +204,21 @@ export default function WorkOrderDetailView({ workOrderId, kind = 'workorder', o
 
       {/* ===== Status tracker (pipeline del cliente) ===== */}
       <ol className="wo-stepper" aria-label="Order progress">
-        {PIPELINE.map((stage, i) => {
+        {pipelineStages.map((stage, i) => {
           const done = pipelineIndex >= 0 && i <= pipelineIndex;
           return (
-            <li key={stage} className={`wo-step${done ? ' done' : ''}${i === pipelineIndex ? ' current' : ''}`}>
+            <li key={stage.id} className={`wo-step${done ? ' done' : ''}${i === pipelineIndex ? ' current' : ''}`}>
               <button
                 type="button"
                 className="wo-step-btn"
                 disabled={advancing}
-                title={`Move to ${stage}`}
-                onClick={() => void advanceToStage(stage)}
+                title={`Move to ${stage.name}`}
+                onClick={() => void advanceToStage(stage.id, stage.name)}
               >
                 <span className="wo-step-dot" />
-                <span className="wo-step-label">{stage}</span>
+                <span className="wo-step-label">{stage.name}</span>
               </button>
-              {i < PIPELINE.length - 1 && <span className="wo-step-line" aria-hidden="true" />}
+              {i < pipelineStages.length - 1 && <span className="wo-step-line" aria-hidden="true" />}
             </li>
           );
         })}
