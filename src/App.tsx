@@ -8,6 +8,7 @@ import DashboardView from './views/DashboardView';
 import GenericModuleView from './views/GenericModuleView';
 import SettingsView from './views/SettingsView';
 import StatusFlowView from './views/StatusFlowView';
+import CalendarView from './views/CalendarView';
 import WorkOrderDetailView from './views/WorkOrderDetailView';
 import { DEFAULT_NAV, getModule } from './config/modules';
 import type { ModuleDef } from './config/modules';
@@ -175,6 +176,8 @@ export default function App() {
               <RolesView />
             ) : view === 'statusflow' ? (
               <StatusFlowView />
+            ) : view === 'calendar' ? (
+              <CalendarView onOpen={(doc) => setOpenDoc(doc)} />
             ) : view === 'settings' ? (
               <SettingsView uiConfig={uiConfig} navItems={navItems} />
             ) : (

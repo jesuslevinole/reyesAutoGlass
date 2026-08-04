@@ -422,6 +422,25 @@ export const MODULES: ModuleDef[] = [
       { key: 'amount', label: 'Amount', type: 'decimal', inList: true },
     ],
   },
+  {
+    id: 'expenses',
+    collection: 'expenses',
+    sqlName: 'BD_EXPENSES',
+    title: 'Expenses',
+    singular: 'Expense',
+    description: 'Shop expenses — capture and track every cost',
+    fields: [
+      { key: 'dateExpenses', label: 'Date', type: 'date', inList: true, required: true, altKeys: ['DATE_EXPENSES', 'date_expenses', 'date'] },
+      { key: 'idExpenseType', label: 'Expense', type: 'fk', fkCollection: 'catalog_expenses', inList: true, required: true, altKeys: ['expenses', 'EXPENSES', 'id_expense', 'expense_type'] },
+      { key: 'description', label: 'Description', type: 'text', inList: true, altKeys: ['DESCRIPTION'] },
+      { key: 'amount', label: 'Amount', type: 'decimal', inList: true, required: true, altKeys: ['AMOUNT'] },
+      { key: 'idPaymentMethod', label: 'Payment method', type: 'fk', fkCollection: 'catalog_payment_method', inList: true, altKeys: ['payment_method', 'PAYMENT_METHOD', 'id_payment_method'] },
+      { key: 'reference', label: 'Reference', type: 'text', altKeys: ['REFERENCE'] },
+      { key: 'note', label: 'Note', type: 'longtext', altKeys: ['NOTE', 'notes'] },
+      { key: 'statusExpenses', label: 'Status', type: 'enum', options: ['No', 'Yes'], inList: true, altKeys: ['STATUS_EXPENSES', 'status_expenses', 'status'] },
+      { key: 'fileUrl', label: 'File URL', type: 'text', altKeys: ['upload_file', 'UPLOAD_FILE', 'file'] },
+    ],
+  },
 ];
 
 export function getModule(id: string): ModuleDef {
@@ -455,6 +474,8 @@ export const DEFAULT_NAV: NavItem[] = [
   { id: 'commissionpayments', label: 'Commission Payments' },
   { id: 'users', label: 'Users' },
   { id: 'roles', label: 'Roles' },
+  { id: 'expenses', label: 'Expenses' },
+  { id: 'calendar', label: 'Calendar' },
   { id: 'statusflow', label: 'Status Flow' },
   { id: 'catalogs', label: 'Catalogs' },
   { id: 'settings', label: 'Settings' },

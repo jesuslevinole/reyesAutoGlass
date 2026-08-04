@@ -1,7 +1,7 @@
 // Mapa único de íconos por módulo (lucide-react) — lo comparten Sidebar y el modal
 // de formularios para no duplicar la asignación módulo → ícono.
 import {
-  Banknote, Briefcase, Building2, ClipboardList, Crosshair, FileText,
+  Banknote, Briefcase, Building2, CalendarRange, ClipboardList, Crosshair, FileText,
   Database, Frame, Hash, Layers, LayoutDashboard, ListTree, MapPin, Percent,
   Receipt, Settings, Shield, ShieldCheck, Tag, UserCog, UserRound, Users, Wallet,
 } from 'lucide-react';
@@ -9,6 +9,8 @@ import type { LucideIcon } from 'lucide-react';
 
 export const MODULE_ICONS: Record<string, LucideIcon> = {
   dashboard: LayoutDashboard,
+  expenses: Receipt,
+  calendar: CalendarRange,
   statusflow: ListTree,
   catalogs: Database,
   settings: Settings,

@@ -6,7 +6,7 @@ import {
   Columns3,
   SlidersHorizontal,
   ArrowRight, Calculator, Car, CalendarClock, Check, ClipboardCheck, ClipboardList,
-  CreditCard, DollarSign, Eye, Pencil, Plus, Search, ShieldCheck, Tags, Trash2, X,
+  CreditCard, DollarSign, Eye, Pencil, Plus, Search, ShieldCheck, Tags, Trash2, X, ArrowUp, ArrowDown,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { MODULE_ICONS } from '../config/moduleIcons';
@@ -991,23 +991,31 @@ function ColumnsModal({ module, current, onClose }: {
   current: string[];
   onClose: () => void;
 }) {
-  const [selection, setSelection] = useState<Set<string>>(() => new Set(current));
+  // Array ORDENADO: el orden de la lista es el orden de las columnas en la tabla
+  const [selection, setSelection] = useState<string[]>(() => [...current]);
   const [saving, setSaving] = useState(false);
 
   const toggle = (key: string) => {
+    setSelection((prev) => prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]);
+  };
+
+  const moveColumn = (index: number, dir: -1 | 1) => {
     setSelection((prev) => {
-      const next = new Set(prev);
-      if (next.has(key)) next.delete(key); else next.add(key);
+      const j = index + dir;
+      if (j < 0 || j >= prev.length) return prev;
+      const next = [...prev];
+      [next[index], next[j]] = [next[j], next[index]];
       return next;
     });
   };
 
+  const labelOf = (key: string) => module.fields.find((f) => f.key === key)?.label ?? key;
+
   const save = async () => {
     setSaving(true);
     try {
-      // En el orden natural de los campos del módulo; se guarda para TODOS los usuarios
-      const visibleColumns = module.fields.filter((f) => selection.has(f.key)).map((f) => f.key);
-      await setRowMerged('config_ui', module.id, { visibleColumns });
+      // Se guarda EN ESTE ORDEN, para TODOS los usuarios
+      await setRowMerged('config_ui', module.id, { visibleColumns: selection });
       invalidateCatalog('config_ui');
       onClose();
     } finally {
@@ -1041,7 +1049,7 @@ function ColumnsModal({ module, current, onClose }: {
         </header>
         <ul className="cols-grid">
           {module.fields.map((field) => {
-            const checked = selection.has(field.key);
+            const checked = selection.includes(field.key);
             return (
               <li key={field.key}>
                 <label className={`cols-item${checked ? ' checked' : ''}`}>
@@ -1052,13 +1060,37 @@ function ColumnsModal({ module, current, onClose }: {
             );
           })}
         </ul>
+        {selection.length > 0 && (
+          <div className="cols-order-wrap">
+            <p className="cols-order-label">Column order ({selection.length})</p>
+            <ol className="cols-order">
+              {selection.map((key, index) => (
+                <li key={key}>
+                  <span className="cols-order-num">{index + 1}</span>
+                  <span className="cols-order-name">{labelOf(key)}</span>
+                  <span className="cols-order-actions">
+                    <button className="btn-icon-ghost" onClick={() => moveColumn(index, -1)} disabled={index === 0} aria-label="Move left">
+                      <ArrowUp size={13} />
+                    </button>
+                    <button className="btn-icon-ghost" onClick={() => moveColumn(index, 1)} disabled={index === selection.length - 1} aria-label="Move right">
+                      <ArrowDown size={13} />
+                    </button>
+                    <button className="btn-danger-ghost" onClick={() => toggle(key)} aria-label="Remove column">
+                      <X size={13} />
+                    </button>
+                  </span>
+                </li>
+              ))}
+            </ol>
+          </div>
+        )}
         <footer className="cols-foot">
           <button type="button" className="btn-outline" onClick={() => void reset()} disabled={saving}>
             Reset to default
           </button>
           <span className="cols-spacer" />
           <button type="button" className="btn-outline" onClick={onClose}>Cancel</button>
-          <button type="button" className="btn-dark" onClick={() => void save()} disabled={saving || selection.size === 0}>
+          <button type="button" className="btn-dark" onClick={() => void save()} disabled={saving || selection.length === 0}>
             {saving ? 'Saving…' : 'Save columns'}
           </button>
         </footer>
