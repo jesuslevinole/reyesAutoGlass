@@ -3,6 +3,7 @@ import type { CSSProperties, FormEvent } from 'react';
 import {
   ArrowRightCircle,
   FileSpreadsheet,
+  Columns3,
   SlidersHorizontal,
   ArrowRight, Calculator, Car, CalendarClock, Check, ClipboardCheck, ClipboardList,
   CreditCard, DollarSign, Eye, Pencil, Plus, Search, ShieldCheck, Tags, Trash2, X,
@@ -14,9 +15,9 @@ import { ensureTag, loadStatusRules } from '../utils/pipeline';
 import { FULL_PERM } from '../utils/uiConfig';
 import type { ModulePerm } from '../utils/uiConfig';
 import type { Row } from '../services/firestore';
-import { createRow, deleteRow, fetchAll, nextConsecutive, updateRow } from '../services/firestore';
+import { createRow, deleteRow, fetchAll, nextConsecutive, setRowMerged, updateRow } from '../services/firestore';
 import { cachedFetchAll, invalidateCatalog, subscribeCached } from '../services/catalogCache';
-import { formatDate, getFieldValue, getRelationColor, getRelationName, money, rowLabel, tagColorToHex } from '../utils/relations';
+import { formatPhone, formatDate, getFieldValue, getRelationColor, getRelationName, money, rowLabel, tagColorToHex } from '../utils/relations';
 import ImportExportBar from '../components/ImportExportBar';
 import { generateServiceDetailsReport, generateWorkOrderReport } from '../utils/reportExcel';
 import ServiceDetailModal from './ServiceDetailModal';
@@ -86,6 +87,7 @@ export default function GenericModuleView({ module, perms = FULL_PERM, initialSe
   const [statusFilter, setStatusFilter] = useState<string>('');
   const [reporting, setReporting] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [columnsOpen, setColumnsOpen] = useState(false);
   /** Filtros del drawer: fk/enum → id/valor; boolean → 'true'/'false'; date → {from,to} */
   const [filters, setFilters] = useState<Record<string, unknown>>({});
   const [statusOrder, setStatusOrder] = useState<string[]>([]);
@@ -187,11 +189,16 @@ export default function GenericModuleView({ module, perms = FULL_PERM, initialSe
   };
 
   const listFields = useMemo(() => {
-    const inList = module.fields.filter((f) => f.inList);
-    if (!module.columnOrder) return inList;
+    // Selección del admin (cualquier campo del módulo) o el default inList
+    const base = module.visibleColumns && module.visibleColumns.length > 0
+      ? module.visibleColumns
+          .map((key) => module.fields.find((f) => f.key === key))
+          .filter((f): f is FieldDef => Boolean(f))
+      : module.fields.filter((f) => f.inList);
+    if (!module.columnOrder) return base;
     // Orden personalizado desde Configuración; columnas no listadas van al final
     const order = module.columnOrder;
-    return [...inList].sort((a, b) => {
+    return [...base].sort((a, b) => {
       const ia = order.indexOf(a.key);
       const ib = order.indexOf(b.key);
       return (ia === -1 ? order.length : ia) - (ib === -1 ? order.length : ib);
@@ -304,6 +311,10 @@ export default function GenericModuleView({ module, perms = FULL_PERM, initialSe
           <p className="module-desc">{module.description}</p>
         </div>
         <div className="module-actions">
+          <button className="btn-outline" onClick={() => setColumnsOpen(true)}>
+            <Columns3 size={15} />
+            Columns
+          </button>
           {filterFields.length > 0 && (
             <button className="btn-outline filter-btn" onClick={() => setDrawerOpen(true)}>
               <SlidersHorizontal size={15} />
@@ -463,6 +474,14 @@ export default function GenericModuleView({ module, perms = FULL_PERM, initialSe
           </tbody>
         </table>
       </div>
+
+      {columnsOpen && (
+        <ColumnsModal
+          module={module}
+          current={listFields.map((c) => c.key)}
+          onClose={() => setColumnsOpen(false)}
+        />
+      )}
 
       {drawerOpen && (
         <FilterDrawer
@@ -729,6 +748,8 @@ function summaryValue(field: FieldDef, value: unknown, fkData: Record<string, Ro
 function renderCell(field: FieldDef, row: Row, fkData: Record<string, Row[]>) {
   const value = getFieldValue(row, field);
   switch (field.type) {
+    case 'phone':
+      return formatPhone(value);
     case 'fk': {
       const catalog = fkData[field.fkCollection ?? ''] ?? [];
       // Los status llevan su punto de color configurable (valor de runtime → variable CSS)
@@ -959,5 +980,89 @@ function FilterDrawer({ module, fields, fkData, filters, onChange, onClose }: Fi
         </footer>
       </aside>
     </>
+  );
+}
+
+
+/* ==================== Selector de columnas (guardado global en config_ui) ==================== */
+
+function ColumnsModal({ module, current, onClose }: {
+  module: ModuleDef;
+  current: string[];
+  onClose: () => void;
+}) {
+  const [selection, setSelection] = useState<Set<string>>(() => new Set(current));
+  const [saving, setSaving] = useState(false);
+
+  const toggle = (key: string) => {
+    setSelection((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      return next;
+    });
+  };
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      // En el orden natural de los campos del módulo; se guarda para TODOS los usuarios
+      const visibleColumns = module.fields.filter((f) => selection.has(f.key)).map((f) => f.key);
+      await setRowMerged('config_ui', module.id, { visibleColumns });
+      invalidateCatalog('config_ui');
+      onClose();
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const reset = async () => {
+    setSaving(true);
+    try {
+      await setRowMerged('config_ui', module.id, { visibleColumns: [] });
+      invalidateCatalog('config_ui');
+      onClose();
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="modal-card cols-modal" onClick={(e) => e.stopPropagation()}>
+        <header className="cols-head">
+          <span className="cols-icon"><Columns3 size={15} /></span>
+          <div className="cols-title">
+            <h3>Table columns — {module.title}</h3>
+            <p>Choose which columns everyone sees in this table.</p>
+          </div>
+          <button type="button" className="btn-icon-ghost" onClick={onClose} aria-label="Close">
+            <X size={17} />
+          </button>
+        </header>
+        <ul className="cols-grid">
+          {module.fields.map((field) => {
+            const checked = selection.has(field.key);
+            return (
+              <li key={field.key}>
+                <label className={`cols-item${checked ? ' checked' : ''}`}>
+                  <input type="checkbox" checked={checked} onChange={() => toggle(field.key)} />
+                  {field.label}
+                </label>
+              </li>
+            );
+          })}
+        </ul>
+        <footer className="cols-foot">
+          <button type="button" className="btn-outline" onClick={() => void reset()} disabled={saving}>
+            Reset to default
+          </button>
+          <span className="cols-spacer" />
+          <button type="button" className="btn-outline" onClick={onClose}>Cancel</button>
+          <button type="button" className="btn-dark" onClick={() => void save()} disabled={saving || selection.size === 0}>
+            {saving ? 'Saving…' : 'Save columns'}
+          </button>
+        </footer>
+      </div>
+    </div>
   );
 }

@@ -39,6 +39,8 @@ export interface ModuleDef {
   description: string;
   /** Pestañas del formulario modal; si se omite, una sola sección */
   sections?: { id: string; title: string }[];
+  /** Columnas visibles del listado (keys) — runtime, viene de config_ui */
+  visibleColumns?: string[];
   /** Orden personalizado de las columnas del listado (keys de campos inList) — runtime, viene de config_ui */
   columnOrder?: string[];
   fields: FieldDef[];

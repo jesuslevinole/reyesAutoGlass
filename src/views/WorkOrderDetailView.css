@@ -201,3 +201,5 @@
 }
 .wo-step-btn:hover { background: var(--blue-soft); transform: translateY(-1px); }
 .wo-step-btn:disabled { opacity: .6; cursor: wait; }
+
+.wo-copy-btn { margin-left: auto; }

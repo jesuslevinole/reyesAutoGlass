@@ -1,14 +1,17 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { CSSProperties } from 'react';
-import { ArrowLeft, Car, CreditCard, Package, User } from 'lucide-react';
+import { ArrowLeft, Car, Check, Copy, CreditCard, Package, User } from 'lucide-react';
 import type { Row } from '../services/firestore';
-import { fetchAll, subscribe, updateRow } from '../services/firestore';
-import { invalidateCatalog } from '../services/catalogCache';
+import { subscribe, updateRow } from '../services/firestore';
+import { cachedFetchAll, invalidateCatalog } from '../services/catalogCache';
 import { getModule } from '../config/modules';
 import type { KindRules } from '../utils/pipeline';
 import { loadStatusRules, missingForStage, stagesFromTags, visibleStages } from '../utils/pipeline';
 import { subscribeCached } from '../services/catalogCache';
-import { formatDate, getFieldValue, getRelationColor, getRelationName, money, tagColorToHex } from '../utils/relations';
+import { MessageModal } from '../components/MessageModal';
+import { buildOrderMessage } from '../utils/orderMessage';
+import type { OrderMessageCtx } from '../utils/orderMessage';
+import { formatDate, formatPhone, getFieldValue, getRelationColor, getRelationName, money, tagColorToHex } from '../utils/relations';
 import './WorkOrderDetailView.css';
 
 interface Props {
@@ -58,7 +61,7 @@ export default function WorkOrderDetailView({ workOrderId, kind = 'workorder', o
     const names = ['catalog_tag', 'customers', 'team', 'catalog_zipcode', 'catalog_insurance',
       'catalog_company', 'catalog_jobtype', 'catalog_part_number', 'catalog_payment_method'];
     let cancelled = false;
-    void Promise.all(names.map(async (c) => [c, await fetchAll(c)] as const)).then((pairs) => {
+    void Promise.all(names.map(async (c) => [c, await cachedFetchAll(c)] as const)).then((pairs) => {
       if (!cancelled) setCatalogs(Object.fromEntries(pairs));
     });
     return () => { cancelled = true; };
@@ -90,6 +93,8 @@ export default function WorkOrderDetailView({ workOrderId, kind = 'workorder', o
 
   /** CRM: cambiar de etapa desde el detalle, validando las reglas configuradas. */
   const [advancing, setAdvancing] = useState(false);
+  const [messageOpen, setMessageOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
   const advanceToStage = async (stageId: string, stageName: string) => {
     if (!order || advancing) return;
     setAdvancing(true);
@@ -113,6 +118,103 @@ export default function WorkOrderDetailView({ workOrderId, kind = 'workorder', o
       invalidateCatalog(collection);
     } finally {
       setAdvancing(false);
+    }
+  };
+
+
+  /** Contexto del mensaje construido desde los valores GUARDADOS de la orden. */
+  const messageCtx = (): OrderMessageCtx => {
+    const moduleDef = getModule('workorders');
+    const val = (key: string): unknown => {
+      const field = moduleDef.fields.find((f) => f.key === key);
+      return field && order ? getFieldValue(order, field) : undefined;
+    };
+    const n = (key: string): number => {
+      const v = Number(val(key));
+      return Number.isFinite(v) ? v : 0;
+    };
+    const customerRow = cat('customers').find((c) => c.id === val('idCustomer')) as Record<string, unknown> | undefined;
+    const address = customerRow
+      ? [
+          [customerRow.address, customerRow.apartment].filter(Boolean).join(' '),
+          customerRow.city,
+          [customerRow.state, customerRow.zipcode].filter(Boolean).join(' '),
+        ].filter(Boolean).join(', ')
+      : '';
+    const total = n('total');
+    const discountMoney = n('discount');
+    const fieldValueText = (key: string): string => {
+      const field = moduleDef.fields.find((f) => f.key === key);
+      const raw = val(key);
+      if (raw === undefined || raw === null || raw === '') return '';
+      if (!field) return String(raw);
+      if (field.type === 'fk' && field.fkCollection) {
+        return getRelationName(String(raw), cat(field.fkCollection));
+      }
+      if (field.type === 'phone') return formatPhone(raw);
+      if (field.type === 'decimal') return money(Number(raw));
+      if (field.type === 'boolean') return raw ? 'Yes' : 'No';
+      return String(raw);
+    };
+    return {
+      isQuote,
+      docNumber: String(val(isQuote ? 'quoteNumber' : 'workOrderNumber') ?? ''),
+      statusName: getRelationName(statusId, cat('catalog_tag')),
+      insuranceType: String(val('insuranceType') ?? 'Personal'),
+      customerName: customerRow ? [customerRow.first_name, customerRow.last_name].filter(Boolean).join(' ') || getRelationName(String(val('idCustomer') ?? ''), cat('customers')) : '',
+      phones: customerRow
+        ? [formatPhone(customerRow.phone), formatPhone(customerRow.alternative_phone)].filter(Boolean).join(' / ')
+        : '',
+      customerAddress: address,
+      appointment: val('appointmentDate')
+        ? `${String(val('appointmentDate'))}${val('timeIn') || val('timeOut') ? ` · ${val('timeIn') ?? ''}–${val('timeOut') ?? ''}` : ''}`
+        : '',
+      vehicle: {
+        line: `${[val('year'), val('mark'), val('model')].filter(Boolean).join(' ')}${val('body') ? ` · ${val('body')}` : ''}`,
+        vin: String(val('vinNumber') ?? ''),
+        plate: String(val('plate') ?? ''),
+      },
+      details: details.map((det) => {
+        const job = getRelationName(String(getFieldValue(det, { key: 'idJobtype', altKeys: ['job_type_id', 'id_job_type'] }) ?? ''), cat('catalog_jobtype'));
+        const part = getRelationName(String(getFieldValue(det, { key: 'idPartnumber', altKeys: ['part_number_id', 'id_part_number'] }) ?? ''), cat('catalog_part_number'));
+        const type = String(getFieldValue(det, { key: 'type' }) ?? '');
+        const amount = type === 'Services'
+          ? Number(getFieldValue(det, { key: 'amount', altKeys: ['service_amount'] }) ?? 0)
+          : Number(getFieldValue(det, { key: 'glassCost', altKeys: ['glass_cost'] }) ?? 0)
+            + Number(getFieldValue(det, { key: 'totalLabor', altKeys: ['total_labor'] }) ?? 0)
+            + Number(getFieldValue(det, { key: 'totalLaborHour', altKeys: ['total_labor_hour'] }) ?? 0);
+        return {
+          label: [type, job !== '—' ? job : '', part !== '—' ? part : ''].filter(Boolean).join(' · ') || 'Detail',
+          amount: Number.isFinite(amount) ? amount : 0,
+        };
+      }),
+      totals: {
+        subtotalPart: n('subtotalPart'),
+        subtotalServices: n('subtotalServices'),
+        totalLabor: n('totalLabor'),
+        taxDolar: n('taxDolar'),
+        longTrip: n('longTrip'),
+        discountMoney,
+        discountPercent: total > 0 ? Math.round((discountMoney / total) * 1000) / 10 : 0,
+        total,
+        adjustedTotal: total - discountMoney,
+        paid: n('paid'),
+        balance: n('balance') || total - n('paid'),
+      },
+      notes: String(val('notes') ?? ''),
+      fieldLabel: (key) => moduleDef.fields.find((f) => f.key === key)?.label ?? key,
+      fieldValueText,
+    };
+  };
+
+  const copyMessage = async (sections: string[]) => {
+    const text = buildOrderMessage(sections, messageCtx());
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 2500);
+    } catch {
+      window.prompt('Copy the message:', text);
     }
   };
 
@@ -182,7 +284,7 @@ export default function WorkOrderDetailView({ workOrderId, kind = 'workorder', o
       <header className="wo-head">
         <button className="btn-outline" onClick={onBack}>
           <ArrowLeft size={15} />
-          Volver a Work Orders
+          Back
         </button>
         <div className="wo-title-group">
           <h1>{str(order.mark)} {str(order.model)} {order.year ? `· ${order.year}` : ''}</h1>
@@ -200,6 +302,10 @@ export default function WorkOrderDetailView({ workOrderId, kind = 'workorder', o
             <span className="wo-date">Registrada {formatDate(order.dateRegister)}</span>
           </div>
         </div>
+        <button className="btn-outline wo-copy-btn" onClick={() => setMessageOpen(true)}>
+          {copied ? <Check size={15} /> : <Copy size={15} />}
+          {copied ? 'Copied!' : 'Copy message'}
+        </button>
       </header>
 
       {/* ===== Status tracker (pipeline del cliente) ===== */}
@@ -403,6 +509,16 @@ export default function WorkOrderDetailView({ workOrderId, kind = 'workorder', o
           </p>
         </article>
 
+      {messageOpen && (
+        <MessageModal
+          preview={(sections) => buildOrderMessage(sections, messageCtx())}
+          onCopy={(sections) => {
+            void copyMessage(sections);
+            setMessageOpen(false);
+          }}
+          onClose={() => setMessageOpen(false)}
+        />
+      )}
     </section>
   );
 }

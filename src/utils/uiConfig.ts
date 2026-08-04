@@ -14,6 +14,8 @@ export interface ModuleOverride {
   columnOrder?: string[];
   /** Orden de los campos del formulario */
   formOrder?: string[];
+  /** Columnas visibles del listado (cualquier campo del módulo) */
+  visibleColumns?: string[];
 }
 
 /** Permisos por acción de un rol sobre un módulo. */
@@ -34,13 +36,15 @@ function asOverride(doc: Row | undefined): ModuleOverride {
     labels: (d.labels && typeof d.labels === 'object') ? d.labels as Record<string, string> : undefined,
     columnOrder: Array.isArray(d.columnOrder) ? d.columnOrder as string[] : undefined,
     formOrder: Array.isArray(d.formOrder) ? d.formOrder as string[] : undefined,
+    visibleColumns: Array.isArray(d.visibleColumns) && (d.visibleColumns as string[]).length > 0
+      ? d.visibleColumns as string[] : undefined,
   };
 }
 
 /** Aplica los overrides de un módulo: título, etiquetas de campos y orden de columnas. */
 export function applyOverrides(module: ModuleDef, configDoc: Row | undefined): ModuleDef {
   const ov = asOverride(configDoc);
-  if (!ov.title && !ov.labels && !ov.columnOrder && !ov.formOrder) return module;
+  if (!ov.title && !ov.labels && !ov.columnOrder && !ov.formOrder && !ov.visibleColumns) return module;
   let fields = module.fields.map((f) => {
     const custom = ov.labels?.[f.key];
     return custom ? { ...f, label: custom } : f;
@@ -57,6 +61,7 @@ export function applyOverrides(module: ModuleDef, configDoc: Row | undefined): M
     ...module,
     title: ov.title ?? module.title,
     columnOrder: ov.columnOrder,
+    visibleColumns: ov.visibleColumns,
     fields,
   };
 }
