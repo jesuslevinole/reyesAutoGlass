@@ -1,0 +1,13 @@
+{
+  "name": "ReyesAutoGlass",
+  "short_name": "ReyesGlass",
+  "description": "Gestión de órdenes de trabajo, clientes y comisiones",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#F4F7F9",
+  "theme_color": "#0F172A",
+  "lang": "es",
+  "icons": [
+    { "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}
