@@ -8,6 +8,7 @@ import { subscribe } from '../services/firestore';
 import { subscribeCached } from '../services/catalogCache';
 import type { CatStatus, ServicesDetail, WorkOrder } from '../types';
 import { getFieldValue, getRelationName, money, tagColorToHex } from '../utils/relations';
+import { MonthCalendar } from './CalendarView';
 import './DashboardView.css';
 
 const MONTHS_ES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
@@ -40,7 +41,9 @@ function dateStr(offsetDays: number): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
-export default function DashboardView() {
+export default function DashboardView({ onOpenDoc }: {
+  onOpenDoc?: (doc: { kind: 'workorder' | 'quote'; id: string }) => void;
+}) {
   const [orders, setOrders] = useState<WorkOrder[]>([]);
   const [details, setDetails] = useState<ServicesDetail[]>([]);
   const [statuses, setStatuses] = useState<CatStatus[]>([]);
@@ -215,7 +218,12 @@ export default function DashboardView() {
         </li>
       </ul>
 
-      <div className="dash-grid">
+            <p className="dash-section-label">Schedule</p>
+      <div className="dash-card dash-cal">
+        <MonthCalendar compact onOpen={onOpenDoc} />
+      </div>
+
+<div className="dash-grid">
         {/* ===== Ingresos por mes ===== */}
         <article className="panel panel-chart">
           <h2>Revenue — last 6 months</h2>

@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-  ArrowRightCircle, Briefcase, Calculator, CalendarDays, Car, Check,
+  ArrowRightCircle, Briefcase, Calculator, CalendarDays, Car, Check, FileText,
   ClipboardList, Copy, Hash, MapPin, Minus, Pencil, Percent, Plus, Save, ShieldCheck,
   Trash2, UserRound, Wrench, X,
 } from 'lucide-react';
@@ -15,6 +15,7 @@ import { autoAdvanceTarget, configOf, ensureTag, loadStatusRules, missingForStag
 import { MessageModal } from '../components/MessageModal';
 import { buildOrderMessage } from '../utils/orderMessage';
 import type { OrderMessageCtx } from '../utils/orderMessage';
+import { openInvoice } from '../utils/invoice';
 import { formatPhone, getFieldValue, money, rowLabel } from '../utils/relations';
 import './WorkOrderWizard.css';
 
@@ -1270,6 +1271,10 @@ export default function WorkOrderWizard({ initialRow, onClose, mode = 'workorder
           </div>
 
           <div className="wz-sum-actions">
+            <button type="button" className="btn-outline wz-copy" onClick={() => void openInvoice(messageCtx())}>
+              <FileText size={15} />
+              {isQuote ? 'Quotation for customer' : 'Invoice for customer'}
+            </button>
             <button type="button" className="btn-outline wz-copy" onClick={() => setMessageModalOpen(true)}>
               {copied ? <Check size={15} /> : <Copy size={15} />}
               {copied ? 'Copied!' : 'Copy message'}

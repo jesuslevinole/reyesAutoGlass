@@ -476,6 +476,7 @@ export const DEFAULT_NAV: NavItem[] = [
   { id: 'roles', label: 'Roles' },
   { id: 'expenses', label: 'Expenses' },
   { id: 'calendar', label: 'Calendar' },
+  { id: 'reports', label: 'Reports' },
   { id: 'statusflow', label: 'Status Flow' },
   { id: 'catalogs', label: 'Catalogs' },
   { id: 'settings', label: 'Settings' },

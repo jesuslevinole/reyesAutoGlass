@@ -260,3 +260,7 @@
 @media (max-width: 640px) {
   .jobs-row { grid-template-columns: 1fr 1fr; }
 }
+
+/* Calendario integrado al dashboard */
+.dash-card.dash-cal { padding: 16px 18px 18px; }
+.dash-card.dash-cal .cal-card { box-shadow: none; }

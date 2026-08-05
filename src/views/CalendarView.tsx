@@ -42,8 +42,10 @@ function keyOf(year: number, month: number, day: number): string {
   return `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 }
 
-export default function CalendarView({ onOpen }: {
+/** Mes reutilizable estilo Google — vive solo (vista Calendar) o embebido (Dashboard). */
+export function MonthCalendar({ onOpen, compact = false }: {
   onOpen?: (doc: { kind: 'workorder' | 'quote'; id: string }) => void;
+  compact?: boolean;
 }) {
   const today = new Date();
   const [year, setYear] = useState(today.getFullYear());
@@ -129,13 +131,10 @@ export default function CalendarView({ onOpen }: {
   const monthEvents = grid.filter((c) => c.inMonth).reduce((acc, c) => acc + (eventsByDay.get(c.key)?.length ?? 0), 0);
 
   return (
-    <section className="module-view">
-      <header className="module-head">
-        <div>
-          <h1>Calendar</h1>
-          <p className="module-desc">Jobs done and scheduled — colored by their status</p>
-        </div>
-        <div className="module-actions cal-nav">
+    <div className={`cal-wrap${compact ? ' cal-compact' : ''}`}>
+      <div className="cal-toolbar">
+        <p className="cal-count">{monthEvents} job{monthEvents === 1 ? '' : 's'} this month</p>
+        <div className="cal-nav">
           <button className="btn-outline cal-today" onClick={goToday}>Today</button>
           <button className="btn-icon-ghost" onClick={() => navigate(-1)} aria-label="Previous month">
             <ChevronLeft size={18} />
@@ -145,9 +144,7 @@ export default function CalendarView({ onOpen }: {
             <ChevronRight size={18} />
           </button>
         </div>
-      </header>
-
-      <p className="cal-count">{monthEvents} job{monthEvents === 1 ? '' : 's'} this month</p>
+      </div>
 
       <div className="cal-card">
         <div className="cal-weekdays">
@@ -197,6 +194,23 @@ export default function CalendarView({ onOpen }: {
           })}
         </div>
       </div>
+    </div>
+  );
+}
+
+/** Vista completa del menú Calendar. */
+export default function CalendarView({ onOpen }: {
+  onOpen?: (doc: { kind: 'workorder' | 'quote'; id: string }) => void;
+}) {
+  return (
+    <section className="module-view">
+      <header className="module-head">
+        <div>
+          <h1>Calendar</h1>
+          <p className="module-desc">Jobs done and scheduled — colored by their status</p>
+        </div>
+      </header>
+      <MonthCalendar onOpen={onOpen} />
     </section>
   );
 }

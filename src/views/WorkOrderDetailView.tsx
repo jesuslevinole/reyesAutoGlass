@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { CSSProperties } from 'react';
-import { ArrowLeft, Car, Check, Copy, CreditCard, Package, User } from 'lucide-react';
+import { ArrowLeft, Car, Check, Copy, CreditCard, Package, User, FileText,
+} from 'lucide-react';
 import type { Row } from '../services/firestore';
 import { subscribe, updateRow } from '../services/firestore';
 import { cachedFetchAll, invalidateCatalog } from '../services/catalogCache';
@@ -11,6 +12,7 @@ import { subscribeCached } from '../services/catalogCache';
 import { MessageModal } from '../components/MessageModal';
 import { buildOrderMessage } from '../utils/orderMessage';
 import type { OrderMessageCtx } from '../utils/orderMessage';
+import { openInvoice } from '../utils/invoice';
 import { formatDate, formatPhone, getFieldValue, getRelationColor, getRelationName, money, tagColorToHex } from '../utils/relations';
 import './WorkOrderDetailView.css';
 
@@ -302,6 +304,10 @@ export default function WorkOrderDetailView({ workOrderId, kind = 'workorder', o
             <span className="wo-date">Registrada {formatDate(order.dateRegister)}</span>
           </div>
         </div>
+        <button type="button" className="btn-outline wo-copy-btn" onClick={() => void openInvoice(messageCtx())}>
+          <FileText size={15} />
+          {isQuote ? 'Quotation' : 'Invoice'}
+        </button>
         <button className="btn-outline wo-copy-btn" onClick={() => setMessageOpen(true)}>
           {copied ? <Check size={15} /> : <Copy size={15} />}
           {copied ? 'Copied!' : 'Copy message'}

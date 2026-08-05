@@ -3,7 +3,7 @@
 import {
   Banknote, Briefcase, Building2, CalendarRange, ClipboardList, Crosshair, FileText,
   Database, Frame, Hash, Layers, LayoutDashboard, ListTree, MapPin, Percent,
-  Receipt, Settings, Shield, ShieldCheck, Tag, UserCog, UserRound, Users, Wallet,
+  FileSpreadsheet, Receipt, Settings, Shield, ShieldCheck, Tag, UserCog, UserRound, Users, Wallet,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
@@ -11,6 +11,7 @@ export const MODULE_ICONS: Record<string, LucideIcon> = {
   dashboard: LayoutDashboard,
   expenses: Receipt,
   calendar: CalendarRange,
+  reports: FileSpreadsheet,
   statusflow: ListTree,
   catalogs: Database,
   settings: Settings,

@@ -9,6 +9,7 @@ import GenericModuleView from './views/GenericModuleView';
 import SettingsView from './views/SettingsView';
 import StatusFlowView from './views/StatusFlowView';
 import CalendarView from './views/CalendarView';
+import ReportsView from './views/ReportsView';
 import WorkOrderDetailView from './views/WorkOrderDetailView';
 import { DEFAULT_NAV, getModule } from './config/modules';
 import type { ModuleDef } from './config/modules';
@@ -169,7 +170,7 @@ export default function App() {
                 onBack={() => setOpenDoc(null)}
               />
             ) : view === 'dashboard' ? (
-              <DashboardView />
+              <DashboardView onOpenDoc={(doc) => setOpenDoc(doc)} />
             ) : view === 'catalogs' ? (
               <CatalogsView resolveModule={resolveModule} perms={permsFor('catalogs')} />
             ) : view === 'roles' ? (
@@ -178,6 +179,8 @@ export default function App() {
               <StatusFlowView />
             ) : view === 'calendar' ? (
               <CalendarView onOpen={(doc) => setOpenDoc(doc)} />
+            ) : view === 'reports' ? (
+              <ReportsView />
             ) : view === 'settings' ? (
               <SettingsView uiConfig={uiConfig} navItems={navItems} />
             ) : (
