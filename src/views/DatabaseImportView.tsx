@@ -80,8 +80,6 @@ const last4 = (v: unknown): string => {
   return digits.slice(-4);
 };
 
-const up = (v: unknown): string => clean(v).toUpperCase();
-
 const slug = (s: string): string =>
   s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
 
@@ -114,7 +112,7 @@ const SPECS: TableSpec[] = [
   // ============ CATÁLOGOS (primero) ============
   {
     table: 'CAT_VEHICLE', order: 1, signature: ['ID_VEHICLE', 'YEAR_VEHICLE'],
-    targets: 'cruce en memoria (opcional: cat_vehicle)',
+    targets: 'cruce en memoria (opcional: catalog_vehicle)',
     build: (rows, ctx) => {
       rows.forEach((r) => {
         const id = clean(r['ID_VEHICLE']);
@@ -124,133 +122,149 @@ const SPECS: TableSpec[] = [
         });
       });
       if (!ctx.importVehicles) return [];
-      return rows.map((r) => ({
-        collection: 'cat_vehicle', id: clean(r['ID_VEHICLE']),
-        data: { year: num(r['YEAR_VEHICLE']), make: clean(r['MAKE_VEHICLE']), model: clean(r['MODEL_VEHICLE']), body: clean(r['BODY_VEHICLE']) },
-      })).filter((o) => o.id);
+      return rows.map((r): WriteOp | null => {
+        const id = clean(r['ID_VEHICLE']);
+        if (!id) return null;
+        return {
+          collection: 'catalog_vehicle', id,
+          data: { year: num(r['YEAR_VEHICLE']), make: clean(r['MAKE_VEHICLE']), model: clean(r['MODEL_VEHICLE']), body: clean(r['BODY_VEHICLE']) },
+        };
+      }).filter((o): o is WriteOp => !!o);
     },
   },
   {
-    table: 'CAT_TAG', order: 2, signature: ['ID_TAG', 'NAME_TAG'], targets: 'cat_status',
-    build: (rows) => rows.map((r) => ({
-      collection: 'cat_status', id: clean(r['ID_TAG']),
-      data: { name: clean(r['NAME_TAG']), type: up(r['TYPE_TAG']), color: clean(r['COLOR_TAG']) },
-    })).filter((o) => o.id),
-  },
-  {
-    table: 'CAT_ZIPCODE', order: 2, signature: ['ID_ZIPCODE', 'ZIPCODE_ZIPCODE'], targets: 'cat_zipcode',
-    build: (rows) => rows.map((r) => ({
-      collection: 'cat_zipcode', id: clean(r['ID_ZIPCODE']),
-      data: {
-        country: clean(r['COUNTRY_ZIPCODE']), city: clean(r['CITY_ZIPCODE']), state: clean(r['STATE_ZIPCODE']),
-        zipcode: clean(r['ZIPCODE_ZIPCODE']), tax: pct(r['TAX_ZIPCODE']), longTrip: num(r['LOG_TRIP_ZIPCODE']),
-      },
-    })).filter((o) => o.id),
-  },
-  {
-    table: 'CAT_COMPANY', order: 2, signature: ['ID_COMPANY', 'NAME_COMPANY'], targets: 'cat_company',
-    build: (rows) => rows.map((r) => ({
-      collection: 'cat_company', id: clean(r['ID_COMPANY']),
-      data: { name: clean(r['NAME_COMPANY']), type: up(r['TYPE']) },
-    })).filter((o) => o.id),
-  },
-  {
-    table: 'CAT_JOBTYPE', order: 2, signature: ['ID_JOBTYPE', 'NAME_JOBTYPE'], targets: 'cat_jobtype',
-    build: (rows) => rows.map((r) => ({
-      collection: 'cat_jobtype', id: clean(r['ID_JOBTYPE']),
-      data: { name: clean(r['NAME_JOBTYPE']), type: up(r['TYPE']) },
-    })).filter((o) => o.id),
-  },
-  {
-    table: 'CAT_CALIBRATION_TYPE', order: 2, signature: ['ID_CALIBRATION_TYPE'], targets: 'cat_calibrationtype',
-    build: (rows) => rows.map((r) => ({
-      collection: 'cat_calibrationtype', id: clean(r['ID_CALIBRATION_TYPE']),
-      data: { name: clean(r['NAME_CALIBRATION_TYPE']), amount: num(r['PRCE_CALIBRATION_TYPE']) },
-    })).filter((o) => o.id),
-  },
-  {
-    table: 'CAT_PRICETIER', order: 2, signature: ['ID_PRICETIER', 'NAME_PRICETIER'], targets: 'cat_pricetier',
-    build: (rows) => rows.map((r) => ({
-      collection: 'cat_pricetier', id: clean(r['ID_PRICETIER']),
-      data: { name: clean(r['NAME_PRICETIER']), amount: num(r['PRCE_PRICETIER']) },
-    })).filter((o) => o.id),
-  },
-  {
-    table: 'CAT_PARTNUMBER', order: 2, signature: ['ID_PARTNUMBER', 'NAME_PART_NUMBER'], targets: 'cat_partnumber',
-    build: (rows) => rows.map((r) => ({
-      collection: 'cat_partnumber', id: clean(r['ID_PARTNUMBER']),
-      data: { name: clean(r['NAME_PART_NUMBER']), nagsDescription: clean(r['NAGS_DESCRIPTION_PART_NUMBER']), note: clean(r['NOTE_PART_NUMBER']) },
-    })).filter((o) => o.id),
-  },
-  {
-    table: 'CAT_PAYMENTMETHOD', order: 2, signature: ['ID_PAYMENTMETHOD', 'NAME'], targets: 'cat_paymentmethod',
+    table: 'CAT_TAG', order: 2, signature: ['ID_TAG', 'NAME_TAG'], targets: 'catalog_tag',
     build: (rows) => rows.map((r): WriteOp | null => {
-      let type = up(r['TYPE']);
-      if (type === 'EXPENSE') type = 'EXPENSES'; // enum de la app
+      const id = clean(r['ID_TAG']);
+      if (!id) return null;
+      return { collection: 'catalog_tag', id, data: { name: clean(r['NAME_TAG']), color: clean(r['COLOR_TAG']), type: clean(r['TYPE_TAG']) } };
+    }).filter((o): o is WriteOp => !!o),
+  },
+  {
+    table: 'CAT_ZIPCODE', order: 2, signature: ['ID_ZIPCODE', 'ZIPCODE_ZIPCODE'], targets: 'catalog_zipcode',
+    build: (rows) => rows.map((r): WriteOp | null => {
+      const id = clean(r['ID_ZIPCODE']);
+      if (!id) return null;
       return {
-        collection: 'cat_paymentmethod', id: clean(r['ID_PAYMENTMETHOD']),
-        data: { name: clean(r['NAME']), type },
+        collection: 'catalog_zipcode', id,
+        data: {
+          country: clean(r['COUNTRY_ZIPCODE']), city: clean(r['CITY_ZIPCODE']), state: clean(r['STATE_ZIPCODE']),
+          zipcode: clean(r['ZIPCODE_ZIPCODE']), tax: pct(r['TAX_ZIPCODE']), longTrip: num(r['LOG_TRIP_ZIPCODE']),
+        },
       };
-    }).filter((o): o is WriteOp => !!o && !!o.id),
+    }).filter((o): o is WriteOp => !!o),
   },
   {
-    table: 'CAT_MOLDING', order: 2, signature: ['ID_MOLDING'], targets: 'cat_molding',
-    build: (rows) => rows.map((r) => ({
-      collection: 'cat_molding', id: clean(r['ID_MOLDING']), data: { name: clean(r['NAME_MOLDING']) },
-    })).filter((o) => o.id),
+    table: 'CAT_COMPANY', order: 2, signature: ['ID_COMPANY', 'NAME_COMPANY'], targets: 'catalog_company',
+    build: (rows) => rows.map((r): WriteOp | null => {
+      const id = clean(r['ID_COMPANY']);
+      if (!id) return null;
+      return { collection: 'catalog_company', id, data: { name: clean(r['NAME_COMPANY']), type: clean(r['TYPE']) } };
+    }).filter((o): o is WriteOp => !!o),
   },
   {
-    table: 'CAT_EXPENSES', order: 2, signature: ['ID_CATEXPENSES'], targets: 'cat_expenses',
-    build: (rows) => rows.map((r) => ({
-      collection: 'cat_expenses', id: clean(r['ID_CATEXPENSES']), data: { name: clean(r['NAME']) },
-    })).filter((o) => o.id),
+    table: 'CAT_JOBTYPE', order: 2, signature: ['ID_JOBTYPE', 'NAME_JOBTYPE'], targets: 'catalog_jobtype',
+    build: (rows) => rows.map((r): WriteOp | null => {
+      const id = clean(r['ID_JOBTYPE']);
+      if (!id) return null;
+      return { collection: 'catalog_jobtype', id, data: { name: clean(r['NAME_JOBTYPE']), type: clean(r['TYPE']) } };
+    }).filter((o): o is WriteOp => !!o),
+  },
+  {
+    table: 'CAT_CALIBRATION_TYPE', order: 2, signature: ['ID_CALIBRATION_TYPE'], targets: 'catalog_calibration_type',
+    build: (rows) => rows.map((r): WriteOp | null => {
+      const id = clean(r['ID_CALIBRATION_TYPE']);
+      if (!id) return null;
+      return { collection: 'catalog_calibration_type', id, data: { name: clean(r['NAME_CALIBRATION_TYPE']), amount: num(r['PRCE_CALIBRATION_TYPE']) } };
+    }).filter((o): o is WriteOp => !!o),
+  },
+  {
+    table: 'CAT_PRICETIER', order: 2, signature: ['ID_PRICETIER', 'NAME_PRICETIER'], targets: 'catalog_price_tier',
+    build: (rows) => rows.map((r): WriteOp | null => {
+      const id = clean(r['ID_PRICETIER']);
+      if (!id) return null;
+      return { collection: 'catalog_price_tier', id, data: { name: clean(r['NAME_PRICETIER']), amount: num(r['PRCE_PRICETIER']) } };
+    }).filter((o): o is WriteOp => !!o),
+  },
+  {
+    table: 'CAT_PARTNUMBER', order: 2, signature: ['ID_PARTNUMBER', 'NAME_PART_NUMBER'], targets: 'catalog_part_number',
+    build: (rows) => rows.map((r): WriteOp | null => {
+      const id = clean(r['ID_PARTNUMBER']);
+      if (!id) return null;
+      return { collection: 'catalog_part_number', id, data: { name: clean(r['NAME_PART_NUMBER']), nagsDescription: clean(r['NAGS_DESCRIPTION_PART_NUMBER']), note: clean(r['NOTE_PART_NUMBER']) } };
+    }).filter((o): o is WriteOp => !!o),
+  },
+  {
+    table: 'CAT_PAYMENTMETHOD', order: 2, signature: ['ID_PAYMENTMETHOD', 'NAME'], targets: 'catalog_payment_method',
+    build: (rows) => rows.map((r): WriteOp | null => {
+      const id = clean(r['ID_PAYMENTMETHOD']);
+      if (!id) return null;
+      return { collection: 'catalog_payment_method', id, data: { name: clean(r['NAME']), type: clean(r['TYPE']) } };
+    }).filter((o): o is WriteOp => !!o),
+  },
+  {
+    table: 'CAT_MOLDING', order: 2, signature: ['ID_MOLDING'], targets: 'catalog_molding',
+    build: (rows) => rows.map((r): WriteOp | null => {
+      const id = clean(r['ID_MOLDING']);
+      if (!id) return null;
+      return { collection: 'catalog_molding', id, data: { name: clean(r['NAME_MOLDING']), amount: 0 } };
+    }).filter((o): o is WriteOp => !!o),
+  },
+  {
+    table: 'CAT_EXPENSES', order: 2, signature: ['ID_CATEXPENSES'], targets: 'catalog_expenses',
+    build: (rows) => rows.map((r): WriteOp | null => {
+      const id = clean(r['ID_CATEXPENSES']);
+      if (!id) return null;
+      return { collection: 'catalog_expenses', id, data: { name: clean(r['NAME']), amount: 0 } };
+    }).filter((o): o is WriteOp => !!o),
   },
 
   // ============ CONTACTOS ============
   {
     table: 'BD_CUSTOMER', order: 3, signature: ['ID_CUSTOMER', 'FIRST_NAME'], targets: 'customers',
-    build: (rows) => rows.map((r) => ({
-      collection: 'customers', id: clean(r['ID_CUSTOMER']),
-      data: {
-        firstName: clean(r['FIRST_NAME']), lastName: clean(r['LAST_NAME']),
-        phone: clean(r['PHONE']), alternativePhone: clean(r['ALTERNATIVE_PHONE']),
-        email: clean(r['EMAIL']), address: clean(r['ADDRESS_CUSTOMER']),
-        createdAt: ts(r['Timestamp_userCreate']),
-      },
-    })).filter((o) => o.id),
+    build: (rows) => rows.map((r): WriteOp | null => {
+      const id = clean(r['ID_CUSTOMER']);
+      if (!id) return null;
+      return {
+        collection: 'customers', id,
+        data: {
+          first_name: clean(r['FIRST_NAME']), last_name: clean(r['LAST_NAME']),
+          phone: clean(r['PHONE']), alternative_phone: clean(r['ALTERNATIVE_PHONE']),
+          email: clean(r['EMAIL']), address: clean(r['ADDRESS_CUSTOMER']),
+          apartment: '', city: '', state: '', zipcode: '', notes: '',
+          createdAt: ts(r['Timestamp_userCreate']),
+        },
+      };
+    }).filter((o): o is WriteOp => !!o),
   },
   {
     table: 'BD_TEAM', order: 3, signature: ['ID_TEAM', 'TYPE_TEAM'],
-    targets: 'agents / techs / distributors (según TYPE_TEAM)',
+    targets: 'team (Agent/Tech) + catalog_company (Distributor, mismo ID para que resuelvan los FKs)',
     build: (rows) => rows.map((r): WriteOp | null => {
       const id = clean(r['ID_TEAM']);
       if (!id) return null;
-      const type = up(r['TYPE_TEAM']);
-      const contacto = {
-        phone: clean(r['PHONE']), alternativePhone: clean(r['ALTERNATIVE_PHONE']),
-        email: clean(r['EMAIL']), address: clean(r['ADDRESS_TEAM']),
-      };
-      const comisiones = {
-        comissionJob: num(r['Comission_job']),
-        aftermarketComission: num(r['AFTERMARKET_COMISSION']), recommendComission: num(r['RECOMMEND_COMISSION']),
-        oemComission: num(r['OEM_COMISSION']), insuranceComission: num(r['INSURANCE_COMISSION']),
-        servicesComission: num(r['SERVICES_COMISSION']), laborTech: num(r['LABOR_TECH']),
-      };
-      if (type === 'DISTRIBUTOR') {
+      const type = clean(r['TYPE_TEAM']);
+      if (type === 'Distributor') {
+        // Los detalles de WO referencian estos IDs como distribuidor y el FK de la app
+        // apunta a catalog_company (type Distributor): se registran ahí con el MISMO id.
         return {
-          collection: 'distributors', id,
-          data: { name: `${clean(r['FIRST_NAME'])} ${clean(r['LAST_NAME'])}`.trim(), ...contacto, idCompany: clean(r['ID_COMPANY']) },
-        };
-      }
-      if (type === 'TECH') {
-        return {
-          collection: 'techs', id,
-          data: { firstName: clean(r['FIRST_NAME']), lastName: clean(r['LAST_NAME']), ...contacto, idCompany: clean(r['ID_COMPANY']), ...comisiones },
+          collection: 'catalog_company', id,
+          data: { name: `${clean(r['FIRST_NAME'])} ${clean(r['LAST_NAME'])}`.trim(), type: 'Distributor' },
         };
       }
       return {
-        collection: 'agents', id,
-        data: { idCompany: clean(r['ID_COMPANY']), firstName: clean(r['FIRST_NAME']), lastName: clean(r['LAST_NAME']), ...contacto, ...comisiones },
+        collection: 'team', id,
+        data: {
+          first_name: clean(r['FIRST_NAME']), last_name: clean(r['LAST_NAME']),
+          type: type || 'Agent',
+          companyId: clean(r['ID_COMPANY']),
+          phone: clean(r['PHONE']), email: clean(r['EMAIL']),
+          alternative_phone: clean(r['ALTERNATIVE_PHONE']), address: clean(r['ADDRESS_TEAM']),
+          comissionJob: num(r['Comission_job']),
+          aftermarketCommission: num(r['AFTERMARKET_COMISSION']), recommendCommission: num(r['RECOMMEND_COMISSION']),
+          oemCommission: num(r['OEM_COMISSION']), insuranceCommission: num(r['INSURANCE_COMISSION']),
+          servicesCommission: num(r['SERVICES_COMISSION']), laborTech: num(r['LABOR_TECH']),
+        },
       };
     }).filter((o): o is WriteOp => !!o),
   },
@@ -258,26 +272,24 @@ const SPECS: TableSpec[] = [
   // ============ OPERACIÓN ============
   {
     table: 'BD_WORKORDER', order: 4, signature: ['ID_WORKORDER', 'SUBTOTAL_PART'],
-    targets: 'workorders (+ insurances derivadas)',
+    targets: 'work_orders (+ catalog_insurance derivadas)',
     build: (rows, ctx) => {
       const ops: WriteOp[] = [];
       rows.forEach((r) => {
         const id = clean(r['ID_WORKORDER']);
         if (!id) return;
 
-        // Aseguradora: se crea una sola vez por nombre único.
         const carrier = clean(r['INSURRANCE_CARRIER']);
         let idInsurance = '';
         if (carrier) {
           if (!ctx.carrierIds.has(carrier)) {
             const insId = `ins-${slug(carrier)}`;
             ctx.carrierIds.set(carrier, insId);
-            ops.push({ collection: 'insurances', id: insId, data: { name: carrier, phone: '', email: '', address: '' } });
+            ops.push({ collection: 'catalog_insurance', id: insId, data: { name: carrier, phone: '', email: '', address: '' } });
           }
-          idInsurance = ctx.carrierIds.get(carrier)!;
+          idInsurance = ctx.carrierIds.get(carrier) ?? '';
         }
 
-        // Vehículo: cruce por ID_VEHICLE; respaldo: parsear el label "2016 Chevrolet Suburban ...".
         const veh = ctx.vehicleXref.get(clean(r['ID_VEHICLE']));
         let year = veh?.year ?? 0, mark = veh?.mark ?? '', model = veh?.model ?? '', body = veh?.body ?? '';
         if (!veh) {
@@ -287,15 +299,18 @@ const SPECS: TableSpec[] = [
         }
 
         ops.push({
-          collection: 'workorders', id,
+          collection: 'work_orders', id,
           data: {
-            workOrderNumber: clean(r['WORKORDER_LABEL']).split(' - ')[0], // "Wo-3371"
-            insuranceType: clean(r['Insurance']) === '1' ? 'INSURANCE' : 'PERSONAL',
+            workOrderNumber: clean(r['WORKORDER_LABEL']).split(' - ')[0] ?? '', // "Wo-3371"
+            quoteNumber: '',
+            insuranceType: clean(r['Insurance']) === '1' ? 'Insurance' : 'Personal',
             dateRegister: dateVal(r['DATE_WORKORDER']),
             idStatus: clean(r['ID_TAG']),
-            idCompany: clean(r['ID_COMPANY']),
             idAgent: clean(r['ID_AGENT']),
+            idTech: '',
+            techLabor: 0,
             idZipcode: clean(r['ID_ZIPCODE']),
+            idCompany: clean(r['ID_COMPANY']),
             longTrip: num(r['LONG_TRIP']),
             year, mark, model, body,
             vinNumber: clean(r['VIN_NUMBER']).toUpperCase(),
@@ -305,23 +320,24 @@ const SPECS: TableSpec[] = [
             timeIn: timeVal(r['TIME_FRAME_START']),
             timeOut: timeVal(r['TIME_FRAME_END']),
             idInsurance,
-            insuranceCarrier: carrier,
+            idTier: '', idCalibration: '',
             subtotalPart: num(r['SUBTOTAL_PART']),
             subtotalMolding: num(r['SUBTOTAL_MOLDING']),
             subtotalServices: num(r['SUBTOTAL_SERVICES']),
             totalLabor: num(r['TOTAL_LABOR']),
-            deductible: num(r['DEDUCTIBLE_WORKORDER']),
-            kitFlatRate: num(r['KIT_FLAT_RATE']),
             taxPercent: pct(r['TAX_PERCENT']),
             taxDolar: num(r['TAX_DOLAR']),
-            cashComeback: num(r['CASH_COMEBACK']),
-            total: num(r['TOTAL']),
-            upsold: num(r['UPSOLD']),
-            upsell: num(r['UPSELL']),
-            laborUpsell: num(r['LABOR_UPSELL']),
             discount: num(r['DISCOUNT']),
+            upsell: num(r['UPSELL']),
+            upsold: num(r['UPSOLD']),
+            cashComeback: num(r['CASH_COMEBACK']),
+            deductible: num(r['DEDUCTIBLE_WORKORDER']),
+            kitFlatRate: num(r['KIT_FLAT_RATE']),
+            total: num(r['TOTAL']),
             paid: num(r['PAID']),
             balance: num(r['BALANCE']),
+            laborUpsell: num(r['LABOR_UPSELL']),
+            notes: '',
             createdAt: ts(r['Timestamp_userCreate']),
           },
         });
@@ -330,17 +346,20 @@ const SPECS: TableSpec[] = [
     },
   },
   {
-    table: 'BD_WORKORDER_DETAIL', order: 5, signature: ['ID_WORKORDER', 'TYPE PART'], targets: 'servicesdetail',
+    table: 'BD_WORKORDER_DETAIL', order: 5, signature: ['ID_WORKORDER', 'TYPE PART'], targets: 'work_order_details',
     build: (rows) => rows.map((r): WriteOp | null => {
       const id = clean(r['ID']);
       if (!id) return null;
       return {
-        collection: 'servicesdetail', id,
+        collection: 'work_order_details', id,
         data: {
           idWorkorder: clean(r['ID_WORKORDER']),
-          insurance: boolish(r['INSURANCE']),
-          type: up(r['TYPE PART']),
+          type: clean(r['TYPE PART']),
+          insurance: boolish(r['INSURANCE']) ? 'Insurance' : 'Personal',
           idJobtype: clean(r['ID_JOBTYPE']),
+          description: clean(r['SERVICES_DESCRIPTION']),
+          amount: num(r['SERVICES_AMOUNT']),
+          note: clean(r['NOTE_SERVICES']),
           idPartnumber: clean(r['ID_PARTNUMBER']),
           nagsDescription: clean(r['NAGS DESCRIPTION']),
           glassCost: num(r['Glass Cost']),
@@ -353,9 +372,6 @@ const SPECS: TableSpec[] = [
           idCalibrationType: clean(r['ID_CALIBRATION_TYPE']),
           amountCalibrationtype: num(r['AMOUNT_CALIBRATION_TYPE']),
           totalLabor: num(r['TOTAL_LABOR']),
-          servicesDescription: clean(r['SERVICES_DESCRIPTION']),
-          servicesAmount: num(r['SERVICES_AMOUNT']),
-          noteServices: clean(r['NOTE_SERVICES']),
           listPrice: num(r['List Price']),
           nagsDiscountRate: pct(r['Nags Discount Rate']),
           pricePartInsurance: num(r['Amount List Price']),
@@ -373,18 +389,88 @@ const SPECS: TableSpec[] = [
 
   // ============ FINANZAS ============
   {
-    table: 'BD_PAYMENT_CLIENTE', order: 6, signature: ['ID_PAYMENT', 'CARD_NUMBER'], targets: 'payments (solo últimos 4 de tarjeta)',
+    table: 'BD_AGENTCOMISSIONWO', order: 6, signature: ['ID_AGENT', 'AFTERMARKET'], targets: 'agent_commissions',
+    build: (rows) => rows.map((r): WriteOp | null => {
+      const id = clean(r['ID']);
+      if (!id) return null;
+      return {
+        collection: 'agent_commissions', id,
+        data: {
+          agentId: clean(r['ID_AGENT']),
+          companyId: clean(r['ID_COMPANY']),
+          workOrderId: clean(r['ID_ WORKORDER'] ?? r['ID_WORKORDER']),
+          dateWorkorder: dateVal(r['DATE WORK ORDER']),
+          aftermarketCommission: num(r['AFTERMARKET']),
+          recommendCommission: num(r['RECOMMENDED']),
+          oemCommission: num(r['OEM']),
+          servicesCommission: num(r['SERVICES']),
+          insuranceCommission: num(r['INSURANCE']),
+          totalCommission: num(r['TOTAL `PAY'] ?? r['TOTAL PAY'] ?? r['TOTAL_PAY']),
+          checked: false,
+          paid: boolish(r['STATUS']),
+          paymentId: clean(r['ID_PAYMENTAGENT']),
+        },
+      };
+    }).filter((o): o is WriteOp => !!o),
+  },
+  {
+    table: 'BD_PAYMENTAGENT', order: 7, signature: ['ID_AGENTCOMISSION', 'DATE PAYMENT'], targets: 'commission_payments',
+    build: (rows) => rows.map((r): WriteOp | null => {
+      const id = clean(r['ID']);
+      if (!id) return null;
+      return {
+        collection: 'commission_payments', id,
+        data: {
+          reference: '',
+          agentId: clean(r['ID_AGENTCOMISSION']),
+          companyId: clean(r['ID_COMPANY']),
+          amount: num(r['TOTAL']),
+          subtotal: num(r['SUBTOTAL']),
+          bonus: num(r['BONUS']),
+          discount: num(r['DISCOUNT']),
+          date: dateVal(r['DATE PAYMENT']),
+          paymentMethodId: clean(r['ID_PAYMENTMETHOD']),
+          commissionIds: listVal(r['WORK ORDER TO PAY']),
+          notes: '',
+        },
+      };
+    }).filter((o): o is WriteOp => !!o),
+  },
+  {
+    table: 'BD_EXPENSES', order: 7, signature: ['ID_EXPENSES', 'AMOUNT_EXPENSES'], targets: 'expenses',
+    build: (rows) => rows.map((r): WriteOp | null => {
+      const id = clean(r['ID_EXPENSES']);
+      if (!id) return null;
+      return {
+        collection: 'expenses', id,
+        data: {
+          dateExpenses: dateVal(r['DATE_EXPENSES']),
+          idExpenseType: clean(r['ID_CATEXPENSES']),
+          description: clean(r['DESCRIPTION_EXPENSES']),
+          amount: num(r['AMOUNT_EXPENSES']),
+          idPaymentMethod: clean(r['ID_PAYMENTMETHOD']),
+          reference: clean(r['REFERENCE']),
+          note: clean(r['NOTE']),
+          statusExpenses: clean(r['STATUS_EXPENSES']) === '1' ? 'Yes' : 'No',
+          fileUrl: clean(r['UPLOADARCHIVE']),
+          createdAt: ts(r['Timestamp_userCreate']),
+        },
+      };
+    }).filter((o): o is WriteOp => !!o),
+  },
+
+  // ============ HISTÓRICOS SIN MÓDULO (colecciones auxiliares) ============
+  {
+    table: 'BD_PAYMENT_CLIENTE', order: 7, signature: ['ID_PAYMENT', 'CARD_NUMBER'], targets: 'client_payments (solo últimos 4 de tarjeta)',
     build: (rows) => rows.map((r): WriteOp | null => {
       const id = clean(r['ID_PAYMENT']);
       if (!id) return null;
       return {
-        collection: 'payments', id,
+        collection: 'client_payments', id,
         data: {
           idWorkorder: clean(r['ID_WORKORDER']),
           idPaymentmethod: clean(r['ID_PAYMENTMETHOD']),
-          // PCI-DSS: número completo y expiración NO se suben.
           cardLast4: last4(r['CARD_NUMBER']),
-          cardBrand: '',
           firstName: clean(r['First_name']),
           lastName: clean(r['Last_name']),
           idAutorization: clean(r['ID_AUTORIZATION']),
@@ -395,20 +481,18 @@ const SPECS: TableSpec[] = [
     }).filter((o): o is WriteOp => !!o),
   },
   {
-    table: 'BD_PAYMENTDISTRIBUTOR', order: 6, signature: ['ID_DISTRIBUTOR', 'WORK ORDER TO PAY'], targets: 'paymentdistributor',
+    table: 'BD_PAYMENTDISTRIBUTOR', order: 7, signature: ['ID_DISTRIBUTOR', 'WORK ORDER TO PAY'], targets: 'distributor_payments',
     build: (rows) => rows.map((r): WriteOp | null => {
       const id = clean(r['ID']);
       if (!id) return null;
       return {
-        collection: 'paymentdistributor', id,
+        collection: 'distributor_payments', id,
         data: {
           consecutive: clean(r['CONSECUTIVE DISTRIBUTOR']),
           datePayment: dateVal(r['DATE']),
           idDistributor: listVal(r['ID_DISTRIBUTOR']),
           idWorkorder: listVal(r['WORK ORDER TO PAY']),
           subtotal: num(r['SUBTOTAL']),
-          debit: num(r['BONUS']),
-          credit: num(r['DISCOUNT']),
           bonus: num(r['BONUS']),
           discount: num(r['DISCOUNT']),
           total: num(r['TOTAL']),
@@ -418,12 +502,12 @@ const SPECS: TableSpec[] = [
     }).filter((o): o is WriteOp => !!o),
   },
   {
-    table: 'BD_PAYMENTTECH', order: 6, signature: ['ID_TECHWO', 'Consecutive Payment Tech'], targets: 'techpayments',
+    table: 'BD_PAYMENTTECH', order: 7, signature: ['ID_TECHWO', 'Consecutive Payment Tech'], targets: 'tech_payments',
     build: (rows) => rows.map((r): WriteOp | null => {
       const id = clean(r['ID']);
       if (!id) return null;
       return {
-        collection: 'techpayments', id,
+        collection: 'tech_payments', id,
         data: {
           consecutive: clean(r['Consecutive Payment Tech']),
           datePayment: dateVal(r['DATE']),
@@ -435,51 +519,6 @@ const SPECS: TableSpec[] = [
           discount: num(r['DISCOUNT']),
           parts: clean(r['PARTS']),
           partsSuma: num(r['PARTS SUMA']),
-          totalLabor: num(r['TOTAL']),
-          idPaymentmethod: clean(r['ID_PAYMENTMETHOD']),
-        },
-      };
-    }).filter((o): o is WriteOp => !!o),
-  },
-  {
-    table: 'BD_AGENTCOMISSIONWO', order: 6, signature: ['ID_AGENT', 'AFTERMARKET'], targets: 'agentcomissions',
-    build: (rows) => rows.map((r): WriteOp | null => {
-      const id = clean(r['ID']);
-      if (!id) return null;
-      return {
-        collection: 'agentcomissions', id,
-        data: {
-          idAgent: clean(r['ID_AGENT']),
-          comission: num(r['TOTAL `PAY'] ?? r['TOTAL_PAY'] ?? r['TOTAL PAY']),
-          idWorkorder: clean(r['ID_ WORKORDER'] ?? r['ID_WORKORDER']),
-          dateWorkorder: dateVal(r['DATE WORK ORDER']),
-          idCompany: clean(r['ID_COMPANY']),
-          aftermarket: num(r['AFTERMARKET']),
-          recommended: num(r['RECOMMENDED']),
-          oem: num(r['OEM']),
-          services: num(r['SERVICES']),
-          insurance: num(r['INSURANCE']),
-          status: clean(r['STATUS']),
-          idPaymentagent: clean(r['ID_PAYMENTAGENT']),
-        },
-      };
-    }).filter((o): o is WriteOp => !!o),
-  },
-  {
-    table: 'BD_PAYMENTAGENT', order: 7, signature: ['ID_AGENTCOMISSION', 'DATE PAYMENT'], targets: 'agentpayments',
-    build: (rows) => rows.map((r): WriteOp | null => {
-      const id = clean(r['ID']);
-      if (!id) return null;
-      return {
-        collection: 'agentpayments', id,
-        data: {
-          datePayment: dateVal(r['DATE PAYMENT']),
-          idAgent: clean(r['ID_AGENTCOMISSION']),
-          idCompany: clean(r['ID_COMPANY']),
-          idWorkorder: listVal(r['WORK ORDER TO PAY']),
-          subtotal: num(r['SUBTOTAL']),
-          bonus: num(r['BONUS']),
-          discount: num(r['DISCOUNT']),
           total: num(r['TOTAL']),
           idPaymentmethod: clean(r['ID_PAYMENTMETHOD']),
         },
@@ -487,12 +526,12 @@ const SPECS: TableSpec[] = [
     }).filter((o): o is WriteOp => !!o),
   },
   {
-    table: 'BD_TECHWO', order: 7, signature: ['ID_TEAM', 'LABOR'], targets: 'techwo',
+    table: 'BD_TECHWO', order: 7, signature: ['ID_TEAM', 'LABOR'], targets: 'tech_wo',
     build: (rows) => rows.map((r): WriteOp | null => {
       const id = clean(r['ID']);
       if (!id) return null;
       return {
-        collection: 'techwo', id,
+        collection: 'tech_wo', id,
         data: {
           idWorkorder: clean(r['ID WORK ORDER']),
           dateWorkorder: dateVal(r['DATE WORK ORDER']),
@@ -506,33 +545,12 @@ const SPECS: TableSpec[] = [
     }).filter((o): o is WriteOp => !!o),
   },
   {
-    table: 'BD_EXPENSES', order: 7, signature: ['ID_EXPENSES', 'AMOUNT_EXPENSES'], targets: 'expenses',
-    build: (rows) => rows.map((r): WriteOp | null => {
-      const id = clean(r['ID_EXPENSES']);
-      if (!id) return null;
-      return {
-        collection: 'expenses', id,
-        data: {
-          idCatexpenses: clean(r['ID_CATEXPENSES']),
-          description: clean(r['DESCRIPTION_EXPENSES']),
-          amount: num(r['AMOUNT_EXPENSES']),
-          idPaymentmethod: clean(r['ID_PAYMENTMETHOD']),
-          reference: clean(r['REFERENCE']),
-          note: clean(r['NOTE']),
-          status: clean(r['STATUS_EXPENSES']),
-          dateExpenses: dateVal(r['DATE_EXPENSES']),
-          createdAt: ts(r['Timestamp_userCreate']),
-        },
-      };
-    }).filter((o): o is WriteOp => !!o),
-  },
-  {
-    table: 'BD_DEBITNOTE', order: 7, signature: ['# DEBIT NOTE'], targets: 'debitnotes',
+    table: 'BD_DEBITNOTE', order: 7, signature: ['# DEBIT NOTE'], targets: 'debit_notes',
     build: (rows) => rows.map((r): WriteOp | null => {
       const id = clean(r['ID']);
       if (!id) return null;
       return {
-        collection: 'debitnotes', id,
+        collection: 'debit_notes', id,
         data: {
           date: dateVal(r['DATE']),
           debitNoteNumber: clean(r['# DEBIT NOTE']),
@@ -550,12 +568,12 @@ const SPECS: TableSpec[] = [
     }).filter((o): o is WriteOp => !!o),
   },
   {
-    table: 'BD_CREDITNOTE', order: 7, signature: ['ID_DEBITNOTE', 'CREDIT_INVOICE'], targets: 'creditnotes',
+    table: 'BD_CREDITNOTE', order: 7, signature: ['ID_DEBITNOTE', 'CREDIT_INVOICE'], targets: 'credit_notes',
     build: (rows) => rows.map((r): WriteOp | null => {
       const id = clean(r['ID']);
       if (!id) return null;
       return {
-        collection: 'creditnotes', id,
+        collection: 'credit_notes', id,
         data: {
           idDebitnote: clean(r['ID_DEBITNOTE']),
           idPaymentdistributor: clean(r['ID_PAYMENT DISTRIBUTOR']),
@@ -569,23 +587,23 @@ const SPECS: TableSpec[] = [
     }).filter((o): o is WriteOp => !!o),
   },
   {
-    table: 'BONUS_DISCOUNT_AGENT', order: 7, signature: ['ID_PAYMENTAGENT', 'TYPE'], targets: 'bonusdiscountagent',
+    table: 'BONUS_DISCOUNT_AGENT', order: 7, signature: ['ID_PAYMENTAGENT', 'TYPE'], targets: 'bonus_discount_agent',
     build: (rows) => rows.map((r): WriteOp | null => {
       const id = clean(r['ID']);
       if (!id) return null;
       return {
-        collection: 'bonusdiscountagent', id,
+        collection: 'bonus_discount_agent', id,
         data: { idPaymentagent: clean(r['ID_PAYMENTAGENT']), date: dateVal(r['DATE']), type: clean(r['TYPE_LABEL']) || clean(r['TYPE']), amount: num(r['AMOUNT']), note: clean(r['NOTE']) },
       };
     }).filter((o): o is WriteOp => !!o),
   },
   {
-    table: 'BONUS_DISCOUNT_TECH', order: 7, signature: ['ID_PAYMENTTECH', 'TYPE'], targets: 'bonusdiscounttech',
+    table: 'BONUS_DISCOUNT_TECH', order: 7, signature: ['ID_PAYMENTTECH', 'TYPE'], targets: 'bonus_discount_tech',
     build: (rows) => rows.map((r): WriteOp | null => {
       const id = clean(r['ID']);
       if (!id) return null;
       return {
-        collection: 'bonusdiscounttech', id,
+        collection: 'bonus_discount_tech', id,
         data: { idPaymenttech: clean(r['ID_PAYMENTTECH']), date: dateVal(r['DATE']), type: clean(r['TYPE_LABEL']) || clean(r['TYPE']), amount: num(r['AMOUNT']), note: clean(r['NOTE']) },
       };
     }).filter((o): o is WriteOp => !!o),
